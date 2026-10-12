@@ -22,6 +22,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
@@ -31,6 +33,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
@@ -74,7 +77,8 @@ class MainActivity : ComponentActivity() {
     fun refreshSettings() { settings = WidgetSettings.load(context) }
 
     LaunchedEffect(settings) { TodoWidget.updateAll(context) }
-    ProvideTextStyle(TextStyle(fontFamily = NunitoFamily, fontWeight = composeWeight(settings.fontWeight))) {
+    val selectedFontStyle = if (settings.fontItalic) FontStyle.Italic else FontStyle.Normal
+    ProvideTextStyle(TextStyle(fontFamily = NunitoFamily, fontWeight = composeWeight(settings.fontWeight), fontStyle = selectedFontStyle)) {
         Column(Modifier.fillMaxSize().background(Bg).padding(18.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("Dark Todo", color = Ink, fontSize = 24.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
@@ -87,7 +91,7 @@ class MainActivity : ComponentActivity() {
                     Text("${tasks.count { !it.completed }} incomplete", color = Accent, fontSize = 13.sp)
                     Spacer(Modifier.height(16.dp))
                     Row(Modifier.fillMaxWidth().background(Card, RoundedCornerShape(16.dp)).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                        BasicTextField(value = title, onValueChange = { title = it }, modifier = Modifier.weight(1f), singleLine = true, textStyle = TextStyle(color = Ink, fontSize = 16.sp, fontFamily = NunitoFamily), decorationBox = { inner -> if (title.isEmpty()) Text("Add a task", color = Color.Gray); inner() })
+                        BasicTextField(value = title, onValueChange = { title = it }, modifier = Modifier.weight(1f), singleLine = true, textStyle = TextStyle(color = Ink, fontSize = settings.taskTitleSizeSp.sp, fontFamily = NunitoFamily, fontWeight = composeWeight(settings.fontWeight), fontStyle = selectedFontStyle), decorationBox = { inner -> if (title.isEmpty()) Text("Add a task", color = Color.Gray); inner() })
                         TextButton(onClick = { if (title.isNotBlank()) { TaskStore.add(context, title); title = ""; refresh() } }) { Text("Add", color = Accent) }
                     }
                     Spacer(Modifier.height(12.dp))
@@ -100,7 +104,7 @@ class MainActivity : ComponentActivity() {
                             Row(Modifier.fillMaxWidth().graphicsLayer(alpha = if (task.completed) 1f - settings.fadePercent / 100f else 1f).background(Card, RoundedCornerShape(14.dp)).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Text(if (task.completed) "\u25cf" else "\u25cb", modifier = Modifier.clickable { TaskStore.toggle(context, task.id); refresh() }, color = checkColor, fontSize = 22.sp)
                                 Spacer(Modifier.width(12.dp))
-                                Text(task.title, color = taskColor, modifier = Modifier.weight(1f).combinedClickable(onClick = { editing = task }, onLongClick = { if (!task.completed) { TaskStore.delete(context, task.id); refresh() } }), textDecoration = if (task.completed) TextDecoration.LineThrough else TextDecoration.None, fontWeight = composeWeight(settings.fontWeight))
+                                Text(task.title, color = taskColor, modifier = Modifier.weight(1f).combinedClickable(onClick = { editing = task }, onLongClick = { if (!task.completed) { TaskStore.delete(context, task.id); refresh() } }), textDecoration = if (task.completed) TextDecoration.LineThrough else TextDecoration.None, fontWeight = composeWeight(settings.fontWeight), fontSize = settings.taskTitleSizeSp.sp)
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                     TextButton(onClick = { TaskStore.move(context, task.id, -1); refresh() }, enabled = groupPosition > 0, contentPadding = PaddingValues(horizontal = 5.dp, vertical = 0.dp)) { Text("\u2191", color = if (groupPosition > 0) Color.LightGray else Color.DarkGray) }
                                     TextButton(onClick = { TaskStore.move(context, task.id, 1); refresh() }, enabled = groupPosition < groupSize - 1, contentPadding = PaddingValues(horizontal = 5.dp, vertical = 0.dp)) { Text("\u2193", color = if (groupPosition < groupSize - 1) Color.LightGray else Color.DarkGray) }
@@ -118,6 +122,8 @@ class MainActivity : ComponentActivity() {
                     onColor = { key, value -> WidgetSettings.saveColor(context, key, value); refreshSettings() },
                     onFade = { WidgetSettings.saveFade(context, it); refreshSettings() },
                     onWeight = { WidgetSettings.saveFontWeight(context, it); refreshSettings() },
+                    onItalic = { WidgetSettings.saveFontItalic(context, it); refreshSettings() },
+                    onTaskTitleSize = { WidgetSettings.saveTaskTitleSize(context, it); refreshSettings() },
                     onReset = { WidgetSettings.reset(context); refreshSettings() }
                 )
             }
@@ -126,21 +132,21 @@ class MainActivity : ComponentActivity() {
     LaunchedEffect(tasks) { TodoWidget.updateAll(context) }
     editing?.let { task ->
         var value by remember(task.id) { mutableStateOf(task.title) }
-        AlertDialog(onDismissRequest = { editing = null }, containerColor = Card, title = { Text("Edit task", color = Ink) }, text = { androidx.compose.material3.OutlinedTextField(value, { value = it }, singleLine = true) }, confirmButton = { TextButton(onClick = { TaskStore.rename(context, task.id, value); editing = null; refresh() }) { Text("Save", color = Accent) } }, dismissButton = { TextButton(onClick = { editing = null }) { Text("Cancel") } })
+        AlertDialog(onDismissRequest = { editing = null }, containerColor = Card, title = { Text("Edit task", color = Ink) }, text = { androidx.compose.material3.OutlinedTextField(value, { value = it }, singleLine = true, textStyle = TextStyle(color = Ink, fontSize = settings.taskTitleSizeSp.sp, fontFamily = NunitoFamily, fontWeight = composeWeight(settings.fontWeight), fontStyle = selectedFontStyle)) }, confirmButton = { TextButton(onClick = { TaskStore.rename(context, task.id, value); editing = null; refresh() }) { Text("Save", color = Accent) } }, dismissButton = { TextButton(onClick = { editing = null }) { Text("Cancel") } })
     }
     if (confirmClear) AlertDialog(onDismissRequest = { confirmClear = false }, containerColor = Card, title = { Text("Clear all history?", color = Ink) }, text = { Text("Active tasks and their completion status will not change.", color = Ink) }, confirmButton = { TextButton(onClick = { TaskStore.clearHistory(context); confirmClear = false; refresh() }) { Text("Delete history", color = Accent) } }, dismissButton = { TextButton(onClick = { confirmClear = false }) { Text("Cancel") } })
 }
 
-@Composable private fun SettingsScreen(settings: WidgetPrefs, onColor: (String, String) -> Unit, onFade: (Int) -> Unit, onWeight: (Int) -> Unit, onReset: () -> Unit) {
+@Composable private fun SettingsScreen(settings: WidgetPrefs, onColor: (String, String) -> Unit, onFade: (Int) -> Unit, onWeight: (Int) -> Unit, onItalic: (Boolean) -> Unit, onTaskTitleSize: (Float) -> Unit, onReset: () -> Unit) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         Text("Widget colors (HEX)", color = Ink, fontSize = 18.sp, modifier = Modifier.padding(top = 8.dp, bottom = 8.dp))
         val palette = listOf("FF0000", "000000", "FFFFFF", "171717", "F5F5F5", "2979FF", "00C853", "FFD600")
-        ColorSetting("Incomplete checkbox", "incomplete", settings.incomplete, palette, onColor)
-        ColorSetting("Completed checkbox", "complete", settings.complete, palette, onColor)
-        ColorSetting("Task-count panel", "count_panel", settings.countPanel, palette, onColor)
-        ColorSetting("Widget background", "background", settings.widgetBackground, palette, onColor)
-        ColorSetting("Task card background", "task_card", settings.taskCard, palette, onColor)
-        ColorSetting("Task title", "task_title", settings.taskTitle, palette, onColor)
+        ColorSetting("Incomplete checkbox", "incomplete", settings.incomplete, palette, settings, onColor)
+        ColorSetting("Completed checkbox", "complete", settings.complete, palette, settings, onColor)
+        ColorSetting("Task-count panel", "count_panel", settings.countPanel, palette, settings, onColor)
+        ColorSetting("Widget background", "background", settings.widgetBackground, palette, settings, onColor)
+        ColorSetting("Task card background", "task_card", settings.taskCard, palette, settings, onColor)
+        ColorSetting("Task title", "task_title", settings.taskTitle, palette, settings, onColor)
         Spacer(Modifier.height(8.dp))
         Text("Completed task fading: ${settings.fadePercent}%", color = Ink)
         Slider(value = settings.fadePercent.toFloat(), onValueChange = { onFade(it.toInt()) }, valueRange = 0f..100f)
@@ -154,12 +160,27 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
-        Text("Nunito is bundled in the app and widget, so it works offline. Font weight is adjustable in both the app and widget.", color = Color.LightGray, fontSize = 12.sp, modifier = Modifier.padding(bottom = 8.dp))
+        Text("Task title size: ${settings.taskTitleSizeSp.toInt()} sp", color = Ink)
+        Slider(value = settings.taskTitleSizeSp, onValueChange = onTaskTitleSize, valueRange = 12f..24f, steps = 11)
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+            Text("Italic task text", color = Ink)
+            Switch(
+                checked = settings.fontItalic,
+                onCheckedChange = onItalic,
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = Ink,
+                    checkedTrackColor = Accent,
+                    uncheckedThumbColor = Color.LightGray,
+                    uncheckedTrackColor = Card
+                )
+            )
+        }
+        Text("Nunito regular and italic variable fonts are bundled for offline use. Font weight, italic style, and task title size are adjustable independently in the app and widget.", color = Color.LightGray, fontSize = 12.sp, modifier = Modifier.padding(bottom = 8.dp))
         TextButton(onClick = onReset) { Text("Reset settings to defaults", color = Accent) }
     }
 }
 
-@Composable private fun ColorSetting(label: String, key: String, initial: String, palette: List<String>, onColor: (String, String) -> Unit) {
+@Composable private fun ColorSetting(label: String, key: String, initial: String, palette: List<String>, settings: WidgetPrefs, onColor: (String, String) -> Unit) {
     var input by remember(key, initial) { mutableStateOf(initial.removePrefix("#")) }
     Column(Modifier.fillMaxWidth().padding(vertical = 5.dp).background(Card, RoundedCornerShape(12.dp)).padding(10.dp)) {
         Text(label, color = Ink, fontSize = 14.sp)
@@ -168,7 +189,7 @@ class MainActivity : ComponentActivity() {
             BasicTextField(value = input, onValueChange = { value ->
                 input = value.filter { it.isDigit() || it.uppercaseChar() in 'A'..'F' }.take(6).uppercase()
                 if (input.length == 6) onColor(key, input)
-            }, modifier = Modifier.weight(1f).padding(8.dp), singleLine = true, textStyle = TextStyle(color = Ink, fontSize = 15.sp, fontFamily = NunitoFamily))
+            }, modifier = Modifier.weight(1f).padding(8.dp), singleLine = true, textStyle = TextStyle(color = Ink, fontSize = 15.sp, fontFamily = NunitoFamily, fontWeight = composeWeight(settings.fontWeight), fontStyle = if (settings.fontItalic) FontStyle.Italic else FontStyle.Normal))
             Box(Modifier.size(22.dp).background(colorFromHex(initial), RoundedCornerShape(5.dp)))
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(1.dp)) {

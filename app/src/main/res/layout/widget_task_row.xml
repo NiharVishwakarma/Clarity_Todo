@@ -11,7 +11,7 @@
         android:id="@+id/widget_task_check"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:fontFamily="@font/nunito_variable"
+        android:fontFamily="@font/nunito"
         android:text="&#x25CB;"
         android:textColor="#FF0000"
         android:textSize="17sp" />
@@ -21,7 +21,7 @@
         android:layout_height="wrap_content"
         android:layout_weight="1"
         android:ellipsize="end"
-        android:fontFamily="@font/nunito_variable"
+        android:fontFamily="@font/nunito"
         android:maxLines="1"
         android:paddingStart="7dp"
         android:text="Example task"

@@ -1,4 +1,4 @@
-Nunito variable font
+Nunito variable fonts (normal and italic)
 
 Copyright 2014 The Nunito Project Authors.
 

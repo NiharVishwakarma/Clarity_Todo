@@ -11,7 +11,9 @@ data class WidgetPrefs(
     val taskCard: String = "#171717",
     val taskTitle: String = "#F5F5F5",
     val fadePercent: Int = 45,
-    val fontWeight: Int = 400
+    val fontWeight: Int = 400,
+    val fontItalic: Boolean = false,
+    val taskTitleSizeSp: Float = 16f
 )
 
 object WidgetSettings {
@@ -29,7 +31,9 @@ object WidgetSettings {
             taskCard = p.getString(PREFIX + "task_card", defaults.taskCard)!!,
             taskTitle = p.getString(PREFIX + "task_title", defaults.taskTitle)!!,
             fadePercent = p.getInt(PREFIX + "fade", defaults.fadePercent).coerceIn(0, 100),
-            fontWeight = p.getInt(PREFIX + "font_weight", defaults.fontWeight).coerceIn(300, 900)
+            fontWeight = p.getInt(PREFIX + "font_weight", defaults.fontWeight).coerceIn(300, 900),
+            fontItalic = p.getBoolean(PREFIX + "font_italic", defaults.fontItalic),
+            taskTitleSizeSp = p.getFloat(PREFIX + "task_title_size_sp", defaults.taskTitleSizeSp).coerceIn(12f, 24f)
         )
     }
 
@@ -49,9 +53,18 @@ object WidgetSettings {
         context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putInt(PREFIX + "font_weight", value.coerceIn(300, 900)).apply()
     }
 
+    fun saveFontItalic(context: Context, value: Boolean) {
+        context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(PREFIX + "font_italic", value).apply()
+    }
+
+    fun saveTaskTitleSize(context: Context, value: Float) {
+        context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putFloat(PREFIX + "task_title_size_sp", value.coerceIn(12f, 24f)).apply()
+    }
+
     fun reset(context: Context) {
         context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().apply {
-            listOf("incomplete", "complete", "count_panel", "background", "task_card", "task_title", "fade", "font_weight").forEach { remove(PREFIX + it) }
+            listOf("incomplete", "complete", "count_panel", "background", "task_card", "task_title", "fade", "font_weight", "font_italic", "task_title_size_sp").forEach { remove(PREFIX + it) }
         }.apply()
     }
 }
