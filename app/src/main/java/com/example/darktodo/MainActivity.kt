@@ -154,7 +154,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
-        Text("Nunito is bundled in the app and widget, so it works offline. Font weight is adjustable in the app; the widget currently uses Nunito's regular weight.", color = Color.LightGray, fontSize = 12.sp, modifier = Modifier.padding(bottom = 8.dp))
+        Text("Nunito is bundled in the app and widget, so it works offline. Font weight is adjustable in both the app and widget.", color = Color.LightGray, fontSize = 12.sp, modifier = Modifier.padding(bottom = 8.dp))
         TextButton(onClick = onReset) { Text("Reset settings to defaults", color = Accent) }
     }
 }
