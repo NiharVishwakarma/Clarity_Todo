@@ -5,9 +5,9 @@ import android.graphics.Color as AndroidColor
 
 data class WidgetPrefs(
     val incomplete: String = "#FF0000",
-    val complete: String = "#FF0000",
+    val complete: String = "#00C853",
     val countPanel: String = "#FF0000",
-    val widgetBackground: String = "#000000",
+    val widgetBackground: String = "#171717",
     val taskCard: String = "#171717",
     val taskTitle: String = "#F5F5F5",
     val fadePercent: Int = 45,

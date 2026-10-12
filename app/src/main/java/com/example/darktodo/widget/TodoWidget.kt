@@ -37,9 +37,15 @@ object TodoWidget {
         val cardColor = parseColor(settings.taskCard)
         val fadedAlpha = (255 * (100 - settings.fadePercent) / 100).coerceIn(0, 255)
 
-        views.setInt(R.id.widget_count_panel, "setBackgroundColor", parseColor(settings.countPanel))
-        views.setInt(R.id.widget_root, "setBackgroundColor", parseColor(settings.widgetBackground))
-        views.setInt(R.id.widget_task_card, "setBackgroundColor", cardColor)
+        views.setInt(R.id.widget_root_background, "setColorFilter", parseColor(settings.widgetBackground))
+        views.setInt(R.id.widget_count_panel_background, "setColorFilter", parseColor(settings.countPanel))
+        views.setInt(R.id.widget_task_card_background, "setColorFilter", cardColor)
+        setFontWeight(views, R.id.widget_count, settings.fontWeight)
+        setFontWeight(views, R.id.widget_count_label, settings.fontWeight)
+        setFontWeight(views, R.id.widget_title, settings.fontWeight)
+        setFontWeight(views, R.id.widget_clear, settings.fontWeight)
+        setFontWeight(views, R.id.widget_add, settings.fontWeight)
+        setFontWeight(views, R.id.widget_empty, settings.fontWeight)
         views.setInt(R.id.widget_count, "setTextColor", Color.WHITE)
         views.setInt(R.id.widget_count_label, "setTextColor", Color.WHITE)
         views.setInt(R.id.widget_title, "setTextColor", Color.WHITE)
@@ -75,6 +81,8 @@ object TodoWidget {
             row.setTextViewText(R.id.widget_task_check, if (task.completed) "\u25cf" else "\u25cb")
             row.setInt(R.id.widget_task_check, "setTextColor", withAlpha(if (task.completed) completeColor else incompleteColor, opacity))
             row.setTextViewText(R.id.widget_task_title, task.title)
+            setFontWeight(row, R.id.widget_task_title, settings.fontWeight)
+            setFontWeight(row, R.id.widget_task_check, settings.fontWeight)
             row.setInt(R.id.widget_task_title, "setTextColor", withAlpha(titleColor, opacity))
             row.setInt(R.id.widget_task_row, "setBackgroundColor", withAlpha(cardColor, opacity))
 
@@ -92,6 +100,13 @@ object TodoWidget {
             views.addView(R.id.widget_task_rows, row)
         }
         return views
+    }
+
+    private fun setFontWeight(views: RemoteViews, viewId: Int, weight: Int) {
+        // TextView exposes variable-font axes on API 26+, matching this app's minSdk.
+        // RemoteViews routes this through TextView.setFontVariationSettings while the
+        // XML fontFamily keeps the bundled Nunito variable font attached.
+        views.setString(viewId, "setFontVariationSettings", "'wght' $weight")
     }
 
     private fun parseColor(value: String): Int = try {
