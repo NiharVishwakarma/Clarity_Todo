@@ -6,6 +6,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -94,16 +95,21 @@ class MainActivity : ComponentActivity() {
                         items(tasks, key = { it.id }) { task ->
                             val taskColor = colorFromHex(settings.taskTitle)
                             val checkColor = colorFromHex(if (task.completed) settings.complete else settings.incomplete)
-                            Row(Modifier.fillMaxWidth().graphicsLayer(alpha = if (task.completed) 1f - settings.fadePercent / 100f else 1f).background(Card, RoundedCornerShape(14.dp)).combinedClickable(onClick = { TaskStore.toggle(context, task.id); refresh() }, onLongClick = { if (!task.completed) { TaskStore.delete(context, task.id); refresh() } }).padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Text(if (task.completed) "\u25cf" else "\u25cb", color = checkColor, fontSize = 22.sp)
+                            val groupPosition = tasks.filter { it.completed == task.completed }.indexOfFirst { it.id == task.id }
+                            val groupSize = tasks.count { it.completed == task.completed }
+                            Row(Modifier.fillMaxWidth().graphicsLayer(alpha = if (task.completed) 1f - settings.fadePercent / 100f else 1f).background(Card, RoundedCornerShape(14.dp)).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text(if (task.completed) "\u25cf" else "\u25cb", modifier = Modifier.clickable { TaskStore.toggle(context, task.id); refresh() }, color = checkColor, fontSize = 22.sp)
                                 Spacer(Modifier.width(12.dp))
-                                Text(task.title, color = taskColor, modifier = Modifier.weight(1f), textDecoration = if (task.completed) TextDecoration.LineThrough else TextDecoration.None, fontWeight = composeWeight(settings.fontWeight))
-                                TextButton(onClick = { editing = task }) { Text("Edit", color = Color.LightGray) }
+                                Text(task.title, color = taskColor, modifier = Modifier.weight(1f).combinedClickable(onClick = { editing = task }, onLongClick = { if (!task.completed) { TaskStore.delete(context, task.id); refresh() } }), textDecoration = if (task.completed) TextDecoration.LineThrough else TextDecoration.None, fontWeight = composeWeight(settings.fontWeight))
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    TextButton(onClick = { TaskStore.move(context, task.id, -1); refresh() }, enabled = groupPosition > 0, contentPadding = PaddingValues(horizontal = 5.dp, vertical = 0.dp)) { Text("\u2191", color = if (groupPosition > 0) Color.LightGray else Color.DarkGray) }
+                                    TextButton(onClick = { TaskStore.move(context, task.id, 1); refresh() }, enabled = groupPosition < groupSize - 1, contentPadding = PaddingValues(horizontal = 5.dp, vertical = 0.dp)) { Text("\u2193", color = if (groupPosition < groupSize - 1) Color.LightGray else Color.DarkGray) }
+                                }
                                 if (task.completed) TextButton(onClick = { TaskStore.delete(context, task.id); refresh() }) { Text("X", color = Accent) }
                             }
                         }
                     }
-                    Text("Long-press an incomplete task to delete it.", color = Color.Gray, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
+                    Text("Use arrows to reorder within each group. Long-press an incomplete task title to delete it.", color = Color.Gray, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
                     TextButton(onClick = { TaskStore.clearCompleted(context); refresh() }) { Text("Clear completed", color = Accent) }
                 }
                 "History" -> HistoryScreen(events, route, onRoute = { route = it }, onDelete = { TaskStore.deleteEvent(context, it); refresh() }, onClear = { scope -> TaskStore.deleteEvents(context, scope); refresh() }, onClearAll = { confirmClear = true })

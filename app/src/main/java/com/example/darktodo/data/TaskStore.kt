@@ -43,7 +43,7 @@ object TaskStore {
 
     fun add(context: Context, title: String) = synchronized(lock) {
         val task = Task(UUID.randomUUID().toString(), title.trim(), false)
-        saveTasks(context, tasks(context) + task)
+        saveTasks(context, (tasks(context) + task).sortedBy { it.completed })
         log(context, task, "Created")
     }
 
@@ -53,6 +53,20 @@ object TaskStore {
         val next = old.copy(completed = !old.completed)
         saveTasks(context, current.map { if (it.id == id) next else it }.sortedBy { it.completed })
         log(context, next, if (next.completed) "Completed" else "Reopened")
+    }
+
+    /** Moves a task within its own incomplete/completed group, preserving the widget's group order. */
+    fun move(context: Context, id: String, direction: Int) = synchronized(lock) {
+        if (direction != -1 && direction != 1) return@synchronized
+        val current = tasks(context).toMutableList()
+        val index = current.indexOfFirst { it.id == id }
+        if (index < 0) return@synchronized
+        val neighbor = index + direction
+        if (neighbor !in current.indices || current[neighbor].completed != current[index].completed) return@synchronized
+        val task = current[index]
+        current[index] = current[neighbor]
+        current[neighbor] = task
+        saveTasks(context, current)
     }
 
     fun delete(context: Context, id: String) = synchronized(lock) {
