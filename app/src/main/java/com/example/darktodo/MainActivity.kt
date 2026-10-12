@@ -73,7 +73,7 @@ class MainActivity : ComponentActivity() {
     fun refresh() { tasks = TaskStore.tasks(context); events = TaskStore.history(context) }
     fun refreshSettings() { settings = WidgetSettings.load(context) }
 
-    LaunchedEffect(settings) { TodoWidget().updateAll(context) }
+    LaunchedEffect(settings) { TodoWidget.updateAll(context) }
     ProvideTextStyle(TextStyle(fontFamily = NunitoFamily, fontWeight = composeWeight(settings.fontWeight))) {
         Column(Modifier.fillMaxSize().background(Bg).padding(18.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -123,7 +123,7 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
-    LaunchedEffect(tasks) { TodoWidget().updateAll(context) }
+    LaunchedEffect(tasks) { TodoWidget.updateAll(context) }
     editing?.let { task ->
         var value by remember(task.id) { mutableStateOf(task.title) }
         AlertDialog(onDismissRequest = { editing = null }, containerColor = Card, title = { Text("Edit task", color = Ink) }, text = { androidx.compose.material3.OutlinedTextField(value, { value = it }, singleLine = true) }, confirmButton = { TextButton(onClick = { TaskStore.rename(context, task.id, value); editing = null; refresh() }) { Text("Save", color = Accent) } }, dismissButton = { TextButton(onClick = { editing = null }) { Text("Cancel") } })
@@ -154,7 +154,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
-        Text("Nunito is bundled in the app and works offline. Android home-screen widgets use system fonts, so the widget uses the selected weight with the closest available system sans-serif style.", color = Color.LightGray, fontSize = 12.sp, modifier = Modifier.padding(bottom = 8.dp))
+        Text("Nunito is bundled in the app and widget, so it works offline. Font weight is adjustable in the app; the widget currently uses Nunito's regular weight.", color = Color.LightGray, fontSize = 12.sp, modifier = Modifier.padding(bottom = 8.dp))
         TextButton(onClick = onReset) { Text("Reset settings to defaults", color = Accent) }
     }
 }
