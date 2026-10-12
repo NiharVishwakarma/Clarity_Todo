@@ -18,4 +18,4 @@ Active tasks use the `active_tasks_v1` preference key. Activity records use `tas
 
 ## Current implementation notes
 
-The widget lists up to five tasks at once; the app shows the full list. Widget task titles open the app, while the checkbox toggles completion. Long-press an incomplete task in the app to delete it. Font and color customization are not included in this initial scaffold yet.
+The widget lists up to five tasks at once; the app shows the full list. Widget task titles open the app, while the checkbox toggles completion. Long-press an incomplete task in the app to delete it. Widget colors, completed-task fading, and Nunito weights can be adjusted in Settings. Nunito is bundled for the app UI. Android Glance widgets cannot load custom app font resources, so the widget uses the closest system sans-serif weight. Font source: Google Fonts Nunito, licensed under SIL Open Font License 1.1 (see `licenses/Nunito-NOTICE.md`).

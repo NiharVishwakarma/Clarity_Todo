@@ -1,0 +1,57 @@
+package com.example.darktodo.data
+
+import android.content.Context
+import android.graphics.Color as AndroidColor
+
+data class WidgetPrefs(
+    val incomplete: String = "#FF0000",
+    val complete: String = "#FF0000",
+    val countPanel: String = "#FF0000",
+    val widgetBackground: String = "#000000",
+    val taskCard: String = "#171717",
+    val taskTitle: String = "#F5F5F5",
+    val fadePercent: Int = 45,
+    val fontWeight: Int = 400
+)
+
+object WidgetSettings {
+    private const val PREFS = "todo_store"
+    private const val PREFIX = "widget_setting_"
+    private val defaults = WidgetPrefs()
+
+    fun load(context: Context): WidgetPrefs {
+        val p = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        return WidgetPrefs(
+            incomplete = p.getString(PREFIX + "incomplete", defaults.incomplete)!!,
+            complete = p.getString(PREFIX + "complete", defaults.complete)!!,
+            countPanel = p.getString(PREFIX + "count_panel", defaults.countPanel)!!,
+            widgetBackground = p.getString(PREFIX + "background", defaults.widgetBackground)!!,
+            taskCard = p.getString(PREFIX + "task_card", defaults.taskCard)!!,
+            taskTitle = p.getString(PREFIX + "task_title", defaults.taskTitle)!!,
+            fadePercent = p.getInt(PREFIX + "fade", defaults.fadePercent).coerceIn(0, 100),
+            fontWeight = p.getInt(PREFIX + "font_weight", defaults.fontWeight).coerceIn(300, 900)
+        )
+    }
+
+    fun saveColor(context: Context, key: String, value: String): Boolean {
+        val normalized = value.trim().let { if (it.startsWith("#")) it else "#$it" }.uppercase()
+        if (!normalized.matches(Regex("^#[0-9A-F]{6}$"))) return false
+        try { AndroidColor.parseColor(normalized) } catch (_: IllegalArgumentException) { return false }
+        context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(PREFIX + key, normalized).apply()
+        return true
+    }
+
+    fun saveFade(context: Context, value: Int) {
+        context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putInt(PREFIX + "fade", value.coerceIn(0, 100)).apply()
+    }
+
+    fun saveFontWeight(context: Context, value: Int) {
+        context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putInt(PREFIX + "font_weight", value.coerceIn(300, 900)).apply()
+    }
+
+    fun reset(context: Context) {
+        context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().apply {
+            listOf("incomplete", "complete", "count_panel", "background", "task_card", "task_title", "fade", "font_weight").forEach { remove(PREFIX + it) }
+        }.apply()
+    }
+}
