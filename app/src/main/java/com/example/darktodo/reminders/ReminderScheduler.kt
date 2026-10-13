@@ -15,12 +15,15 @@ import com.example.darktodo.R
 import com.example.darktodo.data.Task
 import com.example.darktodo.data.TaskStore
 import com.example.darktodo.widget.TodoWidget
+import org.json.JSONObject
+import kotlin.random.Random
 import java.util.concurrent.TimeUnit
 
 object ReminderScheduler {
     private const val CHANNEL = "task_reminders"
     private const val EXTRA_TASK = "reminder_task"
     private const val EXTRA_KIND = "reminder_kind"
+    private const val EXTRA_TIME = "reminder_time"
     private const val ACTION_FIRE = "com.example.darktodo.reminders.FIRE"
     private const val HOUR = 3_600_000L
 
@@ -57,24 +60,24 @@ object ReminderScheduler {
 
     private fun pending(context: Context, id: String, kind: String, at: Long, flag: Int): PendingIntent? {
         val intent = Intent(context, ReminderReceiver::class.java).setAction(ACTION_FIRE).setData(android.net.Uri.parse("todo://reminder/$id/$kind"))
-            .putExtra(EXTRA_TASK, id).putExtra(EXTRA_KIND, kind)
+            .putExtra(EXTRA_TASK, id).putExtra(EXTRA_KIND, kind).putExtra(EXTRA_TIME, at)
         return PendingIntent.getBroadcast(context, 0, intent, flag or PendingIntent.FLAG_IMMUTABLE)
     }
 
-    internal fun handle(context: Context, id: String, kind: String) {
+    internal fun handle(context: Context, id: String, kind: String, scheduledAt: Long = 0L) {
         val task = TaskStore.tasks(context).firstOrNull { it.id == id } ?: return
         if (task.completed || task.reminderType == "none") return
         val now = System.currentTimeMillis()
         if (kind == "specific") {
             if (task.reminderType != "time" || task.reminderAt > now + 60_000L) { schedule(context, task); return }
-            TaskStore.configure(context, id, task.title, "none", 0L)
-            notify(context, task, "${task.title} — reminder", "It's time for this task.", false)
+            notify(context, task, task.title, quote(context, "specific:${task.id}:${task.reminderAt}"), false)
+            TaskStore.consumeReminder(context, id)
             TodoWidget.updateAll(context); return
         }
         if (task.reminderType != "duration") return
         if (task.deadlineAt <= now) {
             if (!task.overdueNotified) {
-                notify(context, task, "${task.title} — deadline missed", "Reschedule this task to set a new deadline.", true)
+                notify(context, task, task.title, "Deadline missed. ${quote(context, "deadline:${task.id}:${task.deadlineAt}")}", true)
                 TaskStore.markOverdueNotified(context, id)
             }
         } else {
@@ -82,7 +85,7 @@ object ReminderScheduler {
             val hours = TimeUnit.MILLISECONDS.toHours(remaining)
             val minutes = TimeUnit.MILLISECONDS.toMinutes(remaining) % 60
             val left = when { hours > 0 && minutes > 0 -> "$hours h $minutes min left"; hours > 0 -> "$hours ${if (hours == 1L) "hour" else "hours"} left"; else -> "${maxOf(1, TimeUnit.MILLISECONDS.toMinutes(remaining))} min left" }
-            notify(context, task, "${task.title} — $left", "Your task deadline is approaching.", false)
+            notify(context, task, task.title, "$left. ${quote(context, "progress:${task.id}:${scheduledAt.takeIf { it > 0L } ?: now}")}", false)
         }
         schedule(context, task); TodoWidget.updateAll(context)
     }
@@ -99,9 +102,30 @@ object ReminderScheduler {
         try { NotificationManagerCompat.from(context).notify(task.id.hashCode(), builder.build()) } catch (_: SecurityException) { }
     }
 
+    private fun quote(context: Context, eventKey: String): String = synchronized(this) {
+        val prefs = context.applicationContext.getSharedPreferences("reminder_quotes", Context.MODE_PRIVATE)
+        val events = JSONObject(prefs.getString("events", "{}"))
+        if (events.has(eventKey)) return@synchronized events.getString(eventKey)
+        val quotes = listOf(
+            "Discipline beats motivation.", "Small steps. Daily progress.", "Do it, even when it's hard.",
+            "Consistency creates results.", "Action over excuses.", "Stay focused. Keep moving.",
+            "Your future is built today.", "One task at a time.", "Show up. Get it done.",
+            "Progress requires discipline.", "Win the hour.", "Less talking. More doing.",
+            "Keep the promise you made.", "Focus now. Benefit later.", "Today's effort builds tomorrow.",
+            "Start now. Improve as you go.", "Make today count.", "Finish what you start.",
+            "Be consistent, not perfect.", "Earn your own respect."
+        )
+        val previous = prefs.getString("last_quote", null)
+        val choices = quotes.filter { it != previous }.ifEmpty { quotes }
+        val selected = choices[Random.nextInt(choices.size)]
+        events.put(eventKey, selected)
+        prefs.edit().putString("events", events.toString()).putString("last_quote", selected).apply()
+        selected
+    }
+
     fun restore(context: Context) {
         TaskStore.tasks(context).forEach { task ->
-            if (task.reminderType == "duration" && task.deadlineAt <= System.currentTimeMillis() && !task.overdueNotified) handle(context, task.id, "deadline")
+            if (task.reminderType == "duration" && task.deadlineAt <= System.currentTimeMillis() && !task.overdueNotified) handle(context, task.id, "deadline", task.deadlineAt)
             else schedule(context, task)
         }
     }
@@ -115,7 +139,7 @@ class ReminderReceiver : BroadcastReceiver() {
         if (intent.action == "com.example.darktodo.reminders.FIRE") {
             val id = intent.getStringExtra("reminder_task") ?: return
             val kind = intent.getStringExtra("reminder_kind") ?: return
-            ReminderScheduler.handle(context, id, kind)
+            ReminderScheduler.handle(context, id, kind, intent.getLongExtra("reminder_time", 0L))
         }
     }
 }

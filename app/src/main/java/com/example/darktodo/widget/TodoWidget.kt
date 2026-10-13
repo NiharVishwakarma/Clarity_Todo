@@ -47,13 +47,11 @@ object TodoWidget {
         views.setInt(R.id.widget_task_card_background, "setColorFilter", cardColor)
         setStyledText(views, R.id.widget_count, tasks.count { !it.completed }.toString(), settings.fontWeight, settings.fontItalic)
         setStyledText(views, R.id.widget_count_label, "Tasks", settings.fontWeight, settings.fontItalic)
-        setStyledText(views, R.id.widget_title, "TODO", settings.fontWeight, settings.fontItalic)
         setStyledText(views, R.id.widget_clear, "\u00D7", settings.fontWeight, settings.fontItalic)
         setStyledText(views, R.id.widget_add, "+ Add task", settings.fontWeight, settings.fontItalic)
         setStyledText(views, R.id.widget_empty, "No tasks yet", settings.fontWeight, settings.fontItalic)
         views.setInt(R.id.widget_count, "setTextColor", Color.WHITE)
         views.setInt(R.id.widget_count_label, "setTextColor", Color.WHITE)
-        views.setInt(R.id.widget_title, "setTextColor", Color.WHITE)
         views.setInt(R.id.widget_clear, "setTextColor", incompleteColor)
         views.setInt(R.id.widget_add, "setTextColor", incompleteColor)
 
@@ -63,7 +61,6 @@ object TodoWidget {
             Intent(context, MainActivity::class.java),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        views.setOnClickPendingIntent(R.id.widget_title, openApp)
         views.setOnClickPendingIntent(R.id.widget_add, openApp)
 
         val clearIntent = Intent(context, TodoWidgetReceiver::class.java).setAction(ACTION_CLEAR_COMPLETED)
@@ -84,7 +81,7 @@ object TodoWidget {
             val opacity = if (task.completed) fadedAlpha else 255
             row.setTextViewText(R.id.widget_task_check, if (task.completed) "\u25cf" else "\u25cb")
             row.setInt(R.id.widget_task_check, "setTextColor", withAlpha(if (task.completed) completeColor else incompleteColor, opacity))
-            val label = if (!task.completed && task.reminderType != "none") "${task.title} · ${taskDeadlineLabel(task)}" else task.title
+            val label = if (!task.completed && task.reminderType != "none") "${task.title} | ${taskDeadlineLabel(task)}" else task.title
             setStyledText(row, R.id.widget_task_title, label, settings.fontWeight, settings.fontItalic)
             row.setTextViewTextSize(R.id.widget_task_title, TypedValue.COMPLEX_UNIT_SP, settings.taskTitleSizeSp * (13f / 16f))
             row.setInt(R.id.widget_task_title, "setTextColor", withAlpha(titleColor, opacity))

@@ -97,6 +97,10 @@ object TaskStore {
         saveTasks(context, tasks(context).map { if (it.id == id) it.copy(overdueNotified = true) else it })
     }
 
+    fun consumeReminder(context: Context, id: String) = synchronized(lock) {
+        saveTasks(context, tasks(context).map { if (it.id == id) it.copy(reminderType = "none", reminderAt = 0L, deadlineAt = 0L, countdownStartedAt = 0L) else it })
+    }
+
     fun clearCompleted(context: Context) = synchronized(lock) {
         val current = tasks(context)
         current.filter { it.completed }.forEach { log(context, it, "Deleted completed task") }
