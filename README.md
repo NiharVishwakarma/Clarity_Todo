@@ -1,16 +1,14 @@
 # Dark Todo Widget
 
-Native Kotlin Android app and home-screen widget. The Codemagic workflow is in `codemagic.yaml` and creates an unsigned-by-you, debug-signed APK at `app/build/outputs/apk/debug/app-debug.apk`.
+Native Kotlin Android app and home-screen widget. GitHub Actions builds a debug-signed APK named `dark_todo.apk`.
 
-## Build with Codemagic
+## Build with GitHub Actions
 
-1. Put this folder in a Git repository and push it to a provider supported by Codemagic.
-2. Add the repository in Codemagic and select the `android-debug` workflow.
-3. Start a build and download `app-debug.apk` from the build artifacts.
-4. Install the APK on Android. If Android asks, allow installation from the browser or file manager used to open it.
-5. Long-press the home screen, open **Widgets**, find **Dark Todo**, and place it.
+The workflow in `.github/workflows/android-apk.yml` runs on pushes and pull requests to `main`, and can also be started manually from the repository's **Actions** tab. It installs Java 17 and the Android SDK, generates the Gradle wrapper on the runner, and builds the APK.
 
-No local Android SDK is needed. The included workflow generates the Gradle wrapper on the cloud worker before assembling the APK.
+To download it, open a successful **Android APK Build** run in GitHub Actions and download the `dark-todo-debug-apk` artifact. Extract it and install `dark_todo.apk` on Android. If Android asks, allow installation from the browser or file manager used to open it. Then long-press the home screen, open **Widgets**, find **Dark Todo**, and place it.
+
+No Codemagic account or local Android SDK is needed for the GitHub-hosted build.
 
 ## Data behavior
 
