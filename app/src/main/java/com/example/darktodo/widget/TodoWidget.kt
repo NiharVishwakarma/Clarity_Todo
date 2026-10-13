@@ -130,6 +130,11 @@ object TodoWidget {
 }
 
 class TodoWidgetReceiver : AppWidgetProvider() {
+    override fun onEnabled(context: Context) {
+        super.onEnabled(context)
+        com.example.darktodo.reminders.ReminderScheduler.restore(context)
+    }
+
     override fun onUpdate(context: Context, manager: AppWidgetManager, appWidgetIds: IntArray) {
         TodoWidget.update(context, manager, appWidgetIds)
     }

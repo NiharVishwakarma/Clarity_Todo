@@ -47,6 +47,7 @@ object TaskStore {
         val task = Task(UUID.randomUUID().toString(), title.trim(), false)
         saveTasks(context, (tasks(context) + task).sortedBy { it.completed })
         log(context, task, "Created")
+        com.example.darktodo.widget.TodoWidget.updateAll(context)
     }
 
     fun addConfigured(context: Context, title: String, type: String, at: Long, timeZone: String = "") = synchronized(lock) {
@@ -63,6 +64,7 @@ object TaskStore {
             localDateTime = local?.toString() ?: "", timeZoneId = if (type == "time") zone else "", followsDeviceTimeZone = timeZone.isBlank())
         saveTasks(context, (tasks(context) + task).sortedBy { it.completed }); log(context, task, "Created")
         com.example.darktodo.reminders.ReminderScheduler.schedule(context, task)
+        com.example.darktodo.widget.TodoWidget.updateAll(context)
     }
 
     fun configure(context: Context, id: String, title: String, type: String, at: Long, timeZone: String = "") = synchronized(lock) {
@@ -85,6 +87,7 @@ object TaskStore {
             localDateTime = local?.toString() ?: "", timeZoneId = if (type == "time") zone else "", followsDeviceTimeZone = timeZone.isBlank())
         saveTasks(context, current.map { if (it.id == id) next else it }); com.example.darktodo.reminders.ReminderScheduler.cancel(context, id); com.example.darktodo.reminders.ReminderScheduler.schedule(context, next)
         if (old.title != next.title || old.reminderType != next.reminderType || old.reminderAt != next.reminderAt || old.deadlineAt != next.deadlineAt || old.localDateTime != next.localDateTime || old.timeZoneId != next.timeZoneId) log(context, next, "Edited")
+        com.example.darktodo.widget.TodoWidget.updateAll(context)
     }
 
     fun toggle(context: Context, id: String) = synchronized(lock) {
@@ -93,7 +96,11 @@ object TaskStore {
         val next = old.copy(completed = !old.completed)
         saveTasks(context, current.map { if (it.id == id) next else it }.sortedBy { it.completed })
         if (next.completed) com.example.darktodo.reminders.ReminderScheduler.cancel(context, id)
+        else if (next.reminderType == "duration" && TaskTimeFormatter.remainingMillis(context, next) <= 0L && !next.overdueNotified) {
+            com.example.darktodo.reminders.ReminderScheduler.handle(context, id, "deadline")
+        } else com.example.darktodo.reminders.ReminderScheduler.schedule(context, next)
         log(context, next, if (next.completed) "Completed" else "Reopened")
+        com.example.darktodo.widget.TodoWidget.updateAll(context)
     }
 
     /** Moves a task within its own incomplete/completed group, preserving the widget's group order. */
@@ -108,6 +115,7 @@ object TaskStore {
         current[index] = current[neighbor]
         current[neighbor] = task
         saveTasks(context, current)
+        com.example.darktodo.widget.TodoWidget.updateAll(context)
     }
 
     fun delete(context: Context, id: String) = synchronized(lock) {
@@ -116,6 +124,7 @@ object TaskStore {
         saveTasks(context, current.filterNot { it.id == id })
         com.example.darktodo.reminders.ReminderScheduler.cancel(context, id)
         log(context, item, if (item.completed) "Deleted completed task" else "Deleted incomplete task")
+        com.example.darktodo.widget.TodoWidget.updateAll(context)
     }
 
     fun markOverdueNotified(context: Context, id: String) = synchronized(lock) {
@@ -150,7 +159,6 @@ object TaskStore {
             }
         }
         saveTasks(context, updated)
-        updated.filter { it.reminderType != "none" && !it.completed }.forEach { com.example.darktodo.reminders.ReminderScheduler.replaceAlarms(context, it) }
     }
 
     fun clearCompleted(context: Context) = synchronized(lock) {
@@ -158,6 +166,7 @@ object TaskStore {
         current.filter { it.completed }.forEach { log(context, it, "Deleted completed task") }
         saveTasks(context, current.filterNot { it.completed })
         current.filter { it.completed }.forEach { com.example.darktodo.reminders.ReminderScheduler.cancel(context, it.id) }
+        com.example.darktodo.widget.TodoWidget.updateAll(context)
     }
 
     fun deleteEvent(context: Context, id: String) = synchronized(lock) {
@@ -167,6 +176,7 @@ object TaskStore {
     fun rename(context: Context, id: String, title: String) = synchronized(lock) {
         if (title.isBlank()) return@synchronized
         saveTasks(context, tasks(context).map { if (it.id == id) it.copy(title = title.trim()) else it })
+        com.example.darktodo.widget.TodoWidget.updateAll(context)
     }
 
     fun deleteEvents(context: Context, scope: String) = synchronized(lock) {

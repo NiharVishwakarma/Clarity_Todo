@@ -37,7 +37,14 @@ object TaskTimeFormatter {
             }.getOrElse { DateFormat.getTimeFormat(context).format(Date(task.reminderAt)) }
             return "Due $time"
         }
-        val wholeMinutes = (remaining / 60_000L).coerceAtLeast(1L)
+        val completedMinutes = remaining / 60_000L
+        // Keep minute-level precision without letting a few seconds after an
+        // exact hour appear as a whole-hour countdown.
+        val wholeMinutes = when {
+            completedMinutes == 0L -> 1L
+            completedMinutes % 60L == 0L && remaining % 60_000L != 0L -> completedMinutes + 1L
+            else -> completedMinutes
+        }
         val hours = wholeMinutes / 60L
         val minutes = wholeMinutes % 60L
         return when {

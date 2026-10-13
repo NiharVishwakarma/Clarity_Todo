@@ -10,6 +10,14 @@ To download it, open a successful **Android APK Build** run in GitHub Actions an
 
 No Codemagic account or local Android SDK is needed for the GitHub-hosted build.
 
+## Countdown and widget refresh behavior
+
+The task screen, widget, and reminder progress notifications use the same deadline formatter. Relative countdowns use the saved elapsed-realtime deadline during the current boot, with the saved wall-clock deadline as recovery data across reboot; local-time reminders use their saved date/time and selected time zone. Positive durations round up to the next minute, while expired duration deadlines show `OVERDUE`.
+
+Task changes persist before their alarms and widget are updated. The existing reminder alarm is also the deadline refresh trigger: it refreshes the widget when a deadline is reached, while hourly progress reminders continue to refresh it before then. Alarms are restored after reboot, app replacement, clock/date/time-zone changes, and when the first widget is added. Opening the app and waking the screen while the app is active also recalculate and refresh task state.
+
+Android does not allow a manifest receiver for screen-on broadcasts, and widget periodic updates are limited to once every 30 minutes. The screen-on listener is therefore registered only while the app activity is started; with the app closed, deadline alarms and the widget provider's periodic refresh are the supported fallbacks. Doze, battery restrictions, force-stop, and denied notification permission can delay or prevent background delivery. Exact alarms are used only when Android grants the app exact-alarm access; otherwise the scheduler falls back to inexact alarms.
+
 ## Data behavior
 
 Active tasks use the `active_tasks_v1` preference key. Activity records use `task_history_v1`. Deleting or clearing active tasks writes a deletion event to history; deleting history only rewrites the history key. Relative countdowns use elapsed realtime while the device is running and are rebased from their saved deadline after reboot. Local-time reminders retain their local date/time and IANA time-zone ID; blank time-zone selection follows the device zone. Storage remains local and is retained across app restarts and reboots.
