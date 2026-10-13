@@ -76,7 +76,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: android.content.Intent) { super.onNewIntent(intent); setIntent(intent) }
 
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == 41 && grantResults.firstOrNull() != PackageManager.PERMISSION_GRANTED) android.widget.Toast.makeText(this, "Notifications are off. Enable them in Settings to receive task reminders.", android.widget.Toast.LENGTH_LONG).show()
     }
