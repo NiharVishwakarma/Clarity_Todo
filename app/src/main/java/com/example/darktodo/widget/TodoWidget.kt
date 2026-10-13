@@ -17,6 +17,7 @@ import com.example.darktodo.MainActivity
 import com.example.darktodo.R
 import com.example.darktodo.data.Task
 import com.example.darktodo.data.TaskStore
+import com.example.darktodo.data.TaskTimeFormatter
 import com.example.darktodo.data.WidgetPrefs
 import com.example.darktodo.data.WidgetSettings
 
@@ -81,7 +82,7 @@ object TodoWidget {
             val opacity = if (task.completed) fadedAlpha else 255
             row.setTextViewText(R.id.widget_task_check, if (task.completed) "\u25cf" else "\u25cb")
             row.setInt(R.id.widget_task_check, "setTextColor", withAlpha(if (task.completed) completeColor else incompleteColor, opacity))
-            val label = if (!task.completed && task.reminderType != "none") "${task.title} | ${taskDeadlineLabel(task)}" else task.title
+            val label = if (!task.completed && task.reminderType != "none") "${task.title} | ${TaskTimeFormatter.label(context, task)}" else task.title
             setStyledText(row, R.id.widget_task_title, label, settings.fontWeight, settings.fontItalic)
             row.setTextViewTextSize(R.id.widget_task_title, TypedValue.COMPLEX_UNIT_SP, settings.taskTitleSizeSp * (13f / 16f))
             row.setInt(R.id.widget_task_title, "setTextColor", withAlpha(titleColor, opacity))
@@ -126,16 +127,6 @@ object TodoWidget {
     const val ACTION_TOGGLE_TASK = "com.example.darktodo.widget.TOGGLE_TASK"
     const val ACTION_CLEAR_COMPLETED = "com.example.darktodo.widget.CLEAR_COMPLETED"
     const val EXTRA_TASK_ID = "task_id"
-}
-
-private fun taskDeadlineLabel(task: Task): String? {
-    val deadline = when (task.reminderType) { "duration" -> task.deadlineAt; "time" -> task.reminderAt; else -> 0L }
-    if (task.completed || deadline <= 0L) return null
-    val left = deadline - System.currentTimeMillis()
-    if (left <= 0) return if (task.reminderType == "duration") "OVERDUE" else "Due now"
-    if (task.reminderType == "time") return "Due ${java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault()).format(java.util.Date(deadline))}"
-    val hours = left / 3_600_000L; val minutes = (left / 60_000L) % 60
-    return if (hours > 0) "${hours}h left" else "${maxOf(1, minutes)}m left"
 }
 
 class TodoWidgetReceiver : AppWidgetProvider() {

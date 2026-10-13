@@ -8,12 +8,14 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.os.SystemClock
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.example.darktodo.MainActivity
 import com.example.darktodo.R
 import com.example.darktodo.data.Task
 import com.example.darktodo.data.TaskStore
+import com.example.darktodo.data.TaskTimeFormatter
 import com.example.darktodo.widget.TodoWidget
 import org.json.JSONObject
 import kotlin.random.Random
@@ -30,32 +32,49 @@ object ReminderScheduler {
     fun schedule(context: Context, task: Task) {
         if (task.completed || task.reminderType == "none") return
         val now = System.currentTimeMillis()
-        val (whenAt, kind) = when (task.reminderType) {
-            "time" -> task.reminderAt to "specific"
+        val (whenAt, kind, elapsedAlarm) = when (task.reminderType) {
+            "time" -> Triple(task.reminderAt, "specific", false)
             "duration" -> {
-                if (task.deadlineAt <= now) return
-                val start = task.countdownStartedAt.takeIf { it > 0L } ?: now
-                val next = start + (((now - start) / HOUR) + 1L) * HOUR
-                (if (next < task.deadlineAt) next else task.deadlineAt) to if (next < task.deadlineAt) "progress" else "deadline"
+                val elapsedNow = SystemClock.elapsedRealtime()
+                val remaining = TaskTimeFormatter.remainingMillis(context, task, now, elapsedNow)
+                if (remaining <= 0L) return
+                val deadline = if (task.countdownDeadlineElapsed > elapsedNow && task.countdownBootCount == TaskTimeFormatter.bootCount(context)) task.countdownDeadlineElapsed else elapsedNow + remaining
+                val start = task.countdownStartElapsed.takeIf { it > 0L && it <= elapsedNow } ?: (deadline - task.countdownDurationMs.coerceAtLeast(remaining))
+                val next = start + (((elapsedNow - start) / HOUR) + 1L) * HOUR
+                Triple(if (next < deadline) next else deadline, if (next < deadline) "progress" else "deadline", true)
             }
             else -> return
         }
         if (whenAt <= 0L) return
-        setAlarm(context, task.id, kind, whenAt)
+        setAlarm(context, task.id, kind, whenAt, elapsedAlarm)
     }
 
     fun cancel(context: Context, id: String) {
+        clearAlarms(context, id)
+        NotificationManagerCompat.from(context).cancel(id.hashCode())
+    }
+
+    private fun clearAlarms(context: Context, id: String) {
         val am = context.getSystemService(AlarmManager::class.java)
         listOf("specific", "progress", "deadline").forEach { kind ->
             val pi = pending(context, id, kind, 0L, PendingIntent.FLAG_NO_CREATE)
             if (pi != null) { am.cancel(pi); pi.cancel() }
         }
-        NotificationManagerCompat.from(context).cancel(id.hashCode())
     }
 
-    private fun setAlarm(context: Context, id: String, kind: String, at: Long) {
+    fun replaceAlarms(context: Context, task: Task) {
+        clearAlarms(context, task.id)
+        schedule(context, task)
+    }
+
+    private fun setAlarm(context: Context, id: String, kind: String, at: Long, elapsed: Boolean) {
         val pi = pending(context, id, kind, at, PendingIntent.FLAG_UPDATE_CURRENT) ?: return
-        context.getSystemService(AlarmManager::class.java).setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi)
+        val manager = context.getSystemService(AlarmManager::class.java)
+        val type = if (elapsed) AlarmManager.ELAPSED_REALTIME_WAKEUP else AlarmManager.RTC_WAKEUP
+        if (Build.VERSION.SDK_INT >= 31 && manager.canScheduleExactAlarms()) {
+            try { manager.setExactAndAllowWhileIdle(type, at, pi); return } catch (_: SecurityException) { }
+        }
+        if (Build.VERSION.SDK_INT >= 23) manager.setAndAllowWhileIdle(type, at, pi) else manager.set(type, at, pi)
     }
 
     private fun pending(context: Context, id: String, kind: String, at: Long, flag: Int): PendingIntent? {
@@ -75,13 +94,13 @@ object ReminderScheduler {
             TodoWidget.updateAll(context); return
         }
         if (task.reminderType != "duration") return
-        if (task.deadlineAt <= now) {
+        val remaining = TaskTimeFormatter.remainingMillis(context, task, now)
+        if (remaining <= 0L) {
             if (!task.overdueNotified) {
                 notify(context, task, task.title, "Deadline missed. ${quote(context, "deadline:${task.id}:${task.deadlineAt}")}", true)
                 TaskStore.markOverdueNotified(context, id)
             }
         } else {
-            val remaining = task.deadlineAt - now
             val hours = TimeUnit.MILLISECONDS.toHours(remaining)
             val minutes = TimeUnit.MILLISECONDS.toMinutes(remaining) % 60
             val left = when { hours > 0 && minutes > 0 -> "$hours h $minutes min left"; hours > 0 -> "$hours ${if (hours == 1L) "hour" else "hours"} left"; else -> "${maxOf(1, TimeUnit.MILLISECONDS.toMinutes(remaining))} min left" }
@@ -124,16 +143,18 @@ object ReminderScheduler {
     }
 
     fun restore(context: Context) {
+        TaskStore.recalculateSystemDeadlines(context)
         TaskStore.tasks(context).forEach { task ->
-            if (task.reminderType == "duration" && task.deadlineAt <= System.currentTimeMillis() && !task.overdueNotified) handle(context, task.id, "deadline", task.deadlineAt)
-            else schedule(context, task)
+            if (task.reminderType == "duration" && TaskTimeFormatter.remainingMillis(context, task) <= 0L && !task.overdueNotified) handle(context, task.id, "deadline", task.deadlineAt)
         }
+        TodoWidget.updateAll(context)
     }
 }
 
 class ReminderReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action == Intent.ACTION_BOOT_COMPLETED || intent.action == Intent.ACTION_MY_PACKAGE_REPLACED || intent.action == "android.intent.action.TIME_SET" || intent.action == Intent.ACTION_TIMEZONE_CHANGED) {
+        if (intent.action == Intent.ACTION_BOOT_COMPLETED || intent.action == Intent.ACTION_MY_PACKAGE_REPLACED || intent.action == "android.intent.action.TIME_SET" || intent.action == Intent.ACTION_DATE_CHANGED || intent.action == Intent.ACTION_TIMEZONE_CHANGED) {
+            if (intent.action == Intent.ACTION_TIMEZONE_CHANGED) java.util.TimeZone.setDefault(null)
             ReminderScheduler.restore(context); return
         }
         if (intent.action == "com.example.darktodo.reminders.FIRE") {

@@ -14,6 +14,7 @@ import androidx.activity.compose.setContent
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -39,6 +40,7 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -54,6 +56,7 @@ import androidx.compose.ui.unit.sp
 import com.example.darktodo.data.Task
 import com.example.darktodo.data.TaskEvent
 import com.example.darktodo.data.TaskStore
+import com.example.darktodo.data.TaskTimeFormatter
 import com.example.darktodo.data.WidgetPrefs
 import com.example.darktodo.data.WidgetSettings
 import com.example.darktodo.ui.NunitoFamily
@@ -61,6 +64,7 @@ import com.example.darktodo.ui.composeWeight
 import com.example.darktodo.widget.TodoWidget
 import java.time.Instant
 import java.time.ZoneId
+import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
 private val Bg = Color(0xFF000000)
@@ -92,7 +96,10 @@ class MainActivity : ComponentActivity() {
     var settings by remember { mutableStateOf(WidgetSettings.load(context)) }
     var page by remember { mutableStateOf("Tasks") }
     var title by remember { mutableStateOf("") }
+    var timeTick by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var editing by remember { mutableStateOf<Task?>(null) }
+    var actionTask by remember { mutableStateOf<Task?>(null) }
+    var confirmDeleteTask by remember { mutableStateOf<Task?>(null) }
     var addReminder by remember { mutableStateOf(false) }
     var route by remember { mutableStateOf(listOf<String>()) }
     var confirmClear by remember { mutableStateOf(false) }
@@ -100,9 +107,22 @@ class MainActivity : ComponentActivity() {
     fun refreshSettings() { settings = WidgetSettings.load(context) }
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_RESUME) refresh() }
+        val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_RESUME) {
+            timeTick = System.currentTimeMillis()
+            com.example.darktodo.reminders.ReminderScheduler.restore(context)
+            refresh()
+        } }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            while (true) {
+                delay(60_000L)
+                timeTick = System.currentTimeMillis()
+                TodoWidget.updateAll(context)
+            }
+        }
     }
     LaunchedEffect(openTaskId, tasks) { if (openTaskId != null) editing = tasks.firstOrNull { it.id == openTaskId } }
 
@@ -131,12 +151,12 @@ class MainActivity : ComponentActivity() {
                             val checkColor = colorFromHex(if (task.completed) settings.complete else settings.incomplete)
                             val groupPosition = tasks.filter { it.completed == task.completed }.indexOfFirst { it.id == task.id }
                             val groupSize = tasks.count { it.completed == task.completed }
-                            Row(Modifier.fillMaxWidth().graphicsLayer(alpha = if (task.completed) 1f - settings.fadePercent / 100f else 1f).background(Card, RoundedCornerShape(14.dp)).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Row(Modifier.fillMaxWidth().combinedClickable(onClick = {}, onLongClick = { actionTask = task }).graphicsLayer(alpha = if (task.completed) 1f - settings.fadePercent / 100f else 1f).background(Card, RoundedCornerShape(14.dp)).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Text(if (task.completed) "\u25cf" else "\u25cb", modifier = Modifier.clickable { TaskStore.toggle(context, task.id); refresh() }, color = checkColor, fontSize = 22.sp)
                                 Spacer(Modifier.width(12.dp))
-                                Column(Modifier.weight(1f).combinedClickable(onClick = { editing = task }, onLongClick = { if (!task.completed) { TaskStore.delete(context, task.id); refresh() } })) {
+                                Column(Modifier.weight(1f).clickable { editing = task }) {
                                     Text(task.title, color = taskColor, textDecoration = if (task.completed) TextDecoration.LineThrough else TextDecoration.None, fontWeight = composeWeight(settings.fontWeight), fontSize = settings.taskTitleSizeSp.sp)
-                                    taskDeadlineLabel(task)?.let { Text(it, color = if (it == "OVERDUE") Accent else Color.LightGray, fontSize = 11.sp) }
+                                    TaskTimeFormatter.label(context, task, wallNow = timeTick)?.let { Text(it, color = if (it == "OVERDUE") Accent else Color.LightGray, fontSize = 11.sp) }
                                 }
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                     TextButton(onClick = { TaskStore.move(context, task.id, -1); refresh() }, enabled = groupPosition > 0, contentPadding = PaddingValues(horizontal = 5.dp, vertical = 0.dp)) { Text("\u2191", color = if (groupPosition > 0) Color.LightGray else Color.DarkGray) }
@@ -146,7 +166,7 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                     }
-                    Text("Use arrows to reorder within each group. Long-press an incomplete task title to delete it.", color = Color.Gray, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
+                    Text("Use arrows to reorder tasks. Long-press a task for actions.", color = Color.Gray, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
                     TextButton(onClick = { TaskStore.clearCompleted(context); refresh() }) { Text("Clear completed", color = Accent) }
                 }
                 "History" -> HistoryScreen(events, route, onRoute = { route = it }, onDelete = { TaskStore.deleteEvent(context, it); refresh() }, onClear = { scope -> TaskStore.deleteEvents(context, scope); refresh() }, onClearAll = { confirmClear = true })
@@ -166,25 +186,39 @@ class MainActivity : ComponentActivity() {
     editing?.let { task ->
         var value by remember(task.id) { mutableStateOf(task.title) }
         var kind by remember(task.id) { mutableStateOf(if (task.completed) "none" else task.reminderType) }
-        var deadline by remember(task.id) { mutableLongStateOf((if (task.reminderType == "time") task.reminderAt else task.deadlineAt).takeIf { it > System.currentTimeMillis() } ?: System.currentTimeMillis() + 3_600_000L) }
-        val remainMinutes = if (task.deadlineAt > System.currentTimeMillis()) (task.deadlineAt - System.currentTimeMillis() + 59_999L) / 60_000L else 60L
+        val localPickerInstant = remember(task.id) { runCatching { LocalDateTime.parse(task.localDateTime).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli() }.getOrNull() }
+        var deadline by remember(task.id) { mutableLongStateOf((if (task.reminderType == "time") localPickerInstant ?: task.reminderAt else task.deadlineAt).takeIf { it > System.currentTimeMillis() } ?: System.currentTimeMillis() + 3_600_000L) }
+        var timeZone by remember(task.id) { mutableStateOf(if (task.followsDeviceTimeZone) "" else task.timeZoneId) }
+        val remainMinutes = ((TaskTimeFormatter.remainingMillis(context, task).coerceAtLeast(0L) + 59_999L) / 60_000L).coerceAtLeast(1L)
         var hours by remember(task.id) { mutableStateOf((remainMinutes / 60L).toString()) }; var minutes by remember(task.id) { mutableStateOf((remainMinutes % 60L).toString()) }; var error by remember(task.id) { mutableStateOf("") }
-        ReminderDialog(value, { value = it }, kind, { kind = it }, deadline, { deadline = it }, hours, { hours = it }, minutes, { minutes = it }, error, { error = it }, { editing = null }, {
+        ReminderDialog(value, { value = it }, kind, { kind = it }, deadline, { deadline = it }, hours, { hours = it }, minutes, { minutes = it }, timeZone, { timeZone = it }, error, { error = it }, { editing = null }, {
             val at = when (kind) { "time" -> deadline; "duration" -> System.currentTimeMillis() + ((hours.toLongOrNull() ?: 0L) * 60 + (minutes.toLongOrNull() ?: 0L)) * 60_000L; else -> 0L }
-            if (value.isBlank()) error = "Enter a task name" else if (kind == "time" && at <= System.currentTimeMillis()) error = "Choose a future time" else if (kind == "duration" && at <= System.currentTimeMillis()) error = "Enter a duration greater than zero" else { TaskStore.configure(context, task.id, value, kind, at); editing = null; refresh() }
+            val badZone = kind == "time" && timeZone.isNotBlank() && runCatching { ZoneId.of(timeZone.trim()) }.isFailure
+            if (value.isBlank()) error = "Enter a task name" else if (badZone) error = "Enter a valid IANA time zone, such as Europe/London" else if (kind == "time" && at <= System.currentTimeMillis()) error = "Choose a future time" else if (kind == "duration" && at <= System.currentTimeMillis()) error = "Enter a duration greater than zero" else { TaskStore.configure(context, task.id, value, kind, at, timeZone.trim()); editing = null; refresh() }
         }, task.completed)
     }
     if (addReminder) {
-        var kind by remember { mutableStateOf("none") }; var deadline by remember { mutableLongStateOf(System.currentTimeMillis() + 3_600_000L) }; var hours by remember { mutableStateOf("1") }; var minutes by remember { mutableStateOf("0") }; var error by remember { mutableStateOf("") }
-        ReminderDialog(title, { title = it }, kind, { kind = it }, deadline, { deadline = it }, hours, { hours = it }, minutes, { minutes = it }, error, { error = it }, { addReminder = false }, {
+        var kind by remember { mutableStateOf("none") }; var deadline by remember { mutableLongStateOf(System.currentTimeMillis() + 3_600_000L) }; var hours by remember { mutableStateOf("1") }; var minutes by remember { mutableStateOf("0") }; var timeZone by remember { mutableStateOf("") }; var error by remember { mutableStateOf("") }
+        ReminderDialog(title, { title = it }, kind, { kind = it }, deadline, { deadline = it }, hours, { hours = it }, minutes, { minutes = it }, timeZone, { timeZone = it }, error, { error = it }, { addReminder = false }, {
             val at = when (kind) { "time" -> deadline; "duration" -> System.currentTimeMillis() + ((hours.toLongOrNull() ?: 0L) * 60 + (minutes.toLongOrNull() ?: 0L)) * 60_000L; else -> 0L }
-            if (title.isBlank()) error = "Enter a task name" else if (kind == "time" && at <= System.currentTimeMillis()) error = "Choose a future time" else if (kind == "duration" && at <= System.currentTimeMillis()) error = "Enter a duration greater than zero" else { TaskStore.addConfigured(context, title, kind, at); title = ""; addReminder = false; refresh() }
+            val badZone = kind == "time" && timeZone.isNotBlank() && runCatching { ZoneId.of(timeZone.trim()) }.isFailure
+            if (title.isBlank()) error = "Enter a task name" else if (badZone) error = "Enter a valid IANA time zone, such as Europe/London" else if (kind == "time" && at <= System.currentTimeMillis()) error = "Choose a future time" else if (kind == "duration" && at <= System.currentTimeMillis()) error = "Enter a duration greater than zero" else { TaskStore.addConfigured(context, title, kind, at, timeZone.trim()); title = ""; addReminder = false; refresh() }
         }, false)
+    }
+    actionTask?.let { task ->
+        AlertDialog(onDismissRequest = { actionTask = null }, containerColor = Card, shape = RoundedCornerShape(20.dp), title = { Text(task.title, color = Ink) },
+            confirmButton = { TextButton(onClick = { actionTask = null; editing = task }) { Text("Edit task", color = Accent) } },
+            dismissButton = { TextButton(onClick = { actionTask = null; confirmDeleteTask = task }) { Text("Delete task", color = Accent) } })
+    }
+    confirmDeleteTask?.let { task ->
+        AlertDialog(onDismissRequest = { confirmDeleteTask = null }, containerColor = Card, shape = RoundedCornerShape(20.dp), title = { Text("Delete task?", color = Ink) }, text = { Text("\"${task.title}\" will be permanently deleted.", color = Ink) },
+            confirmButton = { TextButton(onClick = { TaskStore.delete(context, task.id); confirmDeleteTask = null; refresh() }) { Text("Delete task", color = Accent) } },
+            dismissButton = { TextButton(onClick = { confirmDeleteTask = null }) { Text("Cancel", color = Ink) } })
     }
     if (confirmClear) AlertDialog(onDismissRequest = { confirmClear = false }, containerColor = Card, title = { Text("Clear all history?", color = Ink) }, text = { Text("Active tasks and their completion status will not change.", color = Ink) }, confirmButton = { TextButton(onClick = { TaskStore.clearHistory(context); confirmClear = false; refresh() }) { Text("Delete history", color = Accent) } }, dismissButton = { TextButton(onClick = { confirmClear = false }) { Text("Cancel") } })
 }
 
-@Composable private fun ReminderDialog(value: String, onValue: (String) -> Unit, kind: String, onKind: (String) -> Unit, deadline: Long, onDeadline: (Long) -> Unit, hours: String, onHours: (String) -> Unit, minutes: String, onMinutes: (String) -> Unit, error: String, onError: (String) -> Unit, dismiss: () -> Unit, save: () -> Unit, completed: Boolean) {
+@Composable private fun ReminderDialog(value: String, onValue: (String) -> Unit, kind: String, onKind: (String) -> Unit, deadline: Long, onDeadline: (Long) -> Unit, hours: String, onHours: (String) -> Unit, minutes: String, onMinutes: (String) -> Unit, timeZone: String, onTimeZone: (String) -> Unit, error: String, onError: (String) -> Unit, dismiss: () -> Unit, save: () -> Unit, completed: Boolean) {
     val context = LocalContext.current
     AlertDialog(onDismissRequest = dismiss, containerColor = Card, title = { Text(if (completed) "Edit task" else "Task and reminder", color = Ink) },
         text = { Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -199,9 +233,13 @@ class MainActivity : ComponentActivity() {
                 val current = java.util.Calendar.getInstance().apply { timeInMillis = deadline }
                 DatePickerDialog(context, { _, year, month, day ->
                     val date = java.util.Calendar.getInstance().apply { set(year, month, day) }
-                    TimePickerDialog(context, { _, hour, minute -> date.set(java.util.Calendar.HOUR_OF_DAY, hour); date.set(java.util.Calendar.MINUTE, minute); date.set(java.util.Calendar.SECOND, 0); onDeadline(date.timeInMillis) }, current.get(java.util.Calendar.HOUR_OF_DAY), current.get(java.util.Calendar.MINUTE), false).show()
+                    TimePickerDialog(context, { _, hour, minute -> date.set(java.util.Calendar.HOUR_OF_DAY, hour); date.set(java.util.Calendar.MINUTE, minute); date.set(java.util.Calendar.SECOND, 0); onDeadline(date.timeInMillis) }, current.get(java.util.Calendar.HOUR_OF_DAY), current.get(java.util.Calendar.MINUTE), android.text.format.DateFormat.is24HourFormat(context)).show()
                 }, current.get(java.util.Calendar.YEAR), current.get(java.util.Calendar.MONTH), current.get(java.util.Calendar.DAY_OF_MONTH)).show()
-            }) { Text("Choose date and time: ${TaskStore.dateTime(deadline)}", color = Accent, fontSize = 12.sp) }
+            }) { Text("Choose date and time: ${TaskStore.dateTime(context, deadline, timeZone)} (${timeZone.ifBlank { ZoneId.systemDefault().id }})", color = Accent, fontSize = 12.sp) }
+            if (kind == "time" && !completed) {
+                androidx.compose.material3.OutlinedTextField(timeZone, onTimeZone, label = { Text("Time zone (optional)") }, placeholder = { Text(ZoneId.systemDefault().id) }, singleLine = true, textStyle = TextStyle(color = Ink, fontFamily = NunitoFamily), colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(focusedTextColor = Ink, unfocusedTextColor = Ink, cursorColor = Accent, focusedBorderColor = Accent, unfocusedBorderColor = Color.Gray, focusedLabelColor = Accent, unfocusedLabelColor = Color.LightGray, focusedPlaceholderColor = Color(0xFF9E9E9E), unfocusedPlaceholderColor = Color(0xFF9E9E9E)))
+                Text("Blank follows this device. Skipped local times move forward; repeated times use the earlier occurrence.", color = Color.LightGray, fontSize = 11.sp)
+            }
             if (kind == "duration" && !completed) {
                 val focusAccent = Color(0xFF7E57C2)
                 val fieldColors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
@@ -267,6 +305,9 @@ class MainActivity : ComponentActivity() {
             val intent = if (Build.VERSION.SDK_INT >= 26) android.content.Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName) else android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.parse("package:${context.packageName}"))
             context.startActivity(intent)
         }) { Text("Open notification settings", color = Accent) }
+        if (Build.VERSION.SDK_INT >= 31) TextButton(onClick = {
+            runCatching { context.startActivity(android.content.Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, android.net.Uri.parse("package:${context.packageName}"))) }
+        }) { Text("Manage exact alarm access", color = Accent) }
         TextButton(onClick = onReset) { Text("Reset settings to defaults", color = Accent) }
     }
 }
@@ -329,13 +370,4 @@ class MainActivity : ComponentActivity() {
 }
 
 private fun colorFromHex(hex: String): Color = try { Color(AndroidColor.parseColor(if (hex.startsWith("#")) hex else "#$hex")) } catch (_: IllegalArgumentException) { Color.White }
-private fun taskDeadlineLabel(task: Task): String? {
-    val due = when (task.reminderType) { "duration" -> task.deadlineAt; "time" -> task.reminderAt; else -> 0L }
-    if (task.completed || due <= 0L) return null
-    val left = due - System.currentTimeMillis()
-    if (left <= 0) return if (task.reminderType == "duration") "OVERDUE" else "Due now"
-    if (task.reminderType == "time") return "Due ${java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault()).format(java.util.Date(due))}"
-    val hours = left / 3_600_000L; val minutes = left / 60_000L % 60
-    return if (hours > 0) "${hours}h ${if (minutes > 0) "${minutes}m" else ""} left" else "${maxOf(1, minutes)}m left"
-}
 private fun weightName(weight: Int): String = when (weight) { 300 -> "Light"; 400 -> "Regular"; 500 -> "Medium"; 600 -> "SemiBold"; 700 -> "Bold"; 800 -> "ExtraBold"; 900 -> "Black"; else -> "Regular" }

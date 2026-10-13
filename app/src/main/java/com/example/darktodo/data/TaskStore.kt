@@ -1,14 +1,16 @@
 package com.example.darktodo.data
 
 import android.content.Context
+import android.os.SystemClock
 import org.json.JSONArray
 import org.json.JSONObject
 import java.time.Instant
 import java.time.ZoneId
+import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.UUID
 
-data class Task(val id: String, val title: String, val completed: Boolean, val reminderType: String = "none", val reminderAt: Long = 0L, val deadlineAt: Long = 0L, val overdueNotified: Boolean = false, val countdownStartedAt: Long = 0L)
+data class Task(val id: String, val title: String, val completed: Boolean, val reminderType: String = "none", val reminderAt: Long = 0L, val deadlineAt: Long = 0L, val overdueNotified: Boolean = false, val countdownStartedAt: Long = 0L, val countdownDurationMs: Long = 0L, val countdownStartElapsed: Long = 0L, val countdownDeadlineElapsed: Long = 0L, val countdownBootCount: Int = -1, val localDateTime: String = "", val timeZoneId: String = "", val followsDeviceTimeZone: Boolean = true)
 data class TaskEvent(val id: String, val taskId: String, val title: String, val type: String, val at: Long)
 
 /** Active tasks and the append-only event log are intentionally kept in separate keys. */
@@ -21,7 +23,7 @@ object TaskStore {
 
     fun tasks(context: Context): List<Task> = synchronized(lock) {
         val array = JSONArray(prefs(context).getString(ACTIVE_KEY, "[]"))
-        (0 until array.length()).map { i -> array.getJSONObject(i).let { o -> Task(o.getString("id"), o.getString("title"), o.getBoolean("completed"), o.optString("reminderType", "none"), o.optLong("reminderAt"), o.optLong("deadlineAt"), o.optBoolean("overdueNotified"), o.optLong("countdownStartedAt")) } }
+        (0 until array.length()).map { i -> array.getJSONObject(i).let { o -> Task(o.getString("id"), o.getString("title"), o.getBoolean("completed"), o.optString("reminderType", "none"), o.optLong("reminderAt"), o.optLong("deadlineAt"), o.optBoolean("overdueNotified"), o.optLong("countdownStartedAt"), o.optLong("countdownDurationMs"), o.optLong("countdownStartElapsed"), o.optLong("countdownDeadlineElapsed"), o.optInt("countdownBootCount", -1), o.optString("localDateTime", ""), o.optString("timeZoneId", ""), o.optBoolean("followsDeviceTimeZone", true)) } }
     }
 
     fun history(context: Context): List<TaskEvent> = synchronized(lock) {
@@ -31,7 +33,7 @@ object TaskStore {
 
     private fun saveTasks(context: Context, values: List<Task>) {
         val array = JSONArray()
-        values.forEach { array.put(JSONObject().put("id", it.id).put("title", it.title).put("completed", it.completed).put("reminderType", it.reminderType).put("reminderAt", it.reminderAt).put("deadlineAt", it.deadlineAt).put("overdueNotified", it.overdueNotified).put("countdownStartedAt", it.countdownStartedAt)) }
+        values.forEach { array.put(JSONObject().put("id", it.id).put("title", it.title).put("completed", it.completed).put("reminderType", it.reminderType).put("reminderAt", it.reminderAt).put("deadlineAt", it.deadlineAt).put("overdueNotified", it.overdueNotified).put("countdownStartedAt", it.countdownStartedAt).put("countdownDurationMs", it.countdownDurationMs).put("countdownStartElapsed", it.countdownStartElapsed).put("countdownDeadlineElapsed", it.countdownDeadlineElapsed).put("countdownBootCount", it.countdownBootCount).put("localDateTime", it.localDateTime).put("timeZoneId", it.timeZoneId).put("followsDeviceTimeZone", it.followsDeviceTimeZone)) }
         prefs(context).edit().putString(ACTIVE_KEY, array.toString()).apply()
     }
 
@@ -47,19 +49,42 @@ object TaskStore {
         log(context, task, "Created")
     }
 
-    fun addConfigured(context: Context, title: String, type: String, at: Long) = synchronized(lock) {
-        val now = System.currentTimeMillis()
-        val task = Task(UUID.randomUUID().toString(), title.trim(), false, type, if (type == "time") at else 0L, if (type == "duration") at else 0L, countdownStartedAt = if (type == "duration") now else 0L)
+    fun addConfigured(context: Context, title: String, type: String, at: Long, timeZone: String = "") = synchronized(lock) {
+        val now = System.currentTimeMillis(); val elapsed = SystemClock.elapsedRealtime(); val duration = (at - now).coerceAtLeast(0L)
+        val local = if (type == "time") Instant.ofEpochMilli(at).atZone(ZoneId.systemDefault()).toLocalDateTime() else null
+        val zone = timeZone.ifBlank { ZoneId.systemDefault().id }
+        val resolvedAt = if (local != null) local.atZone(ZoneId.of(zone)).toInstant().toEpochMilli() else 0L
+        val task = Task(UUID.randomUUID().toString(), title.trim(), false, type, if (type == "time") resolvedAt else 0L, if (type == "duration") at else 0L,
+            countdownStartedAt = if (type == "duration") now else 0L,
+            countdownDurationMs = if (type == "duration") duration else 0L,
+            countdownStartElapsed = if (type == "duration") elapsed else 0L,
+            countdownDeadlineElapsed = if (type == "duration") elapsed + duration else 0L,
+            countdownBootCount = if (type == "duration") TaskTimeFormatter.bootCount(context) else -1,
+            localDateTime = local?.toString() ?: "", timeZoneId = if (type == "time") zone else "", followsDeviceTimeZone = timeZone.isBlank())
         saveTasks(context, (tasks(context) + task).sortedBy { it.completed }); log(context, task, "Created")
         com.example.darktodo.reminders.ReminderScheduler.schedule(context, task)
     }
 
-    fun configure(context: Context, id: String, title: String, type: String, at: Long) = synchronized(lock) {
+    fun configure(context: Context, id: String, title: String, type: String, at: Long, timeZone: String = "") = synchronized(lock) {
         if (title.isBlank()) return@synchronized
         val current = tasks(context); val old = current.firstOrNull { it.id == id } ?: return@synchronized
-        val now = System.currentTimeMillis()
-        val next = if (old.completed) old.copy(title = title.trim(), reminderType = "none", reminderAt = 0L, deadlineAt = 0L, overdueNotified = false, countdownStartedAt = 0L) else old.copy(title = title.trim(), reminderType = type, reminderAt = if (type == "time") at else 0L, deadlineAt = if (type == "duration") at else 0L, overdueNotified = false, countdownStartedAt = if (type == "duration") now else 0L)
+        val now = System.currentTimeMillis(); val elapsed = SystemClock.elapsedRealtime(); val boot = TaskTimeFormatter.bootCount(context)
+        val duration = (at - now).coerceAtLeast(0L)
+        val keepCountdown = type == "duration" && old.reminderType == "duration" && old.countdownBootCount == boot && old.countdownDeadlineElapsed > 0L && kotlin.math.abs(old.countdownDeadlineElapsed - (elapsed + duration)) < 60_000L
+        val local = if (type == "time") Instant.ofEpochMilli(at).atZone(ZoneId.systemDefault()).toLocalDateTime() else null
+        val zone = timeZone.ifBlank { ZoneId.systemDefault().id }
+        val resolvedAt = if (local != null) local.atZone(ZoneId.of(zone)).toInstant().toEpochMilli() else 0L
+        val next = if (old.completed) old.copy(title = title.trim(), reminderType = "none", reminderAt = 0L, deadlineAt = 0L, overdueNotified = false, countdownStartedAt = 0L, countdownDurationMs = 0L, countdownStartElapsed = 0L, countdownDeadlineElapsed = 0L, countdownBootCount = -1, localDateTime = "", timeZoneId = "") else old.copy(
+            title = title.trim(), reminderType = type, reminderAt = if (type == "time") resolvedAt else 0L,
+            deadlineAt = if (type == "duration") if (keepCountdown) old.deadlineAt else at else 0L, overdueNotified = false,
+            countdownStartedAt = if (type == "duration") if (keepCountdown) old.countdownStartedAt else now else 0L,
+            countdownDurationMs = if (type == "duration") if (keepCountdown) old.countdownDurationMs else duration else 0L,
+            countdownStartElapsed = if (type == "duration") if (keepCountdown) old.countdownStartElapsed else elapsed else 0L,
+            countdownDeadlineElapsed = if (type == "duration") if (keepCountdown) old.countdownDeadlineElapsed else elapsed + duration else 0L,
+            countdownBootCount = if (type == "duration") boot else -1,
+            localDateTime = local?.toString() ?: "", timeZoneId = if (type == "time") zone else "", followsDeviceTimeZone = timeZone.isBlank())
         saveTasks(context, current.map { if (it.id == id) next else it }); com.example.darktodo.reminders.ReminderScheduler.cancel(context, id); com.example.darktodo.reminders.ReminderScheduler.schedule(context, next)
+        if (old.title != next.title || old.reminderType != next.reminderType || old.reminderAt != next.reminderAt || old.deadlineAt != next.deadlineAt || old.localDateTime != next.localDateTime || old.timeZoneId != next.timeZoneId) log(context, next, "Edited")
     }
 
     fun toggle(context: Context, id: String) = synchronized(lock) {
@@ -98,7 +123,34 @@ object TaskStore {
     }
 
     fun consumeReminder(context: Context, id: String) = synchronized(lock) {
-        saveTasks(context, tasks(context).map { if (it.id == id) it.copy(reminderType = "none", reminderAt = 0L, deadlineAt = 0L, countdownStartedAt = 0L) else it })
+        saveTasks(context, tasks(context).map { if (it.id == id) it.copy(reminderType = "none", reminderAt = 0L, deadlineAt = 0L, countdownStartedAt = 0L, countdownDurationMs = 0L, countdownStartElapsed = 0L, countdownDeadlineElapsed = 0L, countdownBootCount = -1, localDateTime = "", timeZoneId = "") else it })
+    }
+
+    fun recalculateSystemDeadlines(context: Context) = synchronized(lock) {
+        val now = System.currentTimeMillis(); val elapsed = SystemClock.elapsedRealtime(); val boot = TaskTimeFormatter.bootCount(context)
+        val zone = ZoneId.systemDefault()
+        val updated = tasks(context).map { task ->
+            when {
+                task.reminderType == "time" -> runCatching {
+                    val hasSavedLocalTime = task.localDateTime.isNotBlank()
+                    val local = if (hasSavedLocalTime) LocalDateTime.parse(task.localDateTime) else Instant.ofEpochMilli(task.reminderAt).atZone(zone).toLocalDateTime()
+                    val followsDevice = if (hasSavedLocalTime) task.followsDeviceTimeZone else true
+                    val targetZone = if (followsDevice) zone else ZoneId.of(task.timeZoneId)
+                    task.copy(reminderAt = local.atZone(targetZone).toInstant().toEpochMilli(), localDateTime = local.toString(), timeZoneId = targetZone.id, followsDeviceTimeZone = followsDevice)
+                }.getOrDefault(task)
+                task.reminderType == "duration" -> {
+                    val sameBoot = boot >= 0 && task.countdownDeadlineElapsed > 0L && task.countdownBootCount == boot
+                    val remaining = if (sameBoot) task.countdownDeadlineElapsed - elapsed else task.deadlineAt - now
+                    val totalDuration = task.countdownDurationMs.takeIf { it > 0L } ?: (task.deadlineAt - task.countdownStartedAt).coerceAtLeast(remaining).coerceAtLeast(0L)
+                    val elapsedDeadline = if (sameBoot) task.countdownDeadlineElapsed else elapsed + remaining
+                    val elapsedStart = if (sameBoot && task.countdownStartElapsed > 0L) task.countdownStartElapsed else elapsedDeadline - totalDuration
+                    task.copy(deadlineAt = now + remaining, countdownDurationMs = totalDuration, countdownStartElapsed = elapsedStart, countdownDeadlineElapsed = elapsedDeadline, countdownBootCount = boot)
+                }
+                else -> task
+            }
+        }
+        saveTasks(context, updated)
+        updated.filter { it.reminderType != "none" && !it.completed }.forEach { com.example.darktodo.reminders.ReminderScheduler.replaceAlarms(context, it) }
     }
 
     fun clearCompleted(context: Context) = synchronized(lock) {
@@ -131,5 +183,17 @@ object TaskStore {
 
     fun clearHistory(context: Context) = synchronized(lock) { prefs(context).edit().putString(HISTORY_KEY, "[]").apply() }
 
-    fun dateTime(millis: Long): String = DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a").withZone(ZoneId.systemDefault()).format(Instant.ofEpochMilli(millis))
+    fun dateTime(context: Context, millis: Long, timeZoneId: String = ""): String {
+        if (timeZoneId.isBlank()) return "${android.text.format.DateFormat.format("dd MMM yyyy", java.util.Date(millis))}, ${android.text.format.DateFormat.getTimeFormat(context).format(java.util.Date(millis))}"
+        return runCatching {
+            val locale = java.util.Locale.getDefault()
+            val zone = ZoneId.of(timeZoneId.trim())
+            val local = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDateTime()
+            val zoned = local.atZone(zone)
+            val timeSkeleton = if (android.text.format.DateFormat.is24HourFormat(context)) "Hm z" else "hm z"
+            val datePattern = android.text.format.DateFormat.getBestDateTimePattern(locale, "yMMMd")
+            val timePattern = android.text.format.DateFormat.getBestDateTimePattern(locale, timeSkeleton)
+            java.time.format.DateTimeFormatter.ofPattern("$datePattern $timePattern", locale).format(zoned)
+        }.getOrElse { "${android.text.format.DateFormat.format("dd MMM yyyy", java.util.Date(millis))}, ${android.text.format.DateFormat.getTimeFormat(context).format(java.util.Date(millis))}" }
+    }
 }
