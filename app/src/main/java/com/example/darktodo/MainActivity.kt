@@ -2,8 +2,18 @@ package com.example.darktodo
 
 import android.graphics.Color as AndroidColor
 import android.os.Bundle
+import android.os.Build
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+import android.app.DatePickerDialog
+import android.app.TimePickerDialog
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -19,6 +29,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
@@ -58,12 +69,21 @@ private val Ink = Color(0xFFF5F5F5)
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { MaterialTheme { Surface(color = Bg) { TodoApp() } } }
+        if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 41)
+        com.example.darktodo.reminders.ReminderScheduler.restore(this)
+        setContent { MaterialTheme { Surface(color = Bg) { TodoApp(intent.getStringExtra("edit_task_id")) } } }
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) { super.onNewIntent(intent); setIntent(intent) }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == 41 && grantResults.firstOrNull() != PackageManager.PERMISSION_GRANTED) android.widget.Toast.makeText(this, "Notifications are off. Enable them in Settings to receive task reminders.", android.widget.Toast.LENGTH_LONG).show()
     }
 }
 
 @OptIn(ExperimentalFoundationApi::class)
-@Composable private fun TodoApp() {
+@Composable private fun TodoApp(openTaskId: String? = null) {
     val context = LocalContext.current
     var tasks by remember { mutableStateOf(TaskStore.tasks(context)) }
     var events by remember { mutableStateOf(TaskStore.history(context)) }
@@ -71,10 +91,18 @@ class MainActivity : ComponentActivity() {
     var page by remember { mutableStateOf("Tasks") }
     var title by remember { mutableStateOf("") }
     var editing by remember { mutableStateOf<Task?>(null) }
+    var addReminder by remember { mutableStateOf(false) }
     var route by remember { mutableStateOf(listOf<String>()) }
     var confirmClear by remember { mutableStateOf(false) }
     fun refresh() { tasks = TaskStore.tasks(context); events = TaskStore.history(context) }
     fun refreshSettings() { settings = WidgetSettings.load(context) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_RESUME) refresh() }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    LaunchedEffect(openTaskId, tasks) { if (openTaskId != null) editing = tasks.firstOrNull { it.id == openTaskId } }
 
     LaunchedEffect(settings) { TodoWidget.updateAll(context) }
     val selectedFontStyle = if (settings.fontItalic) FontStyle.Italic else FontStyle.Normal
@@ -92,7 +120,7 @@ class MainActivity : ComponentActivity() {
                     Spacer(Modifier.height(16.dp))
                     Row(Modifier.fillMaxWidth().background(Card, RoundedCornerShape(16.dp)).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                         BasicTextField(value = title, onValueChange = { title = it }, modifier = Modifier.weight(1f), singleLine = true, textStyle = TextStyle(color = Ink, fontSize = settings.taskTitleSizeSp.sp, fontFamily = NunitoFamily, fontWeight = composeWeight(settings.fontWeight), fontStyle = selectedFontStyle), decorationBox = { inner -> if (title.isEmpty()) Text("Add a task", color = Color.Gray); inner() })
-                        TextButton(onClick = { if (title.isNotBlank()) { TaskStore.add(context, title); title = ""; refresh() } }) { Text("Add", color = Accent) }
+                        TextButton(onClick = { if (title.isNotBlank()) addReminder = true }) { Text("Add", color = Accent) }
                     }
                     Spacer(Modifier.height(12.dp))
                     LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -104,7 +132,10 @@ class MainActivity : ComponentActivity() {
                             Row(Modifier.fillMaxWidth().graphicsLayer(alpha = if (task.completed) 1f - settings.fadePercent / 100f else 1f).background(Card, RoundedCornerShape(14.dp)).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Text(if (task.completed) "\u25cf" else "\u25cb", modifier = Modifier.clickable { TaskStore.toggle(context, task.id); refresh() }, color = checkColor, fontSize = 22.sp)
                                 Spacer(Modifier.width(12.dp))
-                                Text(task.title, color = taskColor, modifier = Modifier.weight(1f).combinedClickable(onClick = { editing = task }, onLongClick = { if (!task.completed) { TaskStore.delete(context, task.id); refresh() } }), textDecoration = if (task.completed) TextDecoration.LineThrough else TextDecoration.None, fontWeight = composeWeight(settings.fontWeight), fontSize = settings.taskTitleSizeSp.sp)
+                                Column(Modifier.weight(1f).combinedClickable(onClick = { editing = task }, onLongClick = { if (!task.completed) { TaskStore.delete(context, task.id); refresh() } })) {
+                                    Text(task.title, color = taskColor, textDecoration = if (task.completed) TextDecoration.LineThrough else TextDecoration.None, fontWeight = composeWeight(settings.fontWeight), fontSize = settings.taskTitleSizeSp.sp)
+                                    taskDeadlineLabel(task)?.let { Text(it, color = if (it == "OVERDUE") Accent else Color.LightGray, fontSize = 11.sp) }
+                                }
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                     TextButton(onClick = { TaskStore.move(context, task.id, -1); refresh() }, enabled = groupPosition > 0, contentPadding = PaddingValues(horizontal = 5.dp, vertical = 0.dp)) { Text("\u2191", color = if (groupPosition > 0) Color.LightGray else Color.DarkGray) }
                                     TextButton(onClick = { TaskStore.move(context, task.id, 1); refresh() }, enabled = groupPosition < groupSize - 1, contentPadding = PaddingValues(horizontal = 5.dp, vertical = 0.dp)) { Text("\u2193", color = if (groupPosition < groupSize - 1) Color.LightGray else Color.DarkGray) }
@@ -132,12 +163,56 @@ class MainActivity : ComponentActivity() {
     LaunchedEffect(tasks) { TodoWidget.updateAll(context) }
     editing?.let { task ->
         var value by remember(task.id) { mutableStateOf(task.title) }
-        AlertDialog(onDismissRequest = { editing = null }, containerColor = Card, title = { Text("Edit task", color = Ink) }, text = { androidx.compose.material3.OutlinedTextField(value, { value = it }, singleLine = true, textStyle = TextStyle(color = Ink, fontSize = settings.taskTitleSizeSp.sp, fontFamily = NunitoFamily, fontWeight = composeWeight(settings.fontWeight), fontStyle = selectedFontStyle)) }, confirmButton = { TextButton(onClick = { TaskStore.rename(context, task.id, value); editing = null; refresh() }) { Text("Save", color = Accent) } }, dismissButton = { TextButton(onClick = { editing = null }) { Text("Cancel") } })
+        var kind by remember(task.id) { mutableStateOf(if (task.completed) "none" else task.reminderType) }
+        var deadline by remember(task.id) { mutableLongStateOf((if (task.reminderType == "time") task.reminderAt else task.deadlineAt).takeIf { it > System.currentTimeMillis() } ?: System.currentTimeMillis() + 3_600_000L) }
+        val remainMinutes = if (task.deadlineAt > System.currentTimeMillis()) (task.deadlineAt - System.currentTimeMillis() + 59_999L) / 60_000L else 60L
+        var hours by remember(task.id) { mutableStateOf((remainMinutes / 60L).toString()) }; var minutes by remember(task.id) { mutableStateOf((remainMinutes % 60L).toString()) }; var error by remember(task.id) { mutableStateOf("") }
+        ReminderDialog(value, { value = it }, kind, { kind = it }, deadline, { deadline = it }, hours, { hours = it }, minutes, { minutes = it }, error, { error = it }, { editing = null }, {
+            val at = when (kind) { "time" -> deadline; "duration" -> System.currentTimeMillis() + ((hours.toLongOrNull() ?: 0L) * 60 + (minutes.toLongOrNull() ?: 0L)) * 60_000L; else -> 0L }
+            if (value.isBlank()) error = "Enter a task name" else if (kind == "time" && at <= System.currentTimeMillis()) error = "Choose a future time" else if (kind == "duration" && at <= System.currentTimeMillis()) error = "Enter a duration greater than zero" else { TaskStore.configure(context, task.id, value, kind, at); editing = null; refresh() }
+        }, task.completed)
+    }
+    if (addReminder) {
+        var kind by remember { mutableStateOf("none") }; var deadline by remember { mutableLongStateOf(System.currentTimeMillis() + 3_600_000L) }; var hours by remember { mutableStateOf("1") }; var minutes by remember { mutableStateOf("0") }; var error by remember { mutableStateOf("") }
+        ReminderDialog(title, { title = it }, kind, { kind = it }, deadline, { deadline = it }, hours, { hours = it }, minutes, { minutes = it }, error, { error = it }, { addReminder = false }, {
+            val at = when (kind) { "time" -> deadline; "duration" -> System.currentTimeMillis() + ((hours.toLongOrNull() ?: 0L) * 60 + (minutes.toLongOrNull() ?: 0L)) * 60_000L; else -> 0L }
+            if (title.isBlank()) error = "Enter a task name" else if (kind == "time" && at <= System.currentTimeMillis()) error = "Choose a future time" else if (kind == "duration" && at <= System.currentTimeMillis()) error = "Enter a duration greater than zero" else { TaskStore.addConfigured(context, title, kind, at); title = ""; addReminder = false; refresh() }
+        }, false)
     }
     if (confirmClear) AlertDialog(onDismissRequest = { confirmClear = false }, containerColor = Card, title = { Text("Clear all history?", color = Ink) }, text = { Text("Active tasks and their completion status will not change.", color = Ink) }, confirmButton = { TextButton(onClick = { TaskStore.clearHistory(context); confirmClear = false; refresh() }) { Text("Delete history", color = Accent) } }, dismissButton = { TextButton(onClick = { confirmClear = false }) { Text("Cancel") } })
 }
 
+@Composable private fun ReminderDialog(value: String, onValue: (String) -> Unit, kind: String, onKind: (String) -> Unit, deadline: Long, onDeadline: (Long) -> Unit, hours: String, onHours: (String) -> Unit, minutes: String, onMinutes: (String) -> Unit, error: String, onError: (String) -> Unit, dismiss: () -> Unit, save: () -> Unit, completed: Boolean) {
+    val context = LocalContext.current
+    AlertDialog(onDismissRequest = dismiss, containerColor = Card, title = { Text(if (completed) "Edit task" else "Task and reminder", color = Ink) },
+        text = { Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            androidx.compose.material3.OutlinedTextField(value, onValue, label = { Text("Task name") }, singleLine = true, textStyle = TextStyle(color = Ink, fontFamily = NunitoFamily))
+            Text("Reminder", color = Ink, fontSize = 14.sp)
+            listOf("none" to "No reminder", "time" to "At a specific time", "duration" to "Countdown deadline").forEach { (key, label) ->
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable { if (!completed) onKind(key) }) {
+                    RadioButton(selected = kind == key, onClick = { if (!completed) onKind(key) }, enabled = !completed); Text(label, color = if (completed) Color.Gray else Ink, fontSize = 14.sp)
+                }
+            }
+            if (kind == "time" && !completed) TextButton(onClick = {
+                val current = java.util.Calendar.getInstance().apply { timeInMillis = deadline }
+                DatePickerDialog(context, { _, year, month, day ->
+                    val date = java.util.Calendar.getInstance().apply { set(year, month, day) }
+                    TimePickerDialog(context, { _, hour, minute -> date.set(java.util.Calendar.HOUR_OF_DAY, hour); date.set(java.util.Calendar.MINUTE, minute); date.set(java.util.Calendar.SECOND, 0); onDeadline(date.timeInMillis) }, current.get(java.util.Calendar.HOUR_OF_DAY), current.get(java.util.Calendar.MINUTE), false).show()
+                }, current.get(java.util.Calendar.YEAR), current.get(java.util.Calendar.MONTH), current.get(java.util.Calendar.DAY_OF_MONTH)).show()
+            }) { Text("Choose date and time: ${TaskStore.dateTime(deadline)}", color = Accent, fontSize = 12.sp) }
+            if (kind == "duration" && !completed) Row(verticalAlignment = Alignment.CenterVertically) {
+                androidx.compose.material3.OutlinedTextField(hours, { onHours(it.filter(Char::isDigit).take(4)) }, label = { Text("Hours") }, modifier = Modifier.weight(1f), singleLine = true)
+                Spacer(Modifier.width(8.dp)); androidx.compose.material3.OutlinedTextField(minutes, { onMinutes(it.filter(Char::isDigit).take(2)) }, label = { Text("Minutes") }, modifier = Modifier.weight(1f), singleLine = true)
+            }
+            if (completed) Text("Reopened/completed tasks need a new reminder configured explicitly after reopening.", color = Color.Gray, fontSize = 12.sp)
+            if (error.isNotEmpty()) Text(error, color = Accent, fontSize = 12.sp)
+        } },
+        confirmButton = { TextButton(onClick = save) { Text("Save", color = Accent) } },
+        dismissButton = { TextButton(onClick = dismiss) { Text("Cancel", color = Ink) } })
+}
+
 @Composable private fun SettingsScreen(settings: WidgetPrefs, onColor: (String, String) -> Unit, onFade: (Int) -> Unit, onWeight: (Int) -> Unit, onItalic: (Boolean) -> Unit, onTaskTitleSize: (Float) -> Unit, onReset: () -> Unit) {
+    val context = LocalContext.current
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         Text("Widget colors (HEX)", color = Ink, fontSize = 18.sp, modifier = Modifier.padding(top = 8.dp, bottom = 8.dp))
         val palette = listOf("FF0000", "000000", "FFFFFF", "171717", "F5F5F5", "2979FF", "00C853", "FFD600")
@@ -176,6 +251,11 @@ class MainActivity : ComponentActivity() {
             )
         }
         Text("Nunito regular and italic variable fonts are bundled for offline use. Font weight, italic style, and task title size are adjustable independently in the app and widget.", color = Color.LightGray, fontSize = 12.sp, modifier = Modifier.padding(bottom = 8.dp))
+        Text("Reminders need notification permission. Android may delay inexact alarms during Doze or battery restrictions.", color = Color.LightGray, fontSize = 12.sp)
+        TextButton(onClick = {
+            val intent = if (Build.VERSION.SDK_INT >= 26) android.content.Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName) else android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.parse("package:${context.packageName}"))
+            context.startActivity(intent)
+        }) { Text("Open notification settings", color = Accent) }
         TextButton(onClick = onReset) { Text("Reset settings to defaults", color = Accent) }
     }
 }
@@ -238,4 +318,13 @@ class MainActivity : ComponentActivity() {
 }
 
 private fun colorFromHex(hex: String): Color = try { Color(AndroidColor.parseColor(if (hex.startsWith("#")) hex else "#$hex")) } catch (_: IllegalArgumentException) { Color.White }
+private fun taskDeadlineLabel(task: Task): String? {
+    val due = when (task.reminderType) { "duration" -> task.deadlineAt; "time" -> task.reminderAt; else -> 0L }
+    if (task.completed || due <= 0L) return null
+    val left = due - System.currentTimeMillis()
+    if (left <= 0) return if (task.reminderType == "duration") "OVERDUE" else "Due now"
+    if (task.reminderType == "time") return "Due ${java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault()).format(java.util.Date(due))}"
+    val hours = left / 3_600_000L; val minutes = left / 60_000L % 60
+    return if (hours > 0) "${hours}h ${if (minutes > 0) "${minutes}m" else ""} left" else "${maxOf(1, minutes)}m left"
+}
 private fun weightName(weight: Int): String = when (weight) { 300 -> "Light"; 400 -> "Regular"; 500 -> "Medium"; 600 -> "SemiBold"; 700 -> "Bold"; 800 -> "ExtraBold"; 900 -> "Black"; else -> "Regular" }
