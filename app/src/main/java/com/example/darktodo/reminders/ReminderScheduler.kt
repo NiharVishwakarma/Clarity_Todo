@@ -9,6 +9,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.SystemClock
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.example.darktodo.MainActivity
@@ -21,6 +22,7 @@ import org.json.JSONObject
 import kotlin.random.Random
 
 object ReminderScheduler {
+    private const val TAG = "ReminderScheduler"
     private const val CHANNEL = "task_reminders"
     private const val EXTRA_TASK = "reminder_task"
     private const val EXTRA_KIND = "reminder_kind"
@@ -36,20 +38,30 @@ object ReminderScheduler {
     }
 
     fun schedule(context: Context, task: Task) {
-        if (task.completed || task.reminderType == "none") return
+        if (task.completed || task.reminderType == "none") {
+            Log.d(TAG, "schedule skip task=${task.id} completed=${task.completed} type=${task.reminderType}")
+            return
+        }
         val now = System.currentTimeMillis()
         val (whenAt, kind, elapsedAlarm) = when (task.reminderType) {
             "time" -> Triple(task.reminderAt, "specific", false)
             "duration" -> {
                 val elapsedNow = SystemClock.elapsedRealtime()
                 val remaining = TaskTimeFormatter.remainingMillis(context, task, now, elapsedNow)
-                if (remaining <= 0L) return
+                if (remaining <= 0L) {
+                    Log.d(TAG, "schedule overdue task=${task.id} event=deadline:${task.id}:${task.deadlineAt}; recovery/receiver must deliver")
+                    return
+                }
                 val (next, kind) = nextDurationTrigger(context, task, elapsedNow, remaining)
                 Triple(next, kind, true)
             }
             else -> return
         }
-        if (whenAt <= 0L) return
+        if (whenAt <= 0L) {
+            Log.w(TAG, "schedule invalid trigger task=${task.id} kind=$kind trigger=$whenAt")
+            return
+        }
+        Log.d(TAG, "schedule task=${task.id} kind=$kind event=${if (task.reminderType == "duration") "deadline:${task.id}:${task.deadlineAt}" else "specific:${task.id}:${task.reminderAt}"} trigger=$whenAt clock=${if (elapsedAlarm) "elapsedRealtime" else "wallClock"}")
         setAlarm(context, task.id, kind, whenAt, elapsedAlarm)
     }
 
@@ -62,7 +74,7 @@ object ReminderScheduler {
         val am = context.getSystemService(AlarmManager::class.java)
         listOf("specific", "progress", "deadline").forEach { kind ->
             val pi = pending(context, id, kind, 0L, PendingIntent.FLAG_NO_CREATE)
-            if (pi != null) { am.cancel(pi); pi.cancel() }
+            if (pi != null) { am.cancel(pi); pi.cancel(); Log.d(TAG, "cancel task=$id kind=$kind") }
         }
     }
 
@@ -72,13 +84,28 @@ object ReminderScheduler {
     }
 
     private fun setAlarm(context: Context, id: String, kind: String, at: Long, elapsed: Boolean) {
-        val pi = pending(context, id, kind, at, PendingIntent.FLAG_UPDATE_CURRENT) ?: return
+        val pi = pending(context, id, kind, at, PendingIntent.FLAG_UPDATE_CURRENT) ?: run {
+            Log.e(TAG, "pending intent creation failed task=$id kind=$kind trigger=$at")
+            return
+        }
         val manager = context.getSystemService(AlarmManager::class.java)
         val type = if (elapsed) AlarmManager.ELAPSED_REALTIME_WAKEUP else AlarmManager.RTC_WAKEUP
         if (canScheduleExactly(context)) {
-            try { manager.setExactAndAllowWhileIdle(type, at, pi); return } catch (_: SecurityException) { }
+            try {
+                manager.setExactAndAllowWhileIdle(type, at, pi)
+                Log.i(TAG, "registered exact task=$id kind=$kind trigger=$at alarmType=$type")
+                return
+            } catch (e: SecurityException) {
+                Log.w(TAG, "exact registration denied task=$id kind=$kind; trying inexact fallback", e)
+            }
         }
-        if (Build.VERSION.SDK_INT >= 23) manager.setAndAllowWhileIdle(type, at, pi) else manager.set(type, at, pi)
+        try {
+            if (Build.VERSION.SDK_INT >= 23) manager.setAndAllowWhileIdle(type, at, pi) else manager.set(type, at, pi)
+            Log.i(TAG, "registered inexact task=$id kind=$kind trigger=$at alarmType=$type exactAccess=${canScheduleExactly(context)}")
+        } catch (e: RuntimeException) {
+            Log.e(TAG, "alarm registration failed task=$id kind=$kind trigger=$at", e)
+            throw e
+        }
     }
 
     private fun nextDurationTrigger(context: Context, task: Task, elapsedNow: Long, remaining: Long): Pair<Long, String> {
@@ -113,12 +140,19 @@ object ReminderScheduler {
 
     @Synchronized
     internal fun handle(context: Context, id: String, kind: String, scheduledAt: Long = 0L) {
-        val task = TaskStore.tasks(context).firstOrNull { it.id == id } ?: return
-        if (task.completed || task.reminderType == "none") return
+        Log.i(TAG, "handle task=$id kind=$kind scheduledAt=$scheduledAt elapsedNow=${SystemClock.elapsedRealtime()} wallNow=${System.currentTimeMillis()}")
+        val task = TaskStore.tasks(context).firstOrNull { it.id == id } ?: run {
+            Log.i(TAG, "ignore missing task=$id kind=$kind")
+            return
+        }
+        if (task.completed || task.reminderType == "none") {
+            Log.i(TAG, "ignore ineligible task=$id kind=$kind completed=${task.completed} type=${task.reminderType}")
+            return
+        }
         val now = System.currentTimeMillis()
         if (kind == "specific") {
-            if (scheduledAt > 0L && scheduledAt != task.reminderAt) { schedule(context, task); return }
-            if (task.reminderType != "time" || task.reminderAt > now + 60_000L) { schedule(context, task); return }
+            if (scheduledAt > 0L && scheduledAt != task.reminderAt) { Log.i(TAG, "stale specific alarm task=$id scheduled=$scheduledAt current=${task.reminderAt}"); schedule(context, task); return }
+            if (task.reminderType != "time" || task.reminderAt > now + 60_000L) { Log.i(TAG, "specific alarm not due task=$id trigger=${task.reminderAt}"); schedule(context, task); return }
             if (notify(context, task, task.title, quote(context, "specific:${task.id}:${task.reminderAt}"), false)) {
                 TaskStore.consumeReminder(context, id)
             }
@@ -126,8 +160,10 @@ object ReminderScheduler {
         }
         if (task.reminderType != "duration") return
         val remaining = TaskTimeFormatter.remainingMillis(context, task, now)
+        Log.i(TAG, "validate duration task=$id kind=$kind remaining=$remaining deadlineWall=${task.deadlineAt} deadlineElapsed=${task.countdownDeadlineElapsed} boot=${task.countdownBootCount}/${TaskTimeFormatter.bootCount(context)} overdueNotified=${task.overdueNotified}")
         if (remaining > 0L && scheduledAt > 0L) {
             if (!isCurrentDurationTrigger(context, task, kind, scheduledAt, SystemClock.elapsedRealtime(), remaining)) {
+                Log.i(TAG, "stale duration alarm task=$id kind=$kind scheduled=$scheduledAt")
                 schedule(context, task); return
             }
         }
@@ -135,13 +171,18 @@ object ReminderScheduler {
             if (!task.overdueNotified) {
                 if (notify(context, task, task.title, "Deadline missed. ${quote(context, "deadline:${task.id}:${task.deadlineAt}")}", true)) {
                     TaskStore.markOverdueNotified(context, id)
+                    Log.i(TAG, "overdue notification delivered task=$id event=deadline:$id:${task.deadlineAt}")
+                } else {
+                    Log.w(TAG, "overdue notification blocked task=$id event=deadline:$id:${task.deadlineAt}; permission/channel may be disabled")
                 }
             }
         } else {
             val left = TaskTimeFormatter.label(context, task, wallNow = now)
             notify(context, task, task.title, "${left ?: "Due now"}. ${quote(context, "progress:${task.id}:${scheduledAt.takeIf { it > 0L } ?: now}")}", false)
         }
-        schedule(context, task); TodoWidget.updateAll(context)
+        schedule(context, task)
+        TodoWidget.updateAll(context)
+        Log.d(TAG, "widget refresh requested after reminder task=$id kind=$kind")
     }
 
     private fun notify(
@@ -154,10 +195,16 @@ object ReminderScheduler {
     ): Boolean {
         val manager = context.getSystemService(NotificationManager::class.java)
         val notifications = NotificationManagerCompat.from(context)
-        if (!notifications.areNotificationsEnabled()) return false
+        if (!notifications.areNotificationsEnabled()) {
+            Log.w(TAG, "notification skipped task=${task.id}: app notifications disabled")
+            return false
+        }
         if (Build.VERSION.SDK_INT >= 26) {
             manager.createNotificationChannel(NotificationChannel(CHANNEL, "Task Reminders", NotificationManager.IMPORTANCE_DEFAULT))
-            if (manager.getNotificationChannel(CHANNEL)?.importance == NotificationManager.IMPORTANCE_NONE) return false
+            if (manager.getNotificationChannel(CHANNEL)?.importance == NotificationManager.IMPORTANCE_NONE) {
+                Log.w(TAG, "notification skipped task=${task.id}: channel disabled")
+                return false
+            }
         }
         val open = PendingIntent.getActivity(context, task.id.hashCode(), Intent(context, MainActivity::class.java).putExtra("edit_task_id", task.id).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         val builder = NotificationCompat.Builder(context, CHANNEL).setSmallIcon(R.mipmap.ic_launcher).setContentTitle(title).setContentText(body).setStyle(NotificationCompat.BigTextStyle().bigText(body)).setContentIntent(open).setAutoCancel(true).setPriority(NotificationCompat.PRIORITY_DEFAULT)
@@ -167,8 +214,10 @@ object ReminderScheduler {
         }
         return try {
             notifications.notify(notificationId, builder.build())
+            Log.d(TAG, "notification posted task=${task.id} notificationId=$notificationId reschedule=$reschedule")
             true
-        } catch (_: SecurityException) {
+        } catch (e: SecurityException) {
+            Log.w(TAG, "notification denied task=${task.id}", e)
             false
         }
     }
@@ -200,13 +249,21 @@ object ReminderScheduler {
         val tasks = TaskStore.tasks(context)
         val now = System.currentTimeMillis()
         val missedSpecific = tasks.filter { it.reminderType == "time" && it.reminderAt > 0L && it.reminderAt <= now }
+        Log.i(TAG, "recovery tasks=${tasks.size} missedSpecific=${missedSpecific.size} exactAccess=${canScheduleExactly(context)}")
         tasks.forEach { task ->
             if (task.completed || task.reminderType == "none" || task in missedSpecific) clearAlarms(context, task.id)
             else replaceAlarms(context, task)
         }
         if (missedSpecific.isNotEmpty()) deliverMissedSpecificSummary(context, missedSpecific)
         tasks.forEach { task ->
-            if (task.reminderType == "duration" && TaskTimeFormatter.remainingMillis(context, task) <= 0L && !task.overdueNotified) handle(context, task.id, "deadline", task.deadlineAt)
+            if (task.reminderType == "duration" && TaskTimeFormatter.remainingMillis(context, task) <= 0L) {
+                if (!task.overdueNotified) {
+                    Log.i(TAG, "recovery found overdue task=${task.id} event=deadline:${task.id}:${task.deadlineAt}")
+                    handle(context, task.id, "deadline", task.deadlineAt)
+                } else {
+                    Log.i(TAG, "recovery skipped delivered deadline task=${task.id} deadline=${task.deadlineAt}")
+                }
+            }
         }
         TodoWidget.updateAll(context)
     }
@@ -229,8 +286,26 @@ class ReminderReceiver : BroadcastReceiver() {
         if (intent.action == "com.example.darktodo.reminders.FIRE") {
             val id = intent.getStringExtra("reminder_task") ?: return
             val kind = intent.getStringExtra("reminder_kind") ?: return
-            ReminderScheduler.handle(context, id, kind, intent.getLongExtra("reminder_time", 0L))
+            val scheduledAt = intent.getLongExtra("reminder_time", 0L)
+            Log.i("ReminderScheduler", "receiver entered task=$id kind=$kind scheduledAt=$scheduledAt")
+            val pending = goAsync()
+            ReminderWork.executor.execute {
+                try {
+                    ReminderScheduler.handle(context.applicationContext, id, kind, scheduledAt)
+                } catch (e: Exception) {
+                    Log.e("ReminderScheduler", "receiver failed task=$id kind=$kind", e)
+                } finally {
+                    pending.finish()
+                    Log.i("ReminderScheduler", "receiver finished task=$id kind=$kind")
+                }
+            }
         }
+    }
+}
+
+private object ReminderWork {
+    val executor = java.util.concurrent.Executors.newSingleThreadExecutor { runnable ->
+        Thread(runnable, "reminder-delivery").apply { isDaemon = true }
     }
 }
 
@@ -245,6 +320,7 @@ class ReminderRecoveryReceiver : BroadcastReceiver() {
             AlarmManager.ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED -> {
                 if (intent.action == Intent.ACTION_TIMEZONE_CHANGED) java.util.TimeZone.setDefault(null)
                 ReminderScheduler.restore(context)
+                com.example.darktodo.widget.CalendarWidget.updateAll(context)
             }
         }
     }
