@@ -25,6 +25,7 @@ object TodoWidget {
     fun updateAll(context: Context) {
         val manager = AppWidgetManager.getInstance(context)
         val ids = manager.getAppWidgetIds(ComponentName(context, TodoWidgetReceiver::class.java))
+        Log.i(TAG, "updateAll: widgetIds=${ids.contentToString()}")
         WidgetRefreshScheduler.reconcile(context)
         update(context, manager, ids)
     }
@@ -163,8 +164,10 @@ class TodoWidgetReceiver : AppWidgetProvider() {
     }
 
     override fun onUpdate(context: Context, manager: AppWidgetManager, appWidgetIds: IntArray) {
+        Log.i("TodoWidget", "onUpdate received: widgetIds=${appWidgetIds.contentToString()}")
         // Publish a complete RemoteViews tree before reminder recovery does any work.
         TodoWidget.update(context, manager, appWidgetIds)
+        Log.i("TodoWidget", "Initial RemoteViews submitted; restoring reminders")
         com.example.darktodo.reminders.ReminderScheduler.restore(context)
     }
 

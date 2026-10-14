@@ -40,6 +40,7 @@ object CalendarWidget {
     fun updateAll(context: Context) {
         val manager = AppWidgetManager.getInstance(context)
         val ids = manager.getAppWidgetIds(ComponentName(context, CalendarWidgetReceiver::class.java))
+        Log.i(TAG, "updateAll: widgetIds=${ids.contentToString()}")
         if (ids.isEmpty()) { cancelMidnight(context); return }
         updateTodaySelection(context, ids)
         ids.forEach { id ->
@@ -225,7 +226,10 @@ object CalendarWidget {
 }
 
 class CalendarWidgetReceiver : AppWidgetProvider() {
-    override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) = CalendarWidget.updateAll(context)
+    override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
+        Log.i("CalendarWidget", "onUpdate received: widgetIds=${ids.contentToString()}")
+        CalendarWidget.updateAll(context)
+    }
     override fun onAppWidgetOptionsChanged(context: Context, manager: AppWidgetManager, id: Int, options: android.os.Bundle) { CalendarWidget.updateAll(context) }
     override fun onDeleted(context: Context, appWidgetIds: IntArray) { appWidgetIds.forEach { CalendarWidget.clear(context, it) } }
     override fun onReceive(context: Context, intent: Intent) {
