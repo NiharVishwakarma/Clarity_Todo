@@ -1,4 +1,5 @@
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:label="Clarity To-Do"
     android:minWidth="300dp"
     android:minHeight="180dp"
     android:minResizeWidth="180dp"

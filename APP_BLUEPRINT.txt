@@ -1,0 +1,169 @@
+DARK TODO ANDROID APP - PRODUCT AND IMPLEMENTATION BLUEPRINT
+============================================================
+
+Document purpose
+----------------
+This blueprint describes the current app in this repository: its user-facing features, data behavior, reminder and widget flows, build/release path, implemented reliability fixes, and known platform limits. It is based on the source and README present at the time of writing. It does not claim that unverified or future features already exist.
+
+1. PRODUCT OVERVIEW
+-------------------
+Dark Todo is a native Kotlin Android task manager with a Compose app, persistent local task storage, an Android home-screen widget, deadline notifications, task activity history, and widget appearance controls. The app uses a dark visual theme and the bundled Nunito font family. Data is held on the device in SharedPreferences; no remote account or synchronization service is implemented.
+
+Platform/build baseline:
+- Android application ID: com.example.darktodo
+- Minimum Android version: API 26
+- Compile/target SDK: 35
+- Java and Kotlin target: 17
+- App version: 1.0 (version code 1)
+- Main UI: Jetpack Compose and Material 3
+- Widget: AppWidgetProvider, RemoteViews, and a RemoteViewsService collection
+
+2. APP NAVIGATION AND TASKS
+---------------------------
+The app has three top-level sections: Tasks, History, and Settings.
+
+Tasks screen:
+- Shows the number of incomplete tasks.
+- Provides a single-line task entry field and Add action.
+- Creates tasks without a reminder or opens a reminder setup dialog when adding.
+- Shows incomplete and completed tasks in separate ordered groups, with incomplete tasks first.
+- Shows task titles, completion state, and applicable due/countdown label.
+- Tapping the circle toggles completion. Completed tasks are visually struck through and faded according to the saved setting.
+- Up/down controls move a task within its own completion group; movement does not cross between incomplete and complete groups.
+- Long-pressing a task opens Edit task and Delete task actions. Deletion has a confirmation dialog.
+- Completed tasks can be removed in bulk with Clear completed. Those removals are logged in history.
+- Opening task edit from a reminder notification targets that task by its stable ID.
+
+Task/reminder editing:
+- Task name is editable; a blank name is rejected with an inline error.
+- Reminder choices: No reminder, At a specific time, or Countdown deadline.
+- Specific-time reminders use date and time pickers and support a selected IANA time zone or the device's current time zone.
+- Time-zone selection includes popular zones and a searchable catalog of available java.time zone IDs.
+- Invalid time-zone IDs and times in the past are rejected.
+- Countdown deadline accepts hours and minutes; a zero or invalid duration is rejected.
+- Completed tasks can be renamed, but edit forces their reminder off.
+- A reminder can be changed or removed through task editing.
+
+3. REMINDERS AND NOTIFICATIONS
+-----------------------------
+Specific-time reminders:
+- Store the intended local date/time, zone ID, resolved instant, and whether the task follows the device zone.
+- The system schedules a broadcast alarm and, when delivered, posts a notification that opens the relevant task.
+- After successful notification delivery, the one-shot reminder is consumed from the task.
+- If the app/device recovers after the intended time, overdue specific-time reminders are summarized in a missed-reminder notification and consumed only after delivery succeeds.
+
+Countdown deadlines:
+- Display remaining time in rounded-up whole minutes (for example, 1m left or 2h 5m left); zero is Due now and expired duration deadlines show OVERDUE.
+- While a countdown is active, hourly progress reminders may be delivered. At the deadline, the app posts an overdue notification with a Reschedule action.
+- The duration clock uses elapsed realtime during the current boot to avoid device clock changes distorting the timer; a wall-clock deadline is retained for reboot recovery.
+- Notification bodies use a deterministic, event-keyed motivational quote so reprocessing the same reminder event does not change its text.
+- Notification permission is requested on Android 13 and later. The Settings screen links to notification settings and explains that reminders require permission.
+- Exact alarms are used when supported/granted. If exact alarm access is unavailable or an exact call fails, the scheduler falls back to an inexact allow-while-idle alarm.
+
+4. HOME-SCREEN WIDGET
+---------------------
+- Shows the incomplete task count and a scrollable collection of all tasks.
+- The count/header panel, refresh action, empty-state message, clear-completed control, and Add task action are part of the widget layout. Refresh explicitly recalculates the widget presentation; Add opens the app.
+- Tapping a task row or checkbox toggles completion through the widget receiver. The widget follows task group and manual order from the app.
+- Task title labels include countdown information for active reminders. Widget labels use the shared countdown formatter and show time remaining for both clock-time and duration reminders.
+- Completion styling reflects the selected colors and completed-task fade.
+- Widget size/options changes trigger a refresh. Widget data is reloaded through RemoteViewsService when changed.
+- Periodic widget refresh is configured by Android and cannot run more frequently than the platform's 30-minute minimum. Task mutations, explicit refresh, reminder events, system recovery, and countdown transition alarms provide additional update paths.
+
+5. HISTORY / ACTIVITY LOG
+-------------------------
+- Stores task events separately from active task data.
+- Events include creation, edit, completion, reopening, deletion, and deletion of completed tasks.
+- Each event records a unique event ID, task ID, title snapshot, event type, and timestamp.
+- The History screen organizes events into date/year navigation (see HistoryScreen in MainActivity), supports deleting an individual event and clearing a selected scope, and provides a clear-all-history confirmation.
+- Clearing history does not remove or change active tasks.
+- Deleting an active task or clearing completed tasks records a deletion event; deleting history only rewrites the history collection.
+- History date presentation uses an English day-month-year label; event timestamps otherwise use device-local date/time conventions.
+
+6. SETTINGS AND VISUAL DESIGN
+-----------------------------
+Widget/app task presentation settings include:
+- Incomplete task indicator color.
+- Completed task indicator color.
+- Count panel color.
+- Widget background color.
+- Task card color.
+- Task title color.
+- Completed-task fade percentage (0-100).
+- Nunito variable font weight (300-900).
+- Italic text toggle, backed by the bundled normal/italic Nunito fonts.
+- Task title size (12-24 sp).
+- Reset to defaults action.
+- Colors are normalized and validated as six-digit hexadecimal values before saving.
+
+7. LOCAL DATA MODEL AND PERSISTENCE
+-----------------------------------
+SharedPreferences file: todo_store
+- active_tasks_v1: JSON task array. Stores IDs, titles, completion, ordering by array position, reminder metadata, countdown clock recovery fields, and time-zone metadata.
+- task_history_v1: JSON event array independent from active tasks.
+- widget_setting_*: persisted appearance preferences.
+
+Tasks are stored locally and retained across app restarts and device reboots. Active tasks are saved synchronously before alarm operations so a crash cannot leave a newly scheduled reminder without its task record. History/preferences use asynchronous apply where applicable. Task/history mutations are synchronized within the process.
+
+Duration metadata includes wall-clock start/deadline, elapsed-realtime start/deadline, original duration, and boot count. If the boot count differs, the remaining duration is reconstructed from the saved wall-clock deadline and rebased onto elapsed realtime. Time reminders retain local date/time and a zone ID; blank zone selection means “follow device time zone.”
+
+8. REFRESH AND RECOVERY FLOWS
+-----------------------------
+- Task mutations update the widget and schedule/cancel the corresponding task alarm.
+- While the app is started, visible countdown state refreshes once per minute. On resume, task state is reloaded and reminders are restored.
+- A screen-on receiver exists only while the Activity is started, and refreshes the widget when the screen wakes.
+- Boot completed, app replacement, wall-clock/date changes, time-zone changes, and exact-alarm permission state changes invoke recovery. Recovery recalculates deadlines, replaces alarms, handles missed specific-time reminders, processes expired countdowns, and updates the widget.
+- The widget countdown scheduler sets one alarm for the next visible minute-label transition across active reminder tasks, then reconciles itself after widget refresh.
+- Android does not permit a manifest receiver for screen-on events. If the app is closed, countdown alarms and platform widget refresh are the available refresh paths.
+
+9. IMPLEMENTED BUG FIXES / RELIABILITY SAFEGUARDS
+-------------------------------------------------
+The following are existing code paths and safeguards, not a claim that a newly discovered defect was reproduced during this documentation task:
+
+- Countdown drift across clock changes/reboots: elapsed realtime plus boot-count tracking is used during a boot; saved wall-clock deadline supports rebase after reboot.
+- Inconsistent countdown wording: app and widget share TaskTimeFormatter; positive durations round up to a minute and overdue duration deadlines are explicit.
+- Stale or duplicate alarm delivery: alarms are replaced/cancelled by task ID; handlers validate task status, reminder kind, scheduled timestamp, and whether a duration trigger is still current before notifying.
+- Lost task data when alarm setup crashes: active task state is committed before the alarm is scheduled.
+- Missed reminders during downtime: recovery identifies elapsed specific-time reminders and presents a summary; expired countdown reminders are handled during restore.
+- Time-zone shifts and daylight-saving resolution: local date/time and zone are retained, then resolved through java.time on recovery; device-following reminders use the current device zone.
+- Reminder settings revoked or exact-alarm access unavailable: exact scheduling checks platform access and falls back to inexact alarms; notification calls handle denied permission/security exceptions without crashing.
+- Widget order/count mismatch: widget rows are sourced from the same persisted task order and incomplete count as the app; task toggles refresh the widget data collection.
+- Invalid customization input: color format is validated; fade, font weight, and font size are clamped to supported ranges.
+- Accidental task deletion/history clearing: task deletion and clear-all-history have confirmation dialogs; individual event deletion is scoped to the selected event.
+- Notification reprocessing changing message text: quote selection is stored by event key and reuses the same text for repeat processing.
+
+10. PLATFORM LIMITS AND KNOWN OPERATIONAL CAVEATS
+-------------------------------------------------
+- Android can delay inexact alarms during Doze and battery restrictions. Force-stop can prevent background delivery until the app is launched again.
+- On Android 13+, notification permission may be denied; reminder notifications then cannot be shown.
+- Exact-alarm access is controlled by Android and is not guaranteed. The app falls back to inexact scheduling, which may be late.
+- Android widget periodic updates have a 30-minute minimum. Minute-level transitions depend on the app's own alarm/foreground refresh path and system delivery policies.
+- The screen-on refresh listener is intentionally Activity-scoped because a manifest screen-on receiver is unavailable.
+- Data is local only. There is no account, cloud backup/sync contract, multi-device conflict handling, or export/import feature in the current implementation.
+- No automated test run or device-level runtime verification was performed while producing this blueprint. Existing unit tests cover time-zone catalog behavior, task-time formatting, and history date formatting.
+
+11. BUILD AND DISTRIBUTION
+--------------------------
+GitHub Actions workflow: .github/workflows/android-apk.yml
+- Runs for pushes and pull requests to main and manual workflow dispatch.
+- Sets up Java 17, Android SDK platform/build tools 35, and Gradle 8.9.
+- Generates the Gradle wrapper on the runner, assembles the debug APK, copies it to dark_todo.apk, and uploads artifact dark-todo-debug-apk for 14 days.
+- Output is debug-signed and intended for direct installation/testing, not store release signing.
+- README installation path: download the artifact, extract/install dark_todo.apk, grant install-from-source permission if prompted, then add Dark Todo from Android's Widgets picker.
+
+12. REPOSITORY MAP
+------------------
+app/src/main/java/com/example/darktodo/MainActivity.kt: Compose navigation, task UI, history/settings views, dialogs, lifecycle refresh.
+app/src/main/java/com/example/darktodo/data/TaskStore.kt: task/history persistence and mutation operations.
+app/src/main/java/com/example/darktodo/data/TaskTimeFormatter.kt: shared remaining-time and countdown labels.
+app/src/main/java/com/example/darktodo/data/TimeZoneCatalog.kt: popular/searchable time-zone catalog and local-time resolution.
+app/src/main/java/com/example/darktodo/data/HistoryDateFormatter.kt: history date labels.
+app/src/main/java/com/example/darktodo/data/WidgetPrefs.kt: visual settings persistence, validation, defaults.
+app/src/main/java/com/example/darktodo/reminders/ReminderScheduler.kt: alarm, notification, restore, and missed-reminder handling.
+app/src/main/java/com/example/darktodo/widget/TodoWidget.kt: AppWidget rendering and interaction receiver.
+app/src/main/java/com/example/darktodo/widget/TodoWidgetService.kt: scrollable task collection factory.
+app/src/main/java/com/example/darktodo/widget/WidgetRefreshScheduler.kt: next countdown label transition alarm.
+app/src/main/res: app/widget layouts, styles, widget backgrounds, launcher artwork, and Nunito fonts.
+app/src/test: unit tests for time-zone catalog, task-time formatting, and history date formatting.
+
+END OF BLUEPRINT

@@ -68,12 +68,14 @@ import com.example.darktodo.data.TimeZoneCatalog
 import com.example.darktodo.data.TimeZoneOption
 import com.example.darktodo.data.WidgetPrefs
 import com.example.darktodo.data.WidgetSettings
+import com.example.darktodo.data.CalendarWidgetSettings
 import com.example.darktodo.ui.NunitoFamily
 import com.example.darktodo.ui.composeWeight
 import com.example.darktodo.widget.TodoWidget
 import java.time.Instant
 import java.time.ZoneId
 import java.time.LocalDateTime
+import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
 private val Bg = Color(0xFF000000)
@@ -100,8 +102,11 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (intent.action == com.example.darktodo.widget.CalendarWidget.ACTION_DATE) {
+            com.example.darktodo.widget.CalendarWidget.selectDate(this, intent.getIntExtra(com.example.darktodo.widget.CalendarWidget.EXTRA_WIDGET, android.appwidget.AppWidgetManager.INVALID_APPWIDGET_ID), intent.getStringExtra("task_date") ?: return)
+        }
         com.example.darktodo.reminders.ReminderScheduler.restore(this)
-        setContent { MaterialTheme { Surface(color = Bg) { TodoApp(intent.getStringExtra("edit_task_id")) } } }
+        setContent { MaterialTheme { Surface(color = Bg) { TodoApp(intent.getStringExtra("edit_task_id"), intent.getStringExtra("task_date")) } } }
     }
 
     override fun onNewIntent(intent: android.content.Intent) { super.onNewIntent(intent); setIntent(intent) }
@@ -109,7 +114,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @OptIn(ExperimentalFoundationApi::class)
-@Composable private fun TodoApp(openTaskId: String? = null) {
+@Composable private fun TodoApp(openTaskId: String? = null, openTaskDate: String? = null) {
     val context = LocalContext.current
     var tasks by remember { mutableStateOf(TaskStore.tasks(context)) }
     var events by remember { mutableStateOf(TaskStore.history(context)) }
@@ -123,11 +128,13 @@ class MainActivity : ComponentActivity() {
     var addReminder by remember { mutableStateOf(false) }
     var route by remember { mutableStateOf(listOf<String>()) }
     var confirmClear by remember { mutableStateOf(false) }
+    var dateFilter by remember { mutableStateOf(openTaskDate) }
+    var calendarSettings by remember { mutableStateOf(CalendarWidgetSettings.load(context)) }
     var permissionRevision by remember { mutableIntStateOf(0) }
     var showReminderSetup by remember { mutableStateOf(!context.getSharedPreferences("todo_store", Context.MODE_PRIVATE).getBoolean("reminder_setup_complete_v1", false)) }
     val notificationPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { permissionRevision++ }
     fun refresh() { tasks = TaskStore.tasks(context); events = TaskStore.history(context) }
-    fun refreshSettings() { settings = WidgetSettings.load(context) }
+    fun refreshSettings() { settings = WidgetSettings.load(context); calendarSettings = CalendarWidgetSettings.load(context) }
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_RESUME) {
@@ -149,6 +156,7 @@ class MainActivity : ComponentActivity() {
         }
     }
     LaunchedEffect(openTaskId, tasks) { if (openTaskId != null) editing = tasks.firstOrNull { it.id == openTaskId } }
+    LaunchedEffect(openTaskDate) { if (openTaskDate != null) { dateFilter = runCatching { LocalDate.parse(openTaskDate).toString() }.getOrNull(); page = "Tasks" } }
 
     LaunchedEffect(settings) { TodoWidget.updateAll(context) }
     val selectedFontStyle = if (settings.fontItalic) FontStyle.Italic else FontStyle.Normal
@@ -157,22 +165,26 @@ class MainActivity : ComponentActivity() {
     ProvideTextStyle(TextStyle(fontFamily = NunitoFamily, fontWeight = composeWeight(settings.fontWeight), fontStyle = selectedFontStyle)) {
         Column(Modifier.fillMaxSize().background(Bg).windowInsetsPadding(WindowInsets.safeDrawing).padding(18.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("Dark Todo", color = Ink, fontSize = 24.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                Text("Clarity", color = Ink, fontSize = 24.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                 TextButton(onClick = { page = "Tasks"; refresh() }) { Text("Tasks", color = if (page == "Tasks") Accent else Ink) }
                 TextButton(onClick = { page = "History"; route = emptyList(); refresh() }) { Text("History", color = if (page == "History") Accent else Ink) }
                 TextButton(onClick = { page = "Settings"; refreshSettings() }) { Text("Settings", color = if (page == "Settings") Accent else Ink) }
             }
             when (page) {
                 "Tasks" -> {
-                    Text("${tasks.count { !it.completed }} incomplete", color = Accent, fontSize = 13.sp)
+                    if (dateFilter != null) Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text("Tasks for $dateFilter", color = Accent, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                        TextButton(onClick = { dateFilter = null }) { Text("Show all", color = Ink) }
+                    } else Text("${tasks.count { !it.completed }} incomplete", color = Accent, fontSize = 13.sp)
                     Spacer(Modifier.height(16.dp))
                     Row(Modifier.fillMaxWidth().background(Card, RoundedCornerShape(16.dp)).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                         BasicTextField(value = title, onValueChange = { title = it }, modifier = Modifier.weight(1f), singleLine = true, cursorBrush = SolidColor(caretColor), textStyle = TextStyle(color = Ink, fontSize = settings.taskTitleSizeSp.sp, fontFamily = NunitoFamily, fontWeight = composeWeight(settings.fontWeight), fontStyle = selectedFontStyle), decorationBox = { inner -> if (title.isEmpty()) Text("Add a task", color = Color.Gray); inner() })
                         TextButton(onClick = { if (title.isNotBlank()) addReminder = true }) { Text("Add", color = Accent) }
                     }
                     Spacer(Modifier.height(12.dp))
+                    val visibleTasks = tasks.filter { dateFilter == null || it.taskDate == dateFilter }
                     LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(tasks, key = { it.id }) { task ->
+                        items(visibleTasks, key = { it.id }) { task ->
                             val taskColor = colorFromHex(settings.taskTitle)
                             val checkColor = colorFromHex(if (task.completed) settings.complete else settings.incomplete)
                             val groupPosition = tasks.filter { it.completed == task.completed }.indexOfFirst { it.id == task.id }
@@ -193,18 +205,23 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                     Text("Use arrows to reorder tasks. Long-press a task for actions.", color = Color.Gray, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
-                    TextButton(onClick = { TaskStore.clearCompleted(context); refresh() }) { Text("Clear completed", color = Accent) }
+                    if (dateFilter == null) TextButton(onClick = { TaskStore.clearCompleted(context); refresh() }) { Text("Clear completed", color = Accent) }
                 }
                 "History" -> HistoryScreen(events, route, onRoute = { route = it }, onDelete = { TaskStore.deleteEvent(context, it); refresh() }, onClear = { scope -> TaskStore.deleteEvents(context, scope); refresh() }, onClearAll = { confirmClear = true })
                 else -> SettingsScreen(
                     settings = settings,
+                    calendarSettings = calendarSettings,
                     permissionRevision = permissionRevision,
                     onColor = { key, value -> WidgetSettings.saveColor(context, key, value); refreshSettings() },
                     onFade = { WidgetSettings.saveFade(context, it); refreshSettings() },
                     onWeight = { WidgetSettings.saveFontWeight(context, it); refreshSettings() },
                     onItalic = { WidgetSettings.saveFontItalic(context, it); refreshSettings() },
                     onTaskTitleSize = { WidgetSettings.saveTaskTitleSize(context, it); refreshSettings() },
-                    onReset = { WidgetSettings.reset(context); refreshSettings() }
+                    onReset = { WidgetSettings.reset(context); refreshSettings() },
+                    onCalendarColor = { key, value -> CalendarWidgetSettings.saveColor(context, key, value); refreshSettings(); com.example.darktodo.widget.CalendarWidget.updateAll(context) },
+                    onCalendarInt = { key, value -> CalendarWidgetSettings.saveInt(context, key, value); refreshSettings(); com.example.darktodo.widget.CalendarWidget.updateAll(context) },
+                    onCalendarDots = { CalendarWidgetSettings.saveDots(context, it); refreshSettings(); com.example.darktodo.widget.CalendarWidget.updateAll(context) },
+                    onCalendarReset = { CalendarWidgetSettings.reset(context); refreshSettings(); com.example.darktodo.widget.CalendarWidget.updateAll(context) }
                 )
             }
         }
@@ -223,23 +240,28 @@ class MainActivity : ComponentActivity() {
     editing?.let { task ->
         var value by remember(task.id) { mutableStateOf(task.title) }
         var kind by remember(task.id) { mutableStateOf(if (task.completed) "none" else task.reminderType) }
-        val localPickerInstant = remember(task.id) { runCatching { LocalDateTime.parse(task.localDateTime).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli() }.getOrNull() }
+        var reminderEdited by remember(task.id) { mutableStateOf(false) }
+        val localPickerInstant = remember(task.id) { task.reminderAt.takeIf { task.reminderType == "time" && it > 0L } }
         var deadline by remember(task.id) { mutableLongStateOf((if (task.reminderType == "time") localPickerInstant ?: task.reminderAt else task.deadlineAt).takeIf { it > System.currentTimeMillis() } ?: System.currentTimeMillis() + 3_600_000L) }
         var timeZone by remember(task.id) { mutableStateOf(if (task.followsDeviceTimeZone) "" else task.timeZoneId) }
+        var taskDate by remember(task.id) { mutableStateOf(task.taskDate) }
         val remainMinutes = ((TaskTimeFormatter.remainingMillis(context, task).coerceAtLeast(0L) + 59_999L) / 60_000L).coerceAtLeast(1L)
         var hours by remember(task.id) { mutableStateOf((remainMinutes / 60L).toString()) }; var minutes by remember(task.id) { mutableStateOf((remainMinutes % 60L).toString()) }; var error by remember(task.id) { mutableStateOf("") }
-        ReminderDialog(value, { value = it }, kind, { kind = it }, deadline, { deadline = it }, hours, { hours = it }, minutes, { minutes = it }, timeZone, { timeZone = it }, error, { error = it }, { editing = null }, {
+        ReminderDialog(value, { value = it }, kind, { kind = it; reminderEdited = true }, deadline, { deadline = it; reminderEdited = true }, hours, { hours = it; reminderEdited = true }, minutes, { minutes = it; reminderEdited = true }, timeZone, { timeZone = it; reminderEdited = true }, taskDate, { taskDate = it }, error, { error = it }, { editing = null }, {
             val at = when (kind) { "time" -> deadline; "duration" -> System.currentTimeMillis() + ((hours.toLongOrNull() ?: 0L) * 60 + (minutes.toLongOrNull() ?: 0L)) * 60_000L; else -> 0L }
             val badZone = kind == "time" && timeZone.isNotBlank() && runCatching { ZoneId.of(timeZone.trim()) }.isFailure
-            if (value.isBlank()) error = "Enter a task name" else if (badZone) error = "Enter a valid IANA time zone, such as Europe/London" else if (kind == "time" && at <= System.currentTimeMillis()) error = "Choose a future time" else if (kind == "duration" && at <= System.currentTimeMillis()) error = "Enter a duration greater than zero" else { TaskStore.configure(context, task.id, value, kind, at, timeZone.trim()); editing = null; refresh() }
+            if (value.isBlank()) error = "Enter a task name" else if (reminderEdited && badZone) error = "Enter a valid IANA time zone, such as Europe/London" else if (reminderEdited && kind == "time" && at <= System.currentTimeMillis()) error = "Choose a future time" else if (reminderEdited && kind == "duration" && at <= System.currentTimeMillis()) error = "Enter a duration greater than zero" else {
+                if (reminderEdited) TaskStore.configure(context, task.id, value, kind, at, timeZone.trim(), taskDate) else TaskStore.updateTitleAndDate(context, task.id, value, taskDate)
+                editing = null; refresh()
+            }
         }, task.completed)
     }
     if (addReminder) {
-        var kind by remember { mutableStateOf("none") }; var deadline by remember { mutableLongStateOf(System.currentTimeMillis() + 3_600_000L) }; var hours by remember { mutableStateOf("1") }; var minutes by remember { mutableStateOf("0") }; var timeZone by remember { mutableStateOf("") }; var error by remember { mutableStateOf("") }
-        ReminderDialog(title, { title = it }, kind, { kind = it }, deadline, { deadline = it }, hours, { hours = it }, minutes, { minutes = it }, timeZone, { timeZone = it }, error, { error = it }, { addReminder = false }, {
+        var kind by remember { mutableStateOf("none") }; var deadline by remember { mutableLongStateOf(System.currentTimeMillis() + 3_600_000L) }; var hours by remember { mutableStateOf("1") }; var minutes by remember { mutableStateOf("0") }; var timeZone by remember { mutableStateOf("") }; var taskDate by remember { mutableStateOf(LocalDate.now().toString()) }; var error by remember { mutableStateOf("") }
+        ReminderDialog(title, { title = it }, kind, { kind = it }, deadline, { deadline = it }, hours, { hours = it }, minutes, { minutes = it }, timeZone, { timeZone = it }, taskDate, { taskDate = it }, error, { error = it }, { addReminder = false }, {
             val at = when (kind) { "time" -> deadline; "duration" -> System.currentTimeMillis() + ((hours.toLongOrNull() ?: 0L) * 60 + (minutes.toLongOrNull() ?: 0L)) * 60_000L; else -> 0L }
             val badZone = kind == "time" && timeZone.isNotBlank() && runCatching { ZoneId.of(timeZone.trim()) }.isFailure
-            if (title.isBlank()) error = "Enter a task name" else if (badZone) error = "Enter a valid IANA time zone, such as Europe/London" else if (kind == "time" && at <= System.currentTimeMillis()) error = "Choose a future time" else if (kind == "duration" && at <= System.currentTimeMillis()) error = "Enter a duration greater than zero" else { TaskStore.addConfigured(context, title, kind, at, timeZone.trim()); title = ""; addReminder = false; refresh() }
+            if (title.isBlank()) error = "Enter a task name" else if (badZone) error = "Enter a valid IANA time zone, such as Europe/London" else if (kind == "time" && at <= System.currentTimeMillis()) error = "Choose a future time" else if (kind == "duration" && at <= System.currentTimeMillis()) error = "Enter a duration greater than zero" else { TaskStore.addConfigured(context, title, kind, at, timeZone.trim(), taskDate); title = ""; addReminder = false; refresh() }
         }, false)
     }
     actionTask?.let { task ->
@@ -286,12 +308,16 @@ class MainActivity : ComponentActivity() {
     )
 }
 
-@Composable private fun ReminderDialog(value: String, onValue: (String) -> Unit, kind: String, onKind: (String) -> Unit, deadline: Long, onDeadline: (Long) -> Unit, hours: String, onHours: (String) -> Unit, minutes: String, onMinutes: (String) -> Unit, timeZone: String, onTimeZone: (String) -> Unit, error: String, onError: (String) -> Unit, dismiss: () -> Unit, save: () -> Unit, completed: Boolean) {
+@Composable private fun ReminderDialog(value: String, onValue: (String) -> Unit, kind: String, onKind: (String) -> Unit, deadline: Long, onDeadline: (Long) -> Unit, hours: String, onHours: (String) -> Unit, minutes: String, onMinutes: (String) -> Unit, timeZone: String, onTimeZone: (String) -> Unit, taskDate: String, onTaskDate: (String) -> Unit, error: String, onError: (String) -> Unit, dismiss: () -> Unit, save: () -> Unit, completed: Boolean) {
     val context = LocalContext.current
     var showTimeZonePicker by remember { mutableStateOf(false) }
     AlertDialog(onDismissRequest = dismiss, containerColor = Card, title = { Text(if (completed) "Edit task" else "Task and reminder", color = Ink) },
         text = { Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             androidx.compose.material3.OutlinedTextField(value, onValue, label = { Text("Task name") }, singleLine = true, textStyle = TextStyle(color = Ink, fontFamily = NunitoFamily))
+            TextButton(onClick = {
+                val date = runCatching { LocalDate.parse(taskDate) }.getOrDefault(LocalDate.now())
+                DatePickerDialog(context, { _, year, month, day -> onTaskDate(LocalDate.of(year, month + 1, day).toString()) }, date.year, date.monthValue - 1, date.dayOfMonth).show()
+            }) { Text("Task date: ${runCatching { LocalDate.parse(taskDate).format(DateTimeFormatter.ofPattern("dd-MMM-yyyy")) }.getOrDefault(taskDate)}", color = Accent) }
             Text("Reminder", color = Ink, fontSize = 14.sp)
             listOf("none" to "No reminder", "time" to "At a specific time", "duration" to "Countdown deadline").forEach { (key, label) ->
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable { if (!completed) onKind(key) }) {
@@ -408,7 +434,7 @@ class MainActivity : ComponentActivity() {
 
 private fun friendlyZoneName(id: String): String = TimeZoneCatalog.labelFor(id) ?: id.replace('_', ' ')
 
-@Composable private fun SettingsScreen(settings: WidgetPrefs, permissionRevision: Int, onColor: (String, String) -> Unit, onFade: (Int) -> Unit, onWeight: (Int) -> Unit, onItalic: (Boolean) -> Unit, onTaskTitleSize: (Float) -> Unit, onReset: () -> Unit) {
+@Composable private fun SettingsScreen(settings: WidgetPrefs, calendarSettings: com.example.darktodo.data.CalendarWidgetPrefs, permissionRevision: Int, onColor: (String, String) -> Unit, onFade: (Int) -> Unit, onWeight: (Int) -> Unit, onItalic: (Boolean) -> Unit, onTaskTitleSize: (Float) -> Unit, onReset: () -> Unit, onCalendarColor: (String, String) -> Unit, onCalendarInt: (String, Int) -> Unit, onCalendarDots: (Boolean) -> Unit, onCalendarReset: () -> Unit) {
     val context = LocalContext.current
     @Suppress("UNUSED_VARIABLE") val refreshedOnResume = permissionRevision
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
@@ -467,7 +493,34 @@ private fun friendlyZoneName(id: String): String = TimeZoneCatalog.labelFor(id) 
             }) { Text("Manage exact alarm access", color = Accent) }
         }
         TextButton(onClick = onReset) { Text("Reset settings to defaults", color = Accent) }
+        Spacer(Modifier.height(12.dp))
+        Text("Calendar Widget", color = Ink, fontSize = 18.sp, modifier = Modifier.padding(vertical = 8.dp))
+        val calendarColors = listOf("background" to calendarSettings.background, "date" to calendarSettings.date, "weekday" to calendarSettings.weekday, "heading" to calendarSettings.heading, "selected_background" to calendarSettings.selectedBackground, "selected_text" to calendarSettings.selectedText, "complete_dot" to calendarSettings.completeDot, "mixed_dot" to calendarSettings.mixedDot, "open_dot" to calendarSettings.openDot)
+        calendarColors.forEach { (key, value) ->
+            var input by remember(key, value) { mutableStateOf(value.removePrefix("#")) }
+            Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(key.replace('_', ' ').replaceFirstChar { it.uppercase() }, color = Ink, modifier = Modifier.weight(1f), fontSize = 13.sp)
+                Text("#", color = Color.Gray)
+                BasicTextField(input, { raw -> input = raw.filter { it.isDigit() || it.uppercaseChar() in 'A'..'F' }.take(6).uppercase(); if (input.length == 6) onCalendarColor(key, input) }, modifier = Modifier.width(72.dp).padding(6.dp), singleLine = true, textStyle = TextStyle(color = Ink))
+                Box(Modifier.size(18.dp).background(colorFromHex(value), RoundedCornerShape(4.dp)))
+            }
+        }
+        CalendarSlider("Corner radius: ${calendarSettings.cornerRadius} dp", calendarSettings.cornerRadius, 8, 32) { onCalendarInt("corner_radius", it) }
+        CalendarSlider("Date size: ${calendarSettings.dateSize} sp", calendarSettings.dateSize, 12, 20) { onCalendarInt("date_size", it) }
+        CalendarSlider("Weekday size: ${calendarSettings.weekdaySize} sp", calendarSettings.weekdaySize, 8, 14) { onCalendarInt("weekday_size", it) }
+        CalendarSlider("Month heading size: ${calendarSettings.headingSize} sp", calendarSettings.headingSize, 14, 24) { onCalendarInt("heading_size", it) }
+        CalendarSlider("Vertical row spacing: ${calendarSettings.rowSpacing} dp", calendarSettings.rowSpacing, 0, 8) { onCalendarInt("row_spacing", it) }
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+            Text("Show task status dots", color = Ink)
+            Switch(checked = calendarSettings.showDots, onCheckedChange = onCalendarDots)
+        }
+        TextButton(onClick = onCalendarReset) { Text("Reset calendar widget settings", color = Accent) }
     }
+}
+
+@Composable private fun CalendarSlider(label: String, value: Int, min: Int, max: Int, onChange: (Int) -> Unit) {
+    Text(label, color = Ink, fontSize = 13.sp)
+    Slider(value = value.toFloat(), onValueChange = { onChange(it.toInt()) }, valueRange = min.toFloat()..max.toFloat(), steps = (max - min - 1).coerceAtLeast(0))
 }
 
 @Composable private fun ColorSetting(label: String, key: String, initial: String, palette: List<String>, settings: WidgetPrefs, onColor: (String, String) -> Unit) {

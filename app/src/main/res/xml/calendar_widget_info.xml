@@ -1,0 +1,13 @@
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="240dp"
+    android:minHeight="250dp"
+    android:minResizeWidth="220dp"
+    android:minResizeHeight="230dp"
+    android:targetCellWidth="4"
+    android:targetCellHeight="4"
+    android:initialLayout="@layout/calendar_widget"
+    android:label="Clarity Calendar"
+    android:resizeMode="horizontal|vertical"
+    android:widgetCategory="home_screen"
+    android:description="@string/calendar_widget_description"
+    android:updatePeriodMillis="0" />
