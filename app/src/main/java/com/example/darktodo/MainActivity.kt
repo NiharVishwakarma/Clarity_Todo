@@ -21,6 +21,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -85,9 +86,11 @@ private val Bg = Color(0xFF000000)
 private val Card = Color(0xFF171717)
 private val Accent = Color(0xFFFF0000)
 private val Ink = Color(0xFFF5F5F5)
-const val ACTION_CREATE_TASK = "com.example.darktodo.action.CREATE_TASK"
-
 class MainActivity : ComponentActivity() {
+    companion object {
+        const val ACTION_CREATE_TASK = "com.example.darktodo.action.CREATE_TASK"
+    }
+
     private val screenOnReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             TodoWidget.updateAll(context)
