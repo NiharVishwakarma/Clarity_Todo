@@ -9,12 +9,13 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -99,17 +100,12 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 41)
         com.example.darktodo.reminders.ReminderScheduler.restore(this)
         setContent { MaterialTheme { Surface(color = Bg) { TodoApp(intent.getStringExtra("edit_task_id")) } } }
     }
 
     override fun onNewIntent(intent: android.content.Intent) { super.onNewIntent(intent); setIntent(intent) }
 
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == 41 && grantResults.firstOrNull() != PackageManager.PERMISSION_GRANTED) android.widget.Toast.makeText(this, "Notifications are off. Enable them in Settings to receive task reminders.", android.widget.Toast.LENGTH_LONG).show()
-    }
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -127,12 +123,16 @@ class MainActivity : ComponentActivity() {
     var addReminder by remember { mutableStateOf(false) }
     var route by remember { mutableStateOf(listOf<String>()) }
     var confirmClear by remember { mutableStateOf(false) }
+    var permissionRevision by remember { mutableIntStateOf(0) }
+    var showReminderSetup by remember { mutableStateOf(!context.getSharedPreferences("todo_store", Context.MODE_PRIVATE).getBoolean("reminder_setup_complete_v1", false)) }
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { permissionRevision++ }
     fun refresh() { tasks = TaskStore.tasks(context); events = TaskStore.history(context) }
     fun refreshSettings() { settings = WidgetSettings.load(context) }
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_RESUME) {
             timeTick = System.currentTimeMillis()
+            permissionRevision++
             com.example.darktodo.reminders.ReminderScheduler.restore(context)
             refresh()
         } }
@@ -155,7 +155,7 @@ class MainActivity : ComponentActivity() {
     val iconColor = colorFromHex(settings.incomplete)
     val caretColor = if (iconColor.isBlackOrGray()) Color.White else iconColor
     ProvideTextStyle(TextStyle(fontFamily = NunitoFamily, fontWeight = composeWeight(settings.fontWeight), fontStyle = selectedFontStyle)) {
-        Column(Modifier.fillMaxSize().background(Bg).windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top)).padding(18.dp)) {
+        Column(Modifier.fillMaxSize().background(Bg).windowInsetsPadding(WindowInsets.safeDrawing).padding(18.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("Dark Todo", color = Ink, fontSize = 24.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                 TextButton(onClick = { page = "Tasks"; refresh() }) { Text("Tasks", color = if (page == "Tasks") Accent else Ink) }
@@ -198,6 +198,7 @@ class MainActivity : ComponentActivity() {
                 "History" -> HistoryScreen(events, route, onRoute = { route = it }, onDelete = { TaskStore.deleteEvent(context, it); refresh() }, onClear = { scope -> TaskStore.deleteEvents(context, scope); refresh() }, onClearAll = { confirmClear = true })
                 else -> SettingsScreen(
                     settings = settings,
+                    permissionRevision = permissionRevision,
                     onColor = { key, value -> WidgetSettings.saveColor(context, key, value); refreshSettings() },
                     onFade = { WidgetSettings.saveFade(context, it); refreshSettings() },
                     onWeight = { WidgetSettings.saveFontWeight(context, it); refreshSettings() },
@@ -209,6 +210,16 @@ class MainActivity : ComponentActivity() {
         }
     }
     LaunchedEffect(tasks) { TodoWidget.updateAll(context) }
+    if (showReminderSetup) ReminderSetupDialog(
+        notificationGranted = Build.VERSION.SDK_INT < 33 || ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED,
+        notificationsEnabled = androidx.core.app.NotificationManagerCompat.from(context).areNotificationsEnabled(),
+        channelEnabled = Build.VERSION.SDK_INT < 26 || (context.getSystemService(android.app.NotificationManager::class.java).getNotificationChannel("task_reminders")?.importance ?: android.app.NotificationManager.IMPORTANCE_DEFAULT) != android.app.NotificationManager.IMPORTANCE_NONE,
+        exactAlarmsEnabled = com.example.darktodo.reminders.ReminderScheduler.canScheduleExactly(context),
+        onRequestNotifications = { if (Build.VERSION.SDK_INT >= 33) notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) else permissionRevision++ },
+        onNotificationSettings = { context.startActivity(Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)) },
+        onExactAlarmSettings = { runCatching { context.startActivity(Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, android.net.Uri.parse("package:${context.packageName}"))) } },
+        onContinue = { context.getSharedPreferences("todo_store", Context.MODE_PRIVATE).edit().putBoolean("reminder_setup_complete_v1", true).apply(); showReminderSetup = false }
+    )
     editing?.let { task ->
         var value by remember(task.id) { mutableStateOf(task.title) }
         var kind by remember(task.id) { mutableStateOf(if (task.completed) "none" else task.reminderType) }
@@ -242,6 +253,37 @@ class MainActivity : ComponentActivity() {
             dismissButton = { TextButton(onClick = { confirmDeleteTask = null }) { Text("Cancel", color = Ink) } })
     }
     if (confirmClear) AlertDialog(onDismissRequest = { confirmClear = false }, containerColor = Card, title = { Text("Clear all history?", color = Ink) }, text = { Text("Active tasks and their completion status will not change.", color = Ink) }, confirmButton = { TextButton(onClick = { TaskStore.clearHistory(context); confirmClear = false; refresh() }) { Text("Delete history", color = Accent) } }, dismissButton = { TextButton(onClick = { confirmClear = false }) { Text("Cancel") } })
+}
+
+@Composable private fun ReminderSetupDialog(
+    notificationGranted: Boolean,
+    notificationsEnabled: Boolean,
+    channelEnabled: Boolean,
+    exactAlarmsEnabled: Boolean,
+    onRequestNotifications: () -> Unit,
+    onNotificationSettings: () -> Unit,
+    onExactAlarmSettings: () -> Unit,
+    onContinue: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onContinue,
+        containerColor = Card,
+        title = { Text("Set up task reminders", color = Ink) },
+        text = {
+            Column(Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Reminders use Android alarms on this device. Notifications let the app show them; exact-alarm access helps deliver them close to the selected time. You can continue without either setting, but delivery may be delayed or notifications may not appear.", color = Color.LightGray)
+                Text("Notifications: ${if (!notificationsEnabled) "Blocked in app settings" else if (notificationGranted) "Allowed" else "Permission needed"}", color = Ink)
+                if (Build.VERSION.SDK_INT >= 33 && !notificationGranted) TextButton(onClick = onRequestNotifications) { Text("Allow notifications", color = Accent) }
+                if (!notificationsEnabled || !channelEnabled) TextButton(onClick = onNotificationSettings) { Text("Open notification settings", color = Accent) }
+                if (Build.VERSION.SDK_INT >= 31) {
+                    Text("Reminder channel: ${if (channelEnabled) "Available" else "Blocked"}", color = Ink)
+                    Text("Exact alarms: ${if (exactAlarmsEnabled) "Available" else "Access needed; alarms may be delayed"}", color = Ink)
+                    if (!exactAlarmsEnabled) TextButton(onClick = onExactAlarmSettings) { Text("Allow Alarms & reminders", color = Accent) }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onContinue) { Text("Continue", color = Accent) } }
+    )
 }
 
 @Composable private fun ReminderDialog(value: String, onValue: (String) -> Unit, kind: String, onKind: (String) -> Unit, deadline: Long, onDeadline: (Long) -> Unit, hours: String, onHours: (String) -> Unit, minutes: String, onMinutes: (String) -> Unit, timeZone: String, onTimeZone: (String) -> Unit, error: String, onError: (String) -> Unit, dismiss: () -> Unit, save: () -> Unit, completed: Boolean) {
@@ -366,8 +408,9 @@ class MainActivity : ComponentActivity() {
 
 private fun friendlyZoneName(id: String): String = TimeZoneCatalog.labelFor(id) ?: id.replace('_', ' ')
 
-@Composable private fun SettingsScreen(settings: WidgetPrefs, onColor: (String, String) -> Unit, onFade: (Int) -> Unit, onWeight: (Int) -> Unit, onItalic: (Boolean) -> Unit, onTaskTitleSize: (Float) -> Unit, onReset: () -> Unit) {
+@Composable private fun SettingsScreen(settings: WidgetPrefs, permissionRevision: Int, onColor: (String, String) -> Unit, onFade: (Int) -> Unit, onWeight: (Int) -> Unit, onItalic: (Boolean) -> Unit, onTaskTitleSize: (Float) -> Unit, onReset: () -> Unit) {
     val context = LocalContext.current
+    @Suppress("UNUSED_VARIABLE") val refreshedOnResume = permissionRevision
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         Text("Widget colors (HEX)", color = Ink, fontSize = 18.sp, modifier = Modifier.padding(top = 8.dp, bottom = 8.dp))
         val palette = listOf("FF0000", "000000", "FFFFFF", "171717", "F5F5F5", "2979FF", "00C853", "FFD600")
@@ -405,7 +448,14 @@ private fun friendlyZoneName(id: String): String = TimeZoneCatalog.labelFor(id) 
                 )
             )
         }
-        Text("Reminders need notification permission. Android may delay inexact alarms during Doze or battery restrictions.", color = Color.LightGray, fontSize = 12.sp)
+        val notificationGranted = Build.VERSION.SDK_INT < 33 || ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+        val notificationsEnabled = androidx.core.app.NotificationManagerCompat.from(context).areNotificationsEnabled()
+        val channelImportance = if (Build.VERSION.SDK_INT >= 26) context.getSystemService(android.app.NotificationManager::class.java).getNotificationChannel("task_reminders")?.importance else null
+        Text("Notification permission: ${if (notificationGranted) "Allowed" else "Not granted"}", color = Color.LightGray, fontSize = 12.sp)
+        Text("App notifications: ${if (notificationsEnabled) "On" else "Off"}", color = Color.LightGray, fontSize = 12.sp)
+        Text("Reminder channel: ${when (channelImportance) { android.app.NotificationManager.IMPORTANCE_NONE -> "Blocked"; null -> "Available when first reminder is scheduled"; else -> "On" }}", color = Color.LightGray, fontSize = 12.sp)
+        Text("Pending reminders: reconciled on app start and resume", color = Color.LightGray, fontSize = 12.sp)
+        Text("Android may delay inexact alarms during Doze or battery restrictions.", color = Color.LightGray, fontSize = 12.sp)
         TextButton(onClick = {
             val intent = if (Build.VERSION.SDK_INT >= 26) android.content.Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName) else android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.parse("package:${context.packageName}"))
             context.startActivity(intent)
