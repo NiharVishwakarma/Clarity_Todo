@@ -81,14 +81,15 @@
         <FrameLayout
             android:id="@+id/widget_refresh_container"
             android:layout_width="match_parent"
-            android:layout_height="40dp">
+            android:layout_height="wrap_content">
             <TextView
                 android:id="@+id/widget_refresh"
                 android:layout_width="48dp"
-                android:layout_height="match_parent"
+                android:layout_height="wrap_content"
                 android:layout_gravity="end|center_vertical"
                 android:fontFamily="@font/nunito"
                 android:gravity="center"
+                android:minHeight="32dp"
                 android:text="&#x21BB;"
                 android:textColor="#FF0000"
                 android:textSize="18sp"
@@ -120,14 +121,15 @@
         <FrameLayout
             android:id="@+id/widget_add_container"
             android:layout_width="match_parent"
-            android:layout_height="40dp">
+            android:layout_height="wrap_content">
             <TextView
                 android:id="@+id/widget_add"
                 android:layout_width="48dp"
-                android:layout_height="match_parent"
+                android:layout_height="wrap_content"
                 android:layout_gravity="end|center_vertical"
                 android:fontFamily="@font/nunito"
                 android:gravity="center"
+                android:minHeight="32dp"
                 android:text="+"
                 android:textColor="#FF0000"
                 android:textSize="21sp"
