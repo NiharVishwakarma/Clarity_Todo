@@ -62,12 +62,12 @@ object TodoWidget {
         setStyledText(views, R.id.widget_count, incompleteCount.toString(), settings.fontWeight, settings.fontItalic)
         setStyledText(views, R.id.widget_count_label, "Tasks", settings.fontWeight, settings.fontItalic)
         setStyledText(views, R.id.widget_refresh, "\u21BB", settings.fontWeight, settings.fontItalic)
-        setStyledText(views, R.id.widget_add, "+ Add task", settings.fontWeight, settings.fontItalic)
+        setStyledText(views, R.id.widget_add, "+", settings.fontWeight, settings.fontItalic)
         setStyledText(views, R.id.widget_empty, "No tasks yet", settings.fontWeight, settings.fontItalic)
         views.setInt(R.id.widget_count, "setTextColor", Color.WHITE)
         views.setInt(R.id.widget_count_label, "setTextColor", Color.WHITE)
         views.setInt(R.id.widget_refresh, "setTextColor", incompleteColor)
-        views.setContentDescription(R.id.widget_refresh, "Refresh task countdowns")
+        views.setContentDescription(R.id.widget_refresh_container, "Refresh task countdowns")
         views.setInt(R.id.widget_add, "setTextColor", incompleteColor)
 
         val openApp = PendingIntent.getActivity(
@@ -76,7 +76,8 @@ object TodoWidget {
             Intent(context, MainActivity::class.java),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        views.setOnClickPendingIntent(R.id.widget_add, openApp)
+        views.setOnClickPendingIntent(R.id.widget_add_container, openApp)
+        views.setContentDescription(R.id.widget_add_container, "Add task")
 
         val refreshIntent = Intent(context, TodoWidgetReceiver::class.java).setAction(ACTION_REFRESH_WIDGET)
         val refreshPendingIntent = PendingIntent.getBroadcast(
@@ -85,7 +86,7 @@ object TodoWidget {
             refreshIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        views.setOnClickPendingIntent(R.id.widget_refresh, refreshPendingIntent)
+        views.setOnClickPendingIntent(R.id.widget_refresh_container, refreshPendingIntent)
 
         views.setInt(R.id.widget_empty, "setTextColor", titleColor)
         return views
