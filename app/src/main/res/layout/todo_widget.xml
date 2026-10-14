@@ -115,7 +115,7 @@
             android:layout_weight="1"
             android:divider="@android:color/transparent"
             android:dividerHeight="0dp"
-            android:scrollbars="vertical"
+            android:scrollbars="none"
             android:clipToPadding="false"
             android:paddingTop="2dp"
             android:paddingBottom="2dp" />

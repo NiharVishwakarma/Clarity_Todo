@@ -106,8 +106,12 @@ object TodoWidget {
         row.setTextViewTextSize(R.id.widget_task_title, TypedValue.COMPLEX_UNIT_SP, settings.taskTitleSizeSp * (13f / 16f))
         row.setInt(R.id.widget_task_title, "setTextColor", withAlpha(titleColor, opacity))
         row.setInt(R.id.widget_task_row, "setBackgroundColor", withAlpha(cardColor, opacity))
-        row.setOnClickFillInIntent(R.id.widget_task_check, Intent().putExtra(EXTRA_COLLECTION_ACTION, ACTION_TOGGLE_TASK).putExtra(EXTRA_TASK_ID, task.id))
-        row.setOnClickFillInIntent(R.id.widget_task_title, Intent().putExtra(EXTRA_COLLECTION_ACTION, ACTION_OPEN_TASK))
+        val toggleIntent = Intent()
+            .putExtra(EXTRA_COLLECTION_ACTION, ACTION_TOGGLE_TASK)
+            .putExtra(EXTRA_TASK_ID, task.id)
+        row.setOnClickFillInIntent(R.id.widget_task_row, toggleIntent)
+        row.setOnClickFillInIntent(R.id.widget_task_check, toggleIntent)
+        row.setOnClickFillInIntent(R.id.widget_task_title, toggleIntent)
         return row
     }
 
@@ -134,7 +138,6 @@ object TodoWidget {
     const val ACTION_TOGGLE_TASK = "com.example.darktodo.widget.TOGGLE_TASK"
     const val ACTION_REFRESH_WIDGET = "com.example.darktodo.widget.REFRESH_WIDGET"
     const val ACTION_COLLECTION_CLICK = "com.example.darktodo.widget.COLLECTION_CLICK"
-    const val ACTION_OPEN_TASK = "com.example.darktodo.widget.OPEN_TASK"
     const val EXTRA_COLLECTION_ACTION = "collection_action"
     const val EXTRA_TASK_ID = "task_id"
 }
@@ -149,11 +152,20 @@ class TodoWidgetReceiver : AppWidgetProvider() {
         com.example.darktodo.reminders.ReminderScheduler.restore(context)
     }
 
+    override fun onAppWidgetOptionsChanged(
+        context: Context,
+        manager: AppWidgetManager,
+        appWidgetId: Int,
+        newOptions: android.os.Bundle
+    ) {
+        super.onAppWidgetOptionsChanged(context, manager, appWidgetId, newOptions)
+        TodoWidget.update(context, manager, intArrayOf(appWidgetId))
+    }
+
     override fun onReceive(context: Context, intent: Intent) {
         when (intent.action) {
             TodoWidget.ACTION_COLLECTION_CLICK -> when (intent.getStringExtra(TodoWidget.EXTRA_COLLECTION_ACTION)) {
                 TodoWidget.ACTION_TOGGLE_TASK -> intent.getStringExtra(TodoWidget.EXTRA_TASK_ID)?.let { TaskStore.toggle(context, it) }
-                TodoWidget.ACTION_OPEN_TASK -> context.startActivity(Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             }
             TodoWidget.ACTION_TOGGLE_TASK -> intent.getStringExtra(TodoWidget.EXTRA_TASK_ID)?.let {
                 TaskStore.toggle(context, it)
