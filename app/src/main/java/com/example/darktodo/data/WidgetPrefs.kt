@@ -11,7 +11,7 @@ data class WidgetPrefs(
     val taskCard: String = "#171717",
     val taskTitle: String = "#F5F5F5",
     val fadePercent: Int = 45,
-    val fontFamily: String = "nunito",
+    val fontFamily: String = "googlesans",
     val fontItalic: Boolean = false,
     val taskTitleSizeSp: Float = 16f
 )

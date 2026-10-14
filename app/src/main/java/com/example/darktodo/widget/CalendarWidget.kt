@@ -10,6 +10,7 @@ import android.content.Intent
 import android.graphics.Color
 import android.os.Build
 import android.util.Log
+import android.util.TypedValue
 import android.view.View
 import android.widget.RemoteViews
 import com.example.darktodo.MainActivity
@@ -56,13 +57,14 @@ object CalendarWidget {
     }
 
     private fun fallback(context: Context, widgetId: Int): RemoteViews = RemoteViews(context.packageName, R.layout.calendar_widget).apply {
+        val prefs = CalendarWidgetSettings.load(context)
         setImageViewResource(R.id.calendar_background, R.drawable.calendar_widget_rounded_8)
         setInt(R.id.calendar_background, "setColorFilter", Color.BLACK)
         val month = YearMonth.now()
         setTextViewText(R.id.calendar_heading, month.format(DateTimeFormatter.ofPattern("LLLL yyyy", Locale.getDefault())))
         setInt(R.id.calendar_heading, "setTextColor", Color.WHITE)
-        setInt(R.id.calendar_previous, "setTextColor", Color.RED)
-        setInt(R.id.calendar_next, "setTextColor", Color.RED)
+        setInt(R.id.calendar_previous, "setTextColor", color(prefs.navigationArrows))
+        setInt(R.id.calendar_next, "setTextColor", color(prefs.navigationArrows))
         setOnClickPendingIntent(R.id.calendar_previous, navIntent(context, widgetId, -1))
         setOnClickPendingIntent(R.id.calendar_next, navIntent(context, widgetId, 1))
     }
@@ -82,8 +84,8 @@ object CalendarWidget {
         views.setTextViewText(R.id.calendar_heading, month.format(DateTimeFormatter.ofPattern("LLLL yyyy", locale)))
         views.setTextViewTextSize(R.id.calendar_heading, 2, prefs.headingSize.toFloat())
         views.setInt(R.id.calendar_heading, "setTextColor", color(prefs.heading))
-        views.setInt(R.id.calendar_previous, "setTextColor", color(prefs.heading))
-        views.setInt(R.id.calendar_next, "setTextColor", color(prefs.heading))
+        views.setInt(R.id.calendar_previous, "setTextColor", color(prefs.navigationArrows))
+        views.setInt(R.id.calendar_next, "setTextColor", color(prefs.navigationArrows))
         views.setContentDescription(R.id.calendar_previous, "Previous month, ${month.format(DateTimeFormatter.ofPattern("LLLL yyyy", locale))}")
         views.setContentDescription(R.id.calendar_next, "Next month, ${month.format(DateTimeFormatter.ofPattern("LLLL yyyy", locale))}")
         val prev = navIntent(context, widgetId, -1)
@@ -104,6 +106,15 @@ object CalendarWidget {
         val tasks = TaskStore.tasks(context)
         val cells = CalendarDates.monthCells(month, locale)
         val options = AppWidgetManager.getInstance(context).getAppWidgetOptions(widgetId)
+        // Widget option dimensions are reported in dp. Base the highlight on a date-cell's
+        // available width, then cap the user-selected date size so two-digit dates stay inside.
+        val widgetWidthDp = options.getInt(
+            AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH,
+            options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, 280)
+        ).coerceAtLeast(1)
+        val cellWidthDp = (widgetWidthDp - 24f) / 7f // calendar root has 12dp side padding
+        val circleDiameterDp = minOf(46f, cellWidthDp * 0.88f, maxOf(24f, prefs.dateSize * 2.1f))
+        val effectiveDateSizeSp = minOf(prefs.dateSize.toFloat(), (circleDiameterDp * 0.58f).coerceAtLeast(10f))
         val widgetHeight = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT,
             options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 250))
         val maxRowSpacing = ((widgetHeight - 68) / (cells.size / 7) - 26).coerceAtLeast(0)
@@ -120,8 +131,14 @@ object CalendarWidget {
                 } else {
                     val isSelected = date == selected
                     val isToday = date == currentDate
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        cell.setViewLayoutWidth(R.id.calendar_day_face, circleDiameterDp, TypedValue.COMPLEX_UNIT_DIP)
+                        cell.setViewLayoutHeight(R.id.calendar_day_face, circleDiameterDp, TypedValue.COMPLEX_UNIT_DIP)
+                        cell.setViewLayoutWidth(R.id.calendar_selected_circle, circleDiameterDp, TypedValue.COMPLEX_UNIT_DIP)
+                        cell.setViewLayoutHeight(R.id.calendar_selected_circle, circleDiameterDp, TypedValue.COMPLEX_UNIT_DIP)
+                    }
                     cell.setTextViewText(R.id.calendar_day_number, date.dayOfMonth.toString())
-                    cell.setTextViewTextSize(R.id.calendar_day_number, 2, prefs.dateSize.toFloat())
+                    cell.setTextViewTextSize(R.id.calendar_day_number, TypedValue.COMPLEX_UNIT_SP, effectiveDateSizeSp)
                     cell.setInt(R.id.calendar_day_number, "setTextColor", color(if (isSelected) prefs.selectedText else prefs.date))
                     cell.setViewVisibility(R.id.calendar_selected_circle, if (isSelected) View.VISIBLE else View.GONE)
                     if (isSelected) cell.setInt(R.id.calendar_selected_circle, "setColorFilter", color(prefs.selectedBackground))

@@ -58,7 +58,7 @@ internal object WidgetFontLayouts {
     )
 
     private fun select(family: String, italic: Boolean, layout: (Variants) -> IntArray): Int =
-        layout(byFamily[family] ?: byFamily.getValue("nunito"))[if (italic) 1 else 0]
+        layout(byFamily[family] ?: byFamily.getValue("googlesans"))[if (italic) 1 else 0]
 
     fun todo(family: String, italic: Boolean) = select(family, italic) { it.todo }
     fun taskRow(family: String, italic: Boolean) = select(family, italic) { it.taskRow }

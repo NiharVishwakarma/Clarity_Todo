@@ -7,9 +7,10 @@ data class CalendarWidgetPrefs(
     val background: String = "#000000", val date: String = "#FFFFFF", val weekday: String = "#8A8A8A",
     val heading: String = "#FFFFFF", val selectedBackground: String = "#F20D24", val selectedText: String = "#FFFFFF",
     val completeDot: String = "#35D07F", val mixedDot: String = "#FF9F1C", val openDot: String = "#F20D24",
+    val navigationArrows: String = "#F20D24",
     val cornerRadius: Int = 8, val dateSize: Int = 17, val weekdaySize: Int = 11, val headingSize: Int = 17,
     val rowSpacing: Int = 2, val showDots: Boolean = true,
-    val fontFamily: String = "nunito", val fontItalic: Boolean = false
+    val fontFamily: String = "googlesans", val fontItalic: Boolean = false
 )
 
 object CalendarWidgetSettings {
@@ -22,6 +23,7 @@ object CalendarWidgetSettings {
             color("background", defaults.background), color("date", defaults.date), color("weekday", defaults.weekday),
             color("heading", defaults.heading), color("selected_background", defaults.selectedBackground), color("selected_text", defaults.selectedText),
             color("complete_dot", defaults.completeDot), color("mixed_dot", defaults.mixedDot), color("open_dot", defaults.openDot),
+            color("navigation_arrows", defaults.navigationArrows),
             p.getInt("corner_radius", defaults.cornerRadius).let { value -> listOf(8, 16, 22, 32).minBy { kotlin.math.abs(it - value) } }, p.getInt("date_size", defaults.dateSize).coerceIn(12, 20),
             p.getInt("weekday_size", defaults.weekdaySize).coerceIn(8, 14), p.getInt("heading_size", defaults.headingSize).coerceIn(14, 24),
             p.getInt("row_spacing", defaults.rowSpacing).coerceIn(0, 8), p.getBoolean("show_dots", defaults.showDots),
