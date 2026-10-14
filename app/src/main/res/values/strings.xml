@@ -1,4 +1,5 @@
 <resources>
     <string name="app_name">Clarity</string>
     <string name="calendar_widget_description">Clarity Calendar</string>
+    <string name="todo_widget_description">Clarity To-Do</string>
 </resources>

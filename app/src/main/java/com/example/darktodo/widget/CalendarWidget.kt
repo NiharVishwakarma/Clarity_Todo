@@ -9,6 +9,7 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Color
 import android.os.Build
+import android.util.Log
 import android.view.View
 import android.widget.RemoteViews
 import com.example.darktodo.MainActivity
@@ -41,8 +42,28 @@ object CalendarWidget {
         val ids = manager.getAppWidgetIds(ComponentName(context, CalendarWidgetReceiver::class.java))
         if (ids.isEmpty()) { cancelMidnight(context); return }
         updateTodaySelection(context, ids)
-        ids.forEach { id -> manager.updateAppWidget(id, render(context, id)) }
+        ids.forEach { id ->
+            try {
+                manager.updateAppWidget(id, render(context, id))
+            } catch (error: Exception) {
+                Log.e(TAG, "Failed to render Calendar widget id=$id; publishing dark fallback", error)
+                runCatching { manager.updateAppWidget(id, fallback(context, id)) }
+                    .onFailure { Log.e(TAG, "Failed to publish Calendar fallback id=$id", it) }
+            }
+        }
         scheduleMidnight(context)
+    }
+
+    private fun fallback(context: Context, widgetId: Int): RemoteViews = RemoteViews(context.packageName, R.layout.calendar_widget).apply {
+        setImageViewResource(R.id.calendar_background, R.drawable.calendar_widget_rounded_8)
+        setInt(R.id.calendar_background, "setColorFilter", Color.BLACK)
+        val month = YearMonth.now()
+        setTextViewText(R.id.calendar_heading, month.format(DateTimeFormatter.ofPattern("LLLL yyyy", Locale.getDefault())))
+        setInt(R.id.calendar_heading, "setTextColor", Color.WHITE)
+        setInt(R.id.calendar_previous, "setTextColor", Color.RED)
+        setInt(R.id.calendar_next, "setTextColor", Color.RED)
+        setOnClickPendingIntent(R.id.calendar_previous, navIntent(context, widgetId, -1))
+        setOnClickPendingIntent(R.id.calendar_next, navIntent(context, widgetId, 1))
     }
 
     private fun render(context: Context, widgetId: Int): RemoteViews {
@@ -200,6 +221,7 @@ object CalendarWidget {
 
     private fun radiusDrawable(radius: Int): Int = when { radius < 12 -> R.drawable.calendar_widget_rounded_8; radius < 19 -> R.drawable.calendar_widget_rounded_16; radius < 27 -> R.drawable.calendar_widget_rounded_22; else -> R.drawable.calendar_widget_rounded_32 }
     private fun color(value: String) = runCatching { Color.parseColor(value) }.getOrDefault(Color.WHITE)
+    private const val TAG = "CalendarWidget"
 }
 
 class CalendarWidgetReceiver : AppWidgetProvider() {

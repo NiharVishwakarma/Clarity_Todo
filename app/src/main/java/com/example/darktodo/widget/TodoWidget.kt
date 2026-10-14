@@ -9,6 +9,8 @@ import android.content.Intent
 import android.graphics.Color
 import android.os.Build
 import android.util.TypedValue
+import android.util.Log
+import android.view.View
 import android.widget.RemoteViews
 import com.example.darktodo.MainActivity
 import com.example.darktodo.R
@@ -28,23 +30,47 @@ object TodoWidget {
     }
 
     internal fun update(context: Context, manager: AppWidgetManager, ids: IntArray) {
-        val tasks = TaskStore.tasks(context)
-        val settings = WidgetSettings.load(context)
+        val tasks = runCatching { TaskStore.tasks(context) }.onFailure { Log.e(TAG, "Unable to load tasks for widget update", it) }.getOrNull()
+        val settings = runCatching { WidgetSettings.load(context) }.onFailure { Log.e(TAG, "Unable to load widget settings", it) }.getOrNull()
         ids.forEach { id ->
-            val views = render(context, tasks.count { !it.completed }, settings)
-            views.setRemoteAdapter(R.id.widget_task_rows, Intent(context, TodoWidgetService::class.java))
-            views.setEmptyView(R.id.widget_task_rows, R.id.widget_empty)
-            val clickTemplate = PendingIntent.getBroadcast(
-                context,
-                id,
-                Intent(context, TodoWidgetReceiver::class.java).setAction(ACTION_COLLECTION_CLICK),
-                PendingIntent.FLAG_UPDATE_CURRENT or (if (Build.VERSION.SDK_INT >= 31) PendingIntent.FLAG_MUTABLE else 0)
-            )
-            views.setPendingIntentTemplate(R.id.widget_task_rows, clickTemplate)
-            manager.updateAppWidget(id, views)
+            try {
+                if (tasks == null || settings == null) error("Widget state is unavailable")
+                val views = render(context, tasks.count { !it.completed }, settings)
+                views.setRemoteAdapter(R.id.widget_task_rows, Intent(context, TodoWidgetService::class.java).setData(android.net.Uri.parse("clarity://todo/widget/$id")))
+                views.setEmptyView(R.id.widget_task_rows, R.id.widget_empty)
+                val clickTemplate = PendingIntent.getBroadcast(
+                    context,
+                    id,
+                    Intent(context, TodoWidgetReceiver::class.java).setAction(ACTION_COLLECTION_CLICK),
+                    PendingIntent.FLAG_UPDATE_CURRENT or (if (Build.VERSION.SDK_INT >= 31) PendingIntent.FLAG_MUTABLE else 0)
+                )
+                views.setPendingIntentTemplate(R.id.widget_task_rows, clickTemplate)
+                manager.updateAppWidget(id, views)
+            } catch (error: Exception) {
+                Log.e(TAG, "Failed to render To-Do widget id=$id; publishing dark fallback", error)
+                runCatching { manager.updateAppWidget(id, fallback(context)) }
+                    .onFailure { Log.e(TAG, "Failed to publish To-Do fallback id=$id", it) }
+            }
         }
         if (ids.isNotEmpty()) manager.notifyAppWidgetViewDataChanged(ids, R.id.widget_task_rows)
     }
+
+    private fun fallback(context: Context): RemoteViews = RemoteViews(context.packageName, R.layout.todo_widget).apply {
+        setInt(R.id.widget_root_background, "setColorFilter", Color.rgb(23, 23, 23))
+        setInt(R.id.widget_count_panel_background, "setColorFilter", Color.RED)
+        setViewVisibility(R.id.widget_task_rows, View.GONE)
+        setViewVisibility(R.id.widget_empty, View.VISIBLE)
+        setTextViewText(R.id.widget_empty, "Tasks are temporarily unavailable")
+        setTextColor(R.id.widget_empty, Color.WHITE)
+        setOnClickPendingIntent(R.id.widget_add_container, createTaskPendingIntent(context))
+    }
+
+    private fun createTaskPendingIntent(context: Context): PendingIntent = PendingIntent.getActivity(
+        context, 1001,
+        Intent(context, MainActivity::class.java).setAction(MainActivity.ACTION_CREATE_TASK)
+            .setData(android.net.Uri.parse("clarity://tasks/create")),
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+    )
 
     private fun render(context: Context, incompleteCount: Int, settings: WidgetPrefs): RemoteViews {
         val views = RemoteViews(context.packageName, R.layout.todo_widget)
@@ -66,14 +92,7 @@ object TodoWidget {
         views.setContentDescription(R.id.widget_refresh_container, "Refresh task countdowns")
         views.setInt(R.id.widget_add, "setTextColor", incompleteColor)
 
-        val openApp = PendingIntent.getActivity(
-            context,
-            1001,
-            Intent(context, MainActivity::class.java)
-                .setAction(MainActivity.ACTION_CREATE_TASK)
-                .setData(android.net.Uri.parse("clarity://tasks/create")),
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
+        val openApp = createTaskPendingIntent(context)
         views.setOnClickPendingIntent(R.id.widget_add_container, openApp)
         views.setContentDescription(R.id.widget_add_container, "Add task")
 
@@ -134,6 +153,7 @@ object TodoWidget {
     const val ACTION_COLLECTION_CLICK = "com.example.darktodo.widget.COLLECTION_CLICK"
     const val EXTRA_COLLECTION_ACTION = "collection_action"
     const val EXTRA_TASK_ID = "task_id"
+    private const val TAG = "TodoWidget"
 }
 
 class TodoWidgetReceiver : AppWidgetProvider() {
@@ -143,6 +163,8 @@ class TodoWidgetReceiver : AppWidgetProvider() {
     }
 
     override fun onUpdate(context: Context, manager: AppWidgetManager, appWidgetIds: IntArray) {
+        // Publish a complete RemoteViews tree before reminder recovery does any work.
+        TodoWidget.update(context, manager, appWidgetIds)
         com.example.darktodo.reminders.ReminderScheduler.restore(context)
     }
 
