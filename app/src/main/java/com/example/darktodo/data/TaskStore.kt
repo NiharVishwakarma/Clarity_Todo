@@ -54,7 +54,7 @@ object TaskStore {
         val now = System.currentTimeMillis(); val elapsed = SystemClock.elapsedRealtime(); val duration = (at - now).coerceAtLeast(0L)
         val local = if (type == "time") Instant.ofEpochMilli(at).atZone(ZoneId.systemDefault()).toLocalDateTime() else null
         val zone = timeZone.ifBlank { ZoneId.systemDefault().id }
-        val resolvedAt = if (local != null) local.atZone(ZoneId.of(zone)).toInstant().toEpochMilli() else 0L
+        val resolvedAt = if (local != null) TimeZoneCatalog.resolveLocalDateTime(local, zone).toInstant().toEpochMilli() else 0L
         val task = Task(UUID.randomUUID().toString(), title.trim(), false, type, if (type == "time") resolvedAt else 0L, if (type == "duration") at else 0L,
             countdownStartedAt = if (type == "duration") now else 0L,
             countdownDurationMs = if (type == "duration") duration else 0L,
@@ -75,7 +75,7 @@ object TaskStore {
         val keepCountdown = type == "duration" && old.reminderType == "duration" && old.countdownBootCount == boot && old.countdownDeadlineElapsed > 0L && kotlin.math.abs(old.countdownDeadlineElapsed - (elapsed + duration)) < 60_000L
         val local = if (type == "time") Instant.ofEpochMilli(at).atZone(ZoneId.systemDefault()).toLocalDateTime() else null
         val zone = timeZone.ifBlank { ZoneId.systemDefault().id }
-        val resolvedAt = if (local != null) local.atZone(ZoneId.of(zone)).toInstant().toEpochMilli() else 0L
+        val resolvedAt = if (local != null) TimeZoneCatalog.resolveLocalDateTime(local, zone).toInstant().toEpochMilli() else 0L
         val next = if (old.completed) old.copy(title = title.trim(), reminderType = "none", reminderAt = 0L, deadlineAt = 0L, overdueNotified = false, countdownStartedAt = 0L, countdownDurationMs = 0L, countdownStartElapsed = 0L, countdownDeadlineElapsed = 0L, countdownBootCount = -1, localDateTime = "", timeZoneId = "") else old.copy(
             title = title.trim(), reminderType = type, reminderAt = if (type == "time") resolvedAt else 0L,
             deadlineAt = if (type == "duration") if (keepCountdown) old.deadlineAt else at else 0L, overdueNotified = false,

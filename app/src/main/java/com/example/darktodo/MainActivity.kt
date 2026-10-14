@@ -63,6 +63,8 @@ import com.example.darktodo.data.TaskEvent
 import com.example.darktodo.data.TaskStore
 import com.example.darktodo.data.TaskTimeFormatter
 import com.example.darktodo.data.HistoryDateFormatter
+import com.example.darktodo.data.TimeZoneCatalog
+import com.example.darktodo.data.TimeZoneOption
 import com.example.darktodo.data.WidgetPrefs
 import com.example.darktodo.data.WidgetSettings
 import com.example.darktodo.ui.NunitoFamily
@@ -153,7 +155,7 @@ class MainActivity : ComponentActivity() {
     val iconColor = colorFromHex(settings.incomplete)
     val caretColor = if (iconColor.isBlackOrGray()) Color.White else iconColor
     ProvideTextStyle(TextStyle(fontFamily = NunitoFamily, fontWeight = composeWeight(settings.fontWeight), fontStyle = selectedFontStyle)) {
-        Column(Modifier.fillMaxSize().background(Bg).padding(18.dp)) {
+        Column(Modifier.fillMaxSize().background(Bg).windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top)).padding(18.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("Dark Todo", color = Ink, fontSize = 24.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                 TextButton(onClick = { page = "Tasks"; refresh() }) { Text("Tasks", color = if (page == "Tasks") Accent else Ink) }
@@ -244,6 +246,7 @@ class MainActivity : ComponentActivity() {
 
 @Composable private fun ReminderDialog(value: String, onValue: (String) -> Unit, kind: String, onKind: (String) -> Unit, deadline: Long, onDeadline: (Long) -> Unit, hours: String, onHours: (String) -> Unit, minutes: String, onMinutes: (String) -> Unit, timeZone: String, onTimeZone: (String) -> Unit, error: String, onError: (String) -> Unit, dismiss: () -> Unit, save: () -> Unit, completed: Boolean) {
     val context = LocalContext.current
+    var showTimeZonePicker by remember { mutableStateOf(false) }
     AlertDialog(onDismissRequest = dismiss, containerColor = Card, title = { Text(if (completed) "Edit task" else "Task and reminder", color = Ink) },
         text = { Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             androidx.compose.material3.OutlinedTextField(value, onValue, label = { Text("Task name") }, singleLine = true, textStyle = TextStyle(color = Ink, fontFamily = NunitoFamily))
@@ -259,9 +262,21 @@ class MainActivity : ComponentActivity() {
                     val date = java.util.Calendar.getInstance().apply { set(year, month, day) }
                     TimePickerDialog(context, { _, hour, minute -> date.set(java.util.Calendar.HOUR_OF_DAY, hour); date.set(java.util.Calendar.MINUTE, minute); date.set(java.util.Calendar.SECOND, 0); onDeadline(date.timeInMillis) }, current.get(java.util.Calendar.HOUR_OF_DAY), current.get(java.util.Calendar.MINUTE), android.text.format.DateFormat.is24HourFormat(context)).show()
                 }, current.get(java.util.Calendar.YEAR), current.get(java.util.Calendar.MONTH), current.get(java.util.Calendar.DAY_OF_MONTH)).show()
-            }) { Text("Choose date and time: ${TaskStore.dateTime(context, deadline, timeZone)} (${timeZone.ifBlank { ZoneId.systemDefault().id }})", color = Accent, fontSize = 12.sp) }
+            }) { Text("Choose date and time: ${TaskStore.dateTime(context, deadline, timeZone)} (${if (timeZone.isBlank()) friendlyZoneName(ZoneId.systemDefault().id) else TimeZoneCatalog.labelFor(timeZone) ?: timeZone})", color = Accent, fontSize = 12.sp) }
             if (kind == "time" && !completed) {
-                androidx.compose.material3.OutlinedTextField(timeZone, onTimeZone, label = { Text("Time zone (optional)") }, placeholder = { Text(ZoneId.systemDefault().id) }, singleLine = true, textStyle = TextStyle(color = Ink, fontFamily = NunitoFamily), colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(focusedTextColor = Ink, unfocusedTextColor = Ink, cursorColor = Accent, focusedBorderColor = Accent, unfocusedBorderColor = Color.Gray, focusedLabelColor = Accent, unfocusedLabelColor = Color.LightGray, focusedPlaceholderColor = Color(0xFF9E9E9E), unfocusedPlaceholderColor = Color(0xFF9E9E9E)))
+                val selectedZone = if (timeZone.isBlank()) "Device time zone - ${friendlyZoneName(ZoneId.systemDefault().id)}" else TimeZoneCatalog.labelFor(timeZone) ?: "Unavailable time zone - $timeZone"
+                androidx.compose.material3.OutlinedTextField(
+                    value = selectedZone,
+                    onValueChange = {},
+                    modifier = Modifier.fillMaxWidth().clickable { showTimeZonePicker = true },
+                    readOnly = true,
+                    label = { Text("Time zone (optional)") },
+                    trailingIcon = { TextButton(onClick = { showTimeZonePicker = true }) { Text("Choose", color = Accent) } },
+                    singleLine = true,
+                    textStyle = TextStyle(color = Ink, fontFamily = NunitoFamily),
+                    colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(focusedTextColor = Ink, unfocusedTextColor = Ink, cursorColor = Accent, focusedBorderColor = Color.Gray, unfocusedBorderColor = Color.Gray, focusedLabelColor = Color.LightGray, unfocusedLabelColor = Color.LightGray)
+                )
+                if (timeZone.isNotBlank()) TextButton(onClick = { onTimeZone("") }) { Text("Use device time zone", color = Accent) }
                 Text("Blank follows this device. Skipped local times move forward; repeated times use the earlier occurrence.", color = Color.LightGray, fontSize = 11.sp)
             }
             if (kind == "duration" && !completed) {
@@ -283,7 +298,65 @@ class MainActivity : ComponentActivity() {
         } },
         confirmButton = { TextButton(onClick = save) { Text("Save", color = Accent) } },
         dismissButton = { TextButton(onClick = dismiss) { Text("Cancel", color = Ink) } })
+    if (showTimeZonePicker) TimeZonePickerDialog(
+        selectedId = timeZone,
+        onSelect = { onTimeZone(it); showTimeZonePicker = false },
+        onDismiss = { showTimeZonePicker = false }
+    )
 }
+
+@Composable private fun TimeZonePickerDialog(selectedId: String, onSelect: (String) -> Unit, onDismiss: () -> Unit) {
+    var query by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Card,
+        title = { Text("Choose time zone", color = Ink) },
+        text = {
+            Column {
+                androidx.compose.material3.OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Search city, country or zone") },
+                    singleLine = true,
+                    textStyle = TextStyle(color = Ink, fontFamily = NunitoFamily),
+                    colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Ink, unfocusedTextColor = Ink, cursorColor = Accent,
+                        focusedBorderColor = Accent, unfocusedBorderColor = Color.Gray,
+                        focusedLabelColor = Accent, unfocusedLabelColor = Color.LightGray
+                    )
+                )
+                LazyColumn(Modifier.fillMaxWidth().heightIn(min = 140.dp, max = 360.dp)) {
+                    if (query.isBlank()) {
+                        item { TimeZoneSectionHeader("Popular") }
+                        items(TimeZoneCatalog.popular, key = { it.id }) { zone -> TimeZoneChoice(zone, selectedId == zone.id) { onSelect(zone.id) } }
+                        item { TimeZoneSectionHeader("All available time zones") }
+                        items(TimeZoneCatalog.other, key = { it.id }) { zone -> TimeZoneChoice(zone, selectedId == zone.id) { onSelect(zone.id) } }
+                    } else {
+                        val matches = TimeZoneCatalog.search(query)
+                        if (matches.isEmpty()) item { Text("No matching time zones", color = Color.LightGray, modifier = Modifier.padding(12.dp)) }
+                        items(matches, key = { it.id }) { zone -> TimeZoneChoice(zone, selectedId == zone.id) { onSelect(zone.id) } }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = { onSelect("") }) { Text("Use device", color = Accent) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = Ink) } }
+    )
+}
+
+@Composable private fun TimeZoneSectionHeader(title: String) {
+    Text(title, color = Accent, fontSize = 12.sp, modifier = Modifier.fillMaxWidth().background(Card).padding(top = 12.dp, bottom = 4.dp))
+}
+
+@Composable private fun TimeZoneChoice(zone: TimeZoneOption, selected: Boolean, onClick: () -> Unit) {
+    Column(Modifier.fillMaxWidth().clickable(onClick = onClick).background(if (selected) Color(0xFF292020) else Card).padding(horizontal = 8.dp, vertical = 7.dp)) {
+        Text(zone.label, color = if (selected) Accent else Ink, fontSize = 14.sp)
+        Text(zone.id, color = Color.LightGray, fontSize = 11.sp)
+    }
+}
+
+private fun friendlyZoneName(id: String): String = TimeZoneCatalog.labelFor(id) ?: id.replace('_', ' ')
 
 @Composable private fun SettingsScreen(settings: WidgetPrefs, onColor: (String, String) -> Unit, onFade: (Int) -> Unit, onWeight: (Int) -> Unit, onItalic: (Boolean) -> Unit, onTaskTitleSize: (Float) -> Unit, onReset: () -> Unit) {
     val context = LocalContext.current
