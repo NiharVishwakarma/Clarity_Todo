@@ -61,6 +61,7 @@ import com.example.darktodo.data.Task
 import com.example.darktodo.data.TaskEvent
 import com.example.darktodo.data.TaskStore
 import com.example.darktodo.data.TaskTimeFormatter
+import com.example.darktodo.data.HistoryDateFormatter
 import com.example.darktodo.data.WidgetPrefs
 import com.example.darktodo.data.WidgetSettings
 import com.example.darktodo.ui.NunitoFamily
@@ -367,12 +368,16 @@ class MainActivity : ComponentActivity() {
     }
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         if (route.isNotEmpty()) TextButton(onClick = { onRoute(route.dropLast(1)) }) { Text("< Back", color = Accent) }
-        Text(if (route.isEmpty()) "Task History" else route.last(), color = Ink, fontSize = 18.sp)
+        Text(
+            if (route.isEmpty()) "Task History" else if (route.size == 3) HistoryDateFormatter.format(route.last()) else route.last(),
+            color = Ink,
+            fontSize = 18.sp
+        )
         Spacer(Modifier.weight(1f))
         TextButton(onClick = onClearAll) { Text("Clear all", color = Accent) }
     }
     if (route.size < 3) {
-        LazyColumn { items(shown) { value -> Row(Modifier.fillMaxWidth().padding(vertical = 5.dp).background(Card, RoundedCornerShape(12.dp)).padding(10.dp), verticalAlignment = Alignment.CenterVertically) { Text(value, color = Ink, modifier = Modifier.weight(1f)); TextButton(onClick = { onClear(value) }) { Text("Delete", color = Accent) }; TextButton(onClick = { onRoute(route + value) }) { Text("Open >", color = Accent) } } } }
+        LazyColumn { items(shown) { value -> Row(Modifier.fillMaxWidth().padding(vertical = 5.dp).background(Card, RoundedCornerShape(12.dp)).padding(10.dp), verticalAlignment = Alignment.CenterVertically) { Text(if (route.size == 2) HistoryDateFormatter.format(value) else value, color = Ink, modifier = Modifier.weight(1f)); TextButton(onClick = { onClear(value) }) { Text("Delete", color = Accent) }; TextButton(onClick = { onRoute(route + value) }) { Text("Open >", color = Accent) } } } }
     } else {
         val dayEvents = events.filter { dayFmt.format(Instant.ofEpochMilli(it.at)) == route[2] }.sortedBy { it.at }
         TextButton(onClick = { onClear(route[2]) }) { Text("Delete this date", color = Accent) }
