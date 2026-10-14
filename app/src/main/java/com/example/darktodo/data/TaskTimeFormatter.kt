@@ -37,14 +37,14 @@ object TaskTimeFormatter {
             }.getOrElse { DateFormat.getTimeFormat(context).format(Date(task.reminderAt)) }
             return "Due $time"
         }
-        val completedMinutes = remaining / 60_000L
-        // Keep minute-level precision without letting a few seconds after an
-        // exact hour appear as a whole-hour countdown.
-        val wholeMinutes = when {
-            completedMinutes == 0L -> 1L
-            completedMinutes % 60L == 0L && remaining % 60_000L != 0L -> completedMinutes + 1L
-            else -> completedMinutes
-        }
+        return countdownLabel(remaining)
+    }
+
+    /** Pure formatter shared by app and widget, with positive durations rounded up. */
+    fun countdownLabel(remainingMillis: Long): String {
+        if (remainingMillis < 0L) return "OVERDUE"
+        if (remainingMillis == 0L) return "Due now"
+        val wholeMinutes = ((remainingMillis - 1L) / 60_000L) + 1L
         val hours = wholeMinutes / 60L
         val minutes = wholeMinutes % 60L
         return when {
@@ -52,6 +52,16 @@ object TaskTimeFormatter {
             hours > 0L -> "${hours}h left"
             else -> "${wholeMinutes}m left"
         }
+    }
+
+    /** Wall-clock time when the rendered minute label next changes. */
+    fun nextMinuteTransition(wallNow: Long, remainingMillis: Long): Long? = when {
+        remainingMillis > 0L -> {
+            val shownMinutes = ((remainingMillis - 1L) / 60_000L) + 1L
+            wallNow + remainingMillis - (shownMinutes - 1L) * 60_000L
+        }
+        remainingMillis == 0L -> wallNow + 1L
+        else -> null
     }
 
     fun bootCount(context: Context): Int = runCatching {

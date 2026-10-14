@@ -26,6 +26,7 @@ object TodoWidget {
     fun updateAll(context: Context) {
         val manager = AppWidgetManager.getInstance(context)
         val ids = manager.getAppWidgetIds(ComponentName(context, TodoWidgetReceiver::class.java))
+        WidgetRefreshScheduler.reconcile(context)
         update(context, manager, ids)
     }
 
@@ -136,7 +137,7 @@ class TodoWidgetReceiver : AppWidgetProvider() {
     }
 
     override fun onUpdate(context: Context, manager: AppWidgetManager, appWidgetIds: IntArray) {
-        TodoWidget.update(context, manager, appWidgetIds)
+        com.example.darktodo.reminders.ReminderScheduler.restore(context)
     }
 
     override fun onReceive(context: Context, intent: Intent) {
