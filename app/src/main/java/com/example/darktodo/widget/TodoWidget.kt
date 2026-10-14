@@ -74,7 +74,7 @@ object TodoWidget {
     )
 
     private fun render(context: Context, incompleteCount: Int, settings: WidgetPrefs): RemoteViews {
-        val views = RemoteViews(context.packageName, R.layout.todo_widget)
+        val views = RemoteViews(context.packageName, WidgetFontLayouts.todo(settings.fontFamily, settings.fontItalic))
         val titleColor = parseColor(settings.taskTitle)
         val incompleteColor = parseColor(settings.incomplete)
         val completeColor = parseColor(settings.complete)
@@ -82,11 +82,11 @@ object TodoWidget {
         views.setInt(R.id.widget_root_background, "setColorFilter", parseColor(settings.widgetBackground))
         views.setInt(R.id.widget_count_panel_background, "setColorFilter", parseColor(settings.countPanel))
         views.setInt(R.id.widget_task_card_background, "setColorFilter", cardColor)
-        setStyledText(views, R.id.widget_count, incompleteCount.toString(), settings.fontFamily, settings.fontItalic)
-        setStyledText(views, R.id.widget_count_label, "Tasks", settings.fontFamily, settings.fontItalic)
-        setStyledText(views, R.id.widget_refresh, "\u21BB", settings.fontFamily, settings.fontItalic)
-        setStyledText(views, R.id.widget_add, "+", settings.fontFamily, settings.fontItalic)
-        setStyledText(views, R.id.widget_empty, "No tasks yet", settings.fontFamily, settings.fontItalic)
+        setText(views, R.id.widget_count, incompleteCount.toString())
+        setText(views, R.id.widget_count_label, "Tasks")
+        setText(views, R.id.widget_refresh, "\u21BB")
+        setText(views, R.id.widget_add, "+")
+        setText(views, R.id.widget_empty, "No tasks yet")
         views.setInt(R.id.widget_count, "setTextColor", Color.WHITE)
         views.setInt(R.id.widget_count_label, "setTextColor", Color.WHITE)
         views.setInt(R.id.widget_refresh, "setTextColor", incompleteColor)
@@ -112,17 +112,16 @@ object TodoWidget {
 
     internal fun renderTaskRow(context: Context, task: Task): RemoteViews {
         val settings = WidgetSettings.load(context)
-        val row = RemoteViews(context.packageName, R.layout.widget_task_row)
+        val row = RemoteViews(context.packageName, WidgetFontLayouts.taskRow(settings.fontFamily, settings.fontItalic))
         val titleColor = parseColor(settings.taskTitle)
         val incompleteColor = parseColor(settings.incomplete)
         val completeColor = parseColor(settings.complete)
         val cardColor = parseColor(settings.taskCard)
         val opacity = if (task.completed) (255 * (100 - settings.fadePercent) / 100).coerceIn(0, 255) else 255
         row.setTextViewText(R.id.widget_task_check, if (task.completed) "\u25cf" else "\u25cb")
-        row.setInt(R.id.widget_task_check, "setTextAppearance", WidgetFontStyles.resolve(settings.fontFamily, settings.fontItalic))
         row.setInt(R.id.widget_task_check, "setTextColor", withAlpha(if (task.completed) completeColor else incompleteColor, opacity))
         val label = if (!task.completed && task.reminderType != "none") "${task.title} | ${TaskTimeFormatter.widgetLabel(context, task)}" else task.title
-        setStyledText(row, R.id.widget_task_title, label, settings.fontFamily, settings.fontItalic)
+        setText(row, R.id.widget_task_title, label)
         row.setTextViewTextSize(R.id.widget_task_title, TypedValue.COMPLEX_UNIT_SP, settings.taskTitleSizeSp * (13f / 16f))
         row.setInt(R.id.widget_task_title, "setTextColor", withAlpha(titleColor, opacity))
         row.setInt(R.id.widget_task_row, "setBackgroundColor", withAlpha(cardColor, opacity))
@@ -135,9 +134,8 @@ object TodoWidget {
         return row
     }
 
-    private fun setStyledText(views: RemoteViews, viewId: Int, text: String, family: String, italic: Boolean) {
+    private fun setText(views: RemoteViews, viewId: Int, text: String) {
         views.setTextViewText(viewId, text)
-        views.setInt(viewId, "setTextAppearance", WidgetFontStyles.resolve(family, italic))
     }
 
     private fun parseColor(value: String): Int = try {

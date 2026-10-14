@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/calendar_day_cell"
+    android:layout_width="0dp"
+    android:layout_height="26dp"
+    android:layout_weight="1"
+    android:gravity="center"
+    android:contentDescription="Calendar date">
+    <FrameLayout android:id="@+id/calendar_day_face" android:layout_width="26dp" android:layout_height="26dp" android:layout_gravity="center">
+        <ImageView android:id="@+id/calendar_selected_circle" android:layout_width="26dp" android:layout_height="26dp" android:layout_gravity="center" android:src="@drawable/calendar_selected_circle" android:scaleType="fitXY" android:visibility="gone" />
+        <TextView android:id="@+id/calendar_day_number" android:layout_width="match_parent" android:layout_height="match_parent" android:fontFamily="@font/notosans_regular" android:gravity="center" android:includeFontPadding="false" android:text="1" android:textSize="17sp" />
+        <FrameLayout android:id="@+id/calendar_status_dot_border" android:layout_width="7dp" android:layout_height="7dp" android:layout_gravity="top|end" android:background="@drawable/calendar_status_dot_border" android:visibility="gone">
+            <ImageView android:id="@+id/calendar_status_dot" android:layout_width="5dp" android:layout_height="5dp" android:layout_gravity="center" android:src="@drawable/calendar_status_dot" />
+        </FrameLayout>
+    </FrameLayout>
+</FrameLayout>
