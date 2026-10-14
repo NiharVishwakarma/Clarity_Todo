@@ -53,6 +53,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
@@ -63,14 +64,16 @@ import com.example.darktodo.data.Task
 import com.example.darktodo.data.TaskEvent
 import com.example.darktodo.data.TaskStore
 import com.example.darktodo.data.TaskTimeFormatter
+import com.example.darktodo.data.CountdownEditPolicy
 import com.example.darktodo.data.HistoryDateFormatter
 import com.example.darktodo.data.TimeZoneCatalog
 import com.example.darktodo.data.TimeZoneOption
 import com.example.darktodo.data.WidgetPrefs
 import com.example.darktodo.data.WidgetSettings
 import com.example.darktodo.data.CalendarWidgetSettings
-import com.example.darktodo.ui.NunitoFamily
-import com.example.darktodo.ui.composeWeight
+import com.example.darktodo.ui.appFontFamily
+import com.example.darktodo.ui.appFontOptions
+import com.example.darktodo.ui.ColorPickerDialog
 import com.example.darktodo.widget.TodoWidget
 import java.time.Instant
 import java.time.ZoneId
@@ -82,6 +85,7 @@ private val Bg = Color(0xFF000000)
 private val Card = Color(0xFF171717)
 private val Accent = Color(0xFFFF0000)
 private val Ink = Color(0xFFF5F5F5)
+const val ACTION_CREATE_TASK = "com.example.darktodo.action.CREATE_TASK"
 
 class MainActivity : ComponentActivity() {
     private val screenOnReceiver = object : BroadcastReceiver() {
@@ -106,7 +110,7 @@ class MainActivity : ComponentActivity() {
             com.example.darktodo.widget.CalendarWidget.selectDate(this, intent.getIntExtra(com.example.darktodo.widget.CalendarWidget.EXTRA_WIDGET, android.appwidget.AppWidgetManager.INVALID_APPWIDGET_ID), intent.getStringExtra("task_date") ?: return)
         }
         com.example.darktodo.reminders.ReminderScheduler.restore(this)
-        setContent { MaterialTheme { Surface(color = Bg) { TodoApp(intent.getStringExtra("edit_task_id"), intent.getStringExtra("task_date")) } } }
+        setContent { MaterialTheme { Surface(color = Bg) { TodoApp(intent.getStringExtra("edit_task_id"), intent.getStringExtra("task_date"), intent.action == ACTION_CREATE_TASK) } } }
     }
 
     override fun onNewIntent(intent: android.content.Intent) { super.onNewIntent(intent); setIntent(intent) }
@@ -114,7 +118,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @OptIn(ExperimentalFoundationApi::class)
-@Composable private fun TodoApp(openTaskId: String? = null, openTaskDate: String? = null) {
+@Composable private fun TodoApp(openTaskId: String? = null, openTaskDate: String? = null, startCreateTask: Boolean = false) {
     val context = LocalContext.current
     var tasks by remember { mutableStateOf(TaskStore.tasks(context)) }
     var events by remember { mutableStateOf(TaskStore.history(context)) }
@@ -131,7 +135,8 @@ class MainActivity : ComponentActivity() {
     var dateFilter by remember { mutableStateOf(openTaskDate) }
     var calendarSettings by remember { mutableStateOf(CalendarWidgetSettings.load(context)) }
     var permissionRevision by remember { mutableIntStateOf(0) }
-    var showReminderSetup by remember { mutableStateOf(!context.getSharedPreferences("todo_store", Context.MODE_PRIVATE).getBoolean("reminder_setup_complete_v1", false)) }
+    var showPermissionDialog by remember { mutableStateOf(!context.getSharedPreferences("todo_store", Context.MODE_PRIVATE).getBoolean("reminder_setup_complete_v1", false)) }
+    @Suppress("UNUSED_VARIABLE") val permissionStatusRevision = permissionRevision
     val notificationPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { permissionRevision++ }
     fun refresh() { tasks = TaskStore.tasks(context); events = TaskStore.history(context) }
     fun refreshSettings() { settings = WidgetSettings.load(context); calendarSettings = CalendarWidgetSettings.load(context) }
@@ -155,14 +160,18 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
-    LaunchedEffect(openTaskId, tasks) { if (openTaskId != null) editing = tasks.firstOrNull { it.id == openTaskId } }
+    // A notification task ID is a one-shot navigation request. Do not key this on task data:
+    // doing so re-opened the same edit dialog after any save changed the task list.
+    LaunchedEffect(openTaskId) { if (openTaskId != null) editing = tasks.firstOrNull { it.id == openTaskId } }
+    LaunchedEffect(startCreateTask) { if (startCreateTask) { editing = null; title = ""; addReminder = true } }
     LaunchedEffect(openTaskDate) { if (openTaskDate != null) { dateFilter = runCatching { LocalDate.parse(openTaskDate).toString() }.getOrNull(); page = "Tasks" } }
 
     LaunchedEffect(settings) { TodoWidget.updateAll(context) }
     val selectedFontStyle = if (settings.fontItalic) FontStyle.Italic else FontStyle.Normal
+    val selectedFontFamily = appFontFamily(settings.fontFamily)
     val iconColor = colorFromHex(settings.incomplete)
     val caretColor = if (iconColor.isBlackOrGray()) Color.White else iconColor
-    ProvideTextStyle(TextStyle(fontFamily = NunitoFamily, fontWeight = composeWeight(settings.fontWeight), fontStyle = selectedFontStyle)) {
+    ProvideTextStyle(TextStyle(fontFamily = selectedFontFamily, fontStyle = selectedFontStyle)) {
         Column(Modifier.fillMaxSize().background(Bg).windowInsetsPadding(WindowInsets.safeDrawing).padding(18.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("Clarity", color = Ink, fontSize = 24.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
@@ -178,7 +187,7 @@ class MainActivity : ComponentActivity() {
                     } else Text("${tasks.count { !it.completed }} incomplete", color = Accent, fontSize = 13.sp)
                     Spacer(Modifier.height(16.dp))
                     Row(Modifier.fillMaxWidth().background(Card, RoundedCornerShape(16.dp)).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                        BasicTextField(value = title, onValueChange = { title = it }, modifier = Modifier.weight(1f), singleLine = true, cursorBrush = SolidColor(caretColor), textStyle = TextStyle(color = Ink, fontSize = settings.taskTitleSizeSp.sp, fontFamily = NunitoFamily, fontWeight = composeWeight(settings.fontWeight), fontStyle = selectedFontStyle), decorationBox = { inner -> if (title.isEmpty()) Text("Add a task", color = Color.Gray); inner() })
+                        BasicTextField(value = title, onValueChange = { title = it }, modifier = Modifier.weight(1f), singleLine = true, cursorBrush = SolidColor(caretColor), textStyle = TextStyle(color = Ink, fontSize = settings.taskTitleSizeSp.sp, fontFamily = selectedFontFamily, fontStyle = selectedFontStyle), decorationBox = { inner -> if (title.isEmpty()) Text("Add a task", color = Color.Gray); inner() })
                         TextButton(onClick = { if (title.isNotBlank()) addReminder = true }) { Text("Add", color = Accent) }
                     }
                     Spacer(Modifier.height(12.dp))
@@ -193,7 +202,7 @@ class MainActivity : ComponentActivity() {
                                 Text(if (task.completed) "\u25cf" else "\u25cb", modifier = Modifier.clickable { TaskStore.toggle(context, task.id); refresh() }, color = checkColor, fontSize = 22.sp)
                                 Spacer(Modifier.width(12.dp))
                                 Column(Modifier.weight(1f).clickable { editing = task }) {
-                                    Text(task.title, color = taskColor, textDecoration = if (task.completed) TextDecoration.LineThrough else TextDecoration.None, fontWeight = composeWeight(settings.fontWeight), fontSize = settings.taskTitleSizeSp.sp)
+                                    Text(task.title, color = taskColor, textDecoration = if (task.completed) TextDecoration.LineThrough else TextDecoration.None, fontSize = settings.taskTitleSizeSp.sp)
                                     TaskTimeFormatter.label(context, task, wallNow = timeTick)?.let { Text(it, color = if (it == "OVERDUE") Accent else Color.LightGray, fontSize = 11.sp) }
                                 }
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -205,19 +214,30 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                     Text("Use arrows to reorder tasks. Long-press a task for actions.", color = Color.Gray, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
-                    if (dateFilter == null) TextButton(onClick = { TaskStore.clearCompleted(context); refresh() }) { Text("Clear completed", color = Accent) }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        if (dateFilter == null) TextButton(onClick = { TaskStore.clearCompleted(context); refresh() }) { Text("Clear completed", color = Accent) }
+                        else Spacer(Modifier.width(1.dp))
+                        TextButton(onClick = { showPermissionDialog = true; permissionRevision++ }) { Text("Permissions", color = Accent) }
+                    }
                 }
                 "History" -> HistoryScreen(events, route, onRoute = { route = it }, onDelete = { TaskStore.deleteEvent(context, it); refresh() }, onClear = { scope -> TaskStore.deleteEvents(context, scope); refresh() }, onClearAll = { confirmClear = true })
                 else -> SettingsScreen(
                     settings = settings,
                     calendarSettings = calendarSettings,
-                    permissionRevision = permissionRevision,
                     onColor = { key, value -> WidgetSettings.saveColor(context, key, value); refreshSettings() },
                     onFade = { WidgetSettings.saveFade(context, it); refreshSettings() },
-                    onWeight = { WidgetSettings.saveFontWeight(context, it); refreshSettings() },
+                    onFontFamily = { WidgetSettings.saveFontFamily(context, it); refreshSettings() },
                     onItalic = { WidgetSettings.saveFontItalic(context, it); refreshSettings() },
+                    onCalendarFontFamily = { CalendarWidgetSettings.saveFontFamily(context, it); refreshSettings(); com.example.darktodo.widget.CalendarWidget.updateAll(context) },
+                    onCalendarItalic = { CalendarWidgetSettings.saveFontItalic(context, it); refreshSettings(); com.example.darktodo.widget.CalendarWidget.updateAll(context) },
                     onTaskTitleSize = { WidgetSettings.saveTaskTitleSize(context, it); refreshSettings() },
-                    onReset = { WidgetSettings.reset(context); refreshSettings() },
+                    onReset = {
+                        WidgetSettings.reset(context)
+                        context.getSharedPreferences("todo_store", Context.MODE_PRIVATE).edit().remove("reminder_setup_complete_v1").apply()
+                        showPermissionDialog = true
+                        permissionRevision++
+                        refreshSettings()
+                    },
                     onCalendarColor = { key, value -> CalendarWidgetSettings.saveColor(context, key, value); refreshSettings(); com.example.darktodo.widget.CalendarWidget.updateAll(context) },
                     onCalendarInt = { key, value -> CalendarWidgetSettings.saveInt(context, key, value); refreshSettings(); com.example.darktodo.widget.CalendarWidget.updateAll(context) },
                     onCalendarDots = { CalendarWidgetSettings.saveDots(context, it); refreshSettings(); com.example.darktodo.widget.CalendarWidget.updateAll(context) },
@@ -227,15 +247,19 @@ class MainActivity : ComponentActivity() {
         }
     }
     LaunchedEffect(tasks) { TodoWidget.updateAll(context) }
-    if (showReminderSetup) ReminderSetupDialog(
+    if (showPermissionDialog) PermissionsDialog(
         notificationGranted = Build.VERSION.SDK_INT < 33 || ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED,
         notificationsEnabled = androidx.core.app.NotificationManagerCompat.from(context).areNotificationsEnabled(),
-        channelEnabled = Build.VERSION.SDK_INT < 26 || (context.getSystemService(android.app.NotificationManager::class.java).getNotificationChannel("task_reminders")?.importance ?: android.app.NotificationManager.IMPORTANCE_DEFAULT) != android.app.NotificationManager.IMPORTANCE_NONE,
+        channelImportance = if (Build.VERSION.SDK_INT >= 26) context.getSystemService(android.app.NotificationManager::class.java).getNotificationChannel("task_reminders")?.importance else null,
         exactAlarmsEnabled = com.example.darktodo.reminders.ReminderScheduler.canScheduleExactly(context),
         onRequestNotifications = { if (Build.VERSION.SDK_INT >= 33) notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) else permissionRevision++ },
         onNotificationSettings = { context.startActivity(Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)) },
         onExactAlarmSettings = { runCatching { context.startActivity(Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, android.net.Uri.parse("package:${context.packageName}"))) } },
-        onContinue = { context.getSharedPreferences("todo_store", Context.MODE_PRIVATE).edit().putBoolean("reminder_setup_complete_v1", true).apply(); showReminderSetup = false }
+        onDismiss = {
+            context.getSharedPreferences("todo_store", Context.MODE_PRIVATE).edit().putBoolean("reminder_setup_complete_v1", true).apply()
+            showPermissionDialog = false
+        },
+        onDone = { context.getSharedPreferences("todo_store", Context.MODE_PRIVATE).edit().putBoolean("reminder_setup_complete_v1", true).apply(); showPermissionDialog = false }
     )
     editing?.let { task ->
         var value by remember(task.id) { mutableStateOf(task.title) }
@@ -245,16 +269,20 @@ class MainActivity : ComponentActivity() {
         var deadline by remember(task.id) { mutableLongStateOf((if (task.reminderType == "time") localPickerInstant ?: task.reminderAt else task.deadlineAt).takeIf { it > System.currentTimeMillis() } ?: System.currentTimeMillis() + 3_600_000L) }
         var timeZone by remember(task.id) { mutableStateOf(if (task.followsDeviceTimeZone) "" else task.timeZoneId) }
         var taskDate by remember(task.id) { mutableStateOf(task.taskDate) }
-        val remainMinutes = ((TaskTimeFormatter.remainingMillis(context, task).coerceAtLeast(0L) + 59_999L) / 60_000L).coerceAtLeast(1L)
+        val remainMinutes = CountdownEditPolicy.displayedMinutes(TaskTimeFormatter.remainingMillis(context, task))
         var hours by remember(task.id) { mutableStateOf((remainMinutes / 60L).toString()) }; var minutes by remember(task.id) { mutableStateOf((remainMinutes % 60L).toString()) }; var error by remember(task.id) { mutableStateOf("") }
         ReminderDialog(value, { value = it }, kind, { kind = it; reminderEdited = true }, deadline, { deadline = it; reminderEdited = true }, hours, { hours = it; reminderEdited = true }, minutes, { minutes = it; reminderEdited = true }, timeZone, { timeZone = it; reminderEdited = true }, taskDate, { taskDate = it }, error, { error = it }, { editing = null }, {
             val at = when (kind) { "time" -> deadline; "duration" -> System.currentTimeMillis() + ((hours.toLongOrNull() ?: 0L) * 60 + (minutes.toLongOrNull() ?: 0L)) * 60_000L; else -> 0L }
             val badZone = kind == "time" && timeZone.isNotBlank() && runCatching { ZoneId.of(timeZone.trim()) }.isFailure
-            if (value.isBlank()) error = "Enter a task name" else if (reminderEdited && badZone) error = "Enter a valid IANA time zone, such as Europe/London" else if (reminderEdited && kind == "time" && at <= System.currentTimeMillis()) error = "Choose a future time" else if (reminderEdited && kind == "duration" && at <= System.currentTimeMillis()) error = "Enter a duration greater than zero" else {
-                if (reminderEdited) TaskStore.configure(context, task.id, value, kind, at, timeZone.trim(), taskDate) else TaskStore.updateTitleAndDate(context, task.id, value, taskDate)
+            val renewExpiredCountdown = task.reminderType == "duration" && TaskTimeFormatter.remainingMillis(context, task) <= 0L
+            if (value.isBlank()) error = "Enter a task name" else if (reminderEdited && badZone) error = "Enter a valid IANA time zone, such as Europe/London" else if (reminderEdited && kind == "time" && at <= System.currentTimeMillis()) error = "Choose a future time" else if ((reminderEdited || renewExpiredCountdown) && kind == "duration" && at <= System.currentTimeMillis()) error = "Enter a duration greater than zero" else {
+                // Saving an expired countdown renews it from the duration shown in the dialog,
+                // even when the user leaves the hours/minutes fields untouched.
+                if (CountdownEditPolicy.shouldConfigure(reminderEdited, renewExpiredCountdown)) TaskStore.configure(context, task.id, value, kind, at, timeZone.trim(), taskDate)
+                else TaskStore.updateTitleAndDate(context, task.id, value, taskDate)
                 editing = null; refresh()
             }
-        }, task.completed)
+        }, task.completed, selectedFontFamily, selectedFontStyle)
     }
     if (addReminder) {
         var kind by remember { mutableStateOf("none") }; var deadline by remember { mutableLongStateOf(System.currentTimeMillis() + 3_600_000L) }; var hours by remember { mutableStateOf("1") }; var minutes by remember { mutableStateOf("0") }; var timeZone by remember { mutableStateOf("") }; var taskDate by remember { mutableStateOf(LocalDate.now().toString()) }; var error by remember { mutableStateOf("") }
@@ -262,7 +290,7 @@ class MainActivity : ComponentActivity() {
             val at = when (kind) { "time" -> deadline; "duration" -> System.currentTimeMillis() + ((hours.toLongOrNull() ?: 0L) * 60 + (minutes.toLongOrNull() ?: 0L)) * 60_000L; else -> 0L }
             val badZone = kind == "time" && timeZone.isNotBlank() && runCatching { ZoneId.of(timeZone.trim()) }.isFailure
             if (title.isBlank()) error = "Enter a task name" else if (badZone) error = "Enter a valid IANA time zone, such as Europe/London" else if (kind == "time" && at <= System.currentTimeMillis()) error = "Choose a future time" else if (kind == "duration" && at <= System.currentTimeMillis()) error = "Enter a duration greater than zero" else { TaskStore.addConfigured(context, title, kind, at, timeZone.trim(), taskDate); title = ""; addReminder = false; refresh() }
-        }, false)
+        }, false, selectedFontFamily, selectedFontStyle)
     }
     actionTask?.let { task ->
         AlertDialog(onDismissRequest = { actionTask = null }, containerColor = Card, shape = RoundedCornerShape(20.dp), title = { Text(task.title, color = Ink) },
@@ -277,43 +305,51 @@ class MainActivity : ComponentActivity() {
     if (confirmClear) AlertDialog(onDismissRequest = { confirmClear = false }, containerColor = Card, title = { Text("Clear all history?", color = Ink) }, text = { Text("Active tasks and their completion status will not change.", color = Ink) }, confirmButton = { TextButton(onClick = { TaskStore.clearHistory(context); confirmClear = false; refresh() }) { Text("Delete history", color = Accent) } }, dismissButton = { TextButton(onClick = { confirmClear = false }) { Text("Cancel") } })
 }
 
-@Composable private fun ReminderSetupDialog(
+@Composable private fun PermissionsDialog(
     notificationGranted: Boolean,
     notificationsEnabled: Boolean,
-    channelEnabled: Boolean,
+    channelImportance: Int?,
     exactAlarmsEnabled: Boolean,
     onRequestNotifications: () -> Unit,
     onNotificationSettings: () -> Unit,
     onExactAlarmSettings: () -> Unit,
-    onContinue: () -> Unit
+    onDismiss: () -> Unit,
+    onDone: () -> Unit
 ) {
+    val channelEnabled = channelImportance != android.app.NotificationManager.IMPORTANCE_NONE
     AlertDialog(
-        onDismissRequest = onContinue,
+        onDismissRequest = onDismiss,
         containerColor = Card,
-        title = { Text("Set up task reminders", color = Ink) },
+        title = { Text("Permissions", color = Ink) },
         text = {
             Column(Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Reminders use Android alarms on this device. Notifications let the app show them; exact-alarm access helps deliver them close to the selected time. You can continue without either setting, but delivery may be delayed or notifications may not appear.", color = Color.LightGray)
-                Text("Notifications: ${if (!notificationsEnabled) "Blocked in app settings" else if (notificationGranted) "Allowed" else "Permission needed"}", color = Ink)
+                Text("Manage the Android access used by task reminders. Android controls whether each permission is granted.", color = Color.LightGray)
+                Text("Notification permission: ${if (Build.VERSION.SDK_INT < 33) "Not required on this Android version" else if (notificationGranted) "Allowed" else "Not granted"}", color = Ink)
+                Text("App notifications: ${if (notificationsEnabled) "On" else "Off"}", color = Ink)
                 if (Build.VERSION.SDK_INT >= 33 && !notificationGranted) TextButton(onClick = onRequestNotifications) { Text("Allow notifications", color = Accent) }
                 if (!notificationsEnabled || !channelEnabled) TextButton(onClick = onNotificationSettings) { Text("Open notification settings", color = Accent) }
+                if (Build.VERSION.SDK_INT >= 26) {
+                    Text("Reminder channel: ${when (channelImportance) { android.app.NotificationManager.IMPORTANCE_NONE -> "Blocked"; null -> "Created when a reminder is first scheduled"; else -> "On" }}", color = Ink)
+                }
                 if (Build.VERSION.SDK_INT >= 31) {
-                    Text("Reminder channel: ${if (channelEnabled) "Available" else "Blocked"}", color = Ink)
                     Text("Exact alarms: ${if (exactAlarmsEnabled) "Available" else "Access needed; alarms may be delayed"}", color = Ink)
                     if (!exactAlarmsEnabled) TextButton(onClick = onExactAlarmSettings) { Text("Allow Alarms & reminders", color = Accent) }
+                } else {
+                    Text("Exact-alarm special access: Not required on this Android version", color = Ink)
                 }
+                Text("If exact-alarm access is unavailable, Android may deliver reminders later. Notification permission and channel settings are controlled by Android.", color = Color.LightGray)
             }
         },
-        confirmButton = { TextButton(onClick = onContinue) { Text("Continue", color = Accent) } }
+        confirmButton = { TextButton(onClick = onDone) { Text("Done", color = Accent) } }
     )
 }
 
-@Composable private fun ReminderDialog(value: String, onValue: (String) -> Unit, kind: String, onKind: (String) -> Unit, deadline: Long, onDeadline: (Long) -> Unit, hours: String, onHours: (String) -> Unit, minutes: String, onMinutes: (String) -> Unit, timeZone: String, onTimeZone: (String) -> Unit, taskDate: String, onTaskDate: (String) -> Unit, error: String, onError: (String) -> Unit, dismiss: () -> Unit, save: () -> Unit, completed: Boolean) {
+@Composable private fun ReminderDialog(value: String, onValue: (String) -> Unit, kind: String, onKind: (String) -> Unit, deadline: Long, onDeadline: (Long) -> Unit, hours: String, onHours: (String) -> Unit, minutes: String, onMinutes: (String) -> Unit, timeZone: String, onTimeZone: (String) -> Unit, taskDate: String, onTaskDate: (String) -> Unit, error: String, onError: (String) -> Unit, dismiss: () -> Unit, save: () -> Unit, completed: Boolean, fontFamily: FontFamily, fontStyle: FontStyle) {
     val context = LocalContext.current
     var showTimeZonePicker by remember { mutableStateOf(false) }
     AlertDialog(onDismissRequest = dismiss, containerColor = Card, title = { Text(if (completed) "Edit task" else "Task and reminder", color = Ink) },
         text = { Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            androidx.compose.material3.OutlinedTextField(value, onValue, label = { Text("Task name") }, singleLine = true, textStyle = TextStyle(color = Ink, fontFamily = NunitoFamily))
+            androidx.compose.material3.OutlinedTextField(value, onValue, label = { Text("Task name") }, singleLine = true, textStyle = TextStyle(color = Ink, fontFamily = fontFamily, fontStyle = fontStyle))
             TextButton(onClick = {
                 val date = runCatching { LocalDate.parse(taskDate) }.getOrDefault(LocalDate.now())
                 DatePickerDialog(context, { _, year, month, day -> onTaskDate(LocalDate.of(year, month + 1, day).toString()) }, date.year, date.monthValue - 1, date.dayOfMonth).show()
@@ -341,19 +377,11 @@ class MainActivity : ComponentActivity() {
                     label = { Text("Time zone (optional)") },
                     trailingIcon = { TextButton(onClick = { showTimeZonePicker = true }) { Text("Choose", color = Accent) } },
                     singleLine = true,
-                    textStyle = TextStyle(color = Ink, fontFamily = NunitoFamily),
+                    textStyle = TextStyle(color = Ink, fontFamily = fontFamily, fontStyle = fontStyle),
                     colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(focusedTextColor = Ink, unfocusedTextColor = Ink, cursorColor = Accent, focusedBorderColor = Color.Gray, unfocusedBorderColor = Color.Gray, focusedLabelColor = Color.LightGray, unfocusedLabelColor = Color.LightGray)
                 )
                 if (timeZone.isNotBlank()) TextButton(onClick = { onTimeZone("") }) { Text("Use device time zone", color = Accent) }
                 Text("Blank follows this device. Skipped local times move forward; repeated times use the earlier occurrence.", color = Color.LightGray, fontSize = 11.sp)
-                if (Build.VERSION.SDK_INT >= 31 && !com.example.darktodo.reminders.ReminderScheduler.canScheduleExactly(context)) {
-                    Text("Precise alarm access is off. Android may delay this reminder until access is enabled.", color = Color.LightGray, fontSize = 11.sp)
-                    TextButton(onClick = {
-                        runCatching {
-                            context.startActivity(Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, android.net.Uri.parse("package:${context.packageName}")))
-                        }
-                    }) { Text("Enable Alarms & reminders", color = Accent) }
-                }
             }
             if (kind == "duration" && !completed) {
                 val focusAccent = Color(0xFF7E57C2)
@@ -365,8 +393,8 @@ class MainActivity : ComponentActivity() {
                     focusedPlaceholderColor = Color(0xFF9E9E9E), unfocusedPlaceholderColor = Color(0xFF9E9E9E)
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    androidx.compose.material3.OutlinedTextField(hours, { onHours(it.filter(Char::isDigit).take(4)) }, label = { Text("Hours") }, modifier = Modifier.weight(1f), singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), textStyle = TextStyle(color = Ink, fontFamily = NunitoFamily), colors = fieldColors)
-                    Spacer(Modifier.width(8.dp)); androidx.compose.material3.OutlinedTextField(minutes, { onMinutes(it.filter(Char::isDigit).take(2)) }, label = { Text("Minutes") }, modifier = Modifier.weight(1f), singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), textStyle = TextStyle(color = Ink, fontFamily = NunitoFamily), colors = fieldColors)
+                    androidx.compose.material3.OutlinedTextField(hours, { onHours(it.filter(Char::isDigit).take(4)) }, label = { Text("Hours") }, modifier = Modifier.weight(1f), singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), textStyle = TextStyle(color = Ink, fontFamily = fontFamily, fontStyle = fontStyle), colors = fieldColors)
+                    Spacer(Modifier.width(8.dp)); androidx.compose.material3.OutlinedTextField(minutes, { onMinutes(it.filter(Char::isDigit).take(2)) }, label = { Text("Minutes") }, modifier = Modifier.weight(1f), singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), textStyle = TextStyle(color = Ink, fontFamily = fontFamily, fontStyle = fontStyle), colors = fieldColors)
                 }
             }
             if (completed) Text("Reopened/completed tasks need a new reminder configured explicitly after reopening.", color = Color.Gray, fontSize = 12.sp)
@@ -376,12 +404,14 @@ class MainActivity : ComponentActivity() {
         dismissButton = { TextButton(onClick = dismiss) { Text("Cancel", color = Ink) } })
     if (showTimeZonePicker) TimeZonePickerDialog(
         selectedId = timeZone,
+        fontFamily = fontFamily,
+        fontStyle = fontStyle,
         onSelect = { onTimeZone(it); showTimeZonePicker = false },
         onDismiss = { showTimeZonePicker = false }
     )
 }
 
-@Composable private fun TimeZonePickerDialog(selectedId: String, onSelect: (String) -> Unit, onDismiss: () -> Unit) {
+@Composable private fun TimeZonePickerDialog(selectedId: String, fontFamily: FontFamily, fontStyle: FontStyle, onSelect: (String) -> Unit, onDismiss: () -> Unit) {
     var query by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -395,7 +425,7 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text("Search city, country or zone") },
                     singleLine = true,
-                    textStyle = TextStyle(color = Ink, fontFamily = NunitoFamily),
+                    textStyle = TextStyle(color = Ink, fontFamily = fontFamily, fontStyle = fontStyle),
                     colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
                         focusedTextColor = Ink, unfocusedTextColor = Ink, cursorColor = Accent,
                         focusedBorderColor = Accent, unfocusedBorderColor = Color.Gray,
@@ -434,35 +464,27 @@ class MainActivity : ComponentActivity() {
 
 private fun friendlyZoneName(id: String): String = TimeZoneCatalog.labelFor(id) ?: id.replace('_', ' ')
 
-@Composable private fun SettingsScreen(settings: WidgetPrefs, calendarSettings: com.example.darktodo.data.CalendarWidgetPrefs, permissionRevision: Int, onColor: (String, String) -> Unit, onFade: (Int) -> Unit, onWeight: (Int) -> Unit, onItalic: (Boolean) -> Unit, onTaskTitleSize: (Float) -> Unit, onReset: () -> Unit, onCalendarColor: (String, String) -> Unit, onCalendarInt: (String, Int) -> Unit, onCalendarDots: (Boolean) -> Unit, onCalendarReset: () -> Unit) {
+@Composable private fun SettingsScreen(settings: WidgetPrefs, calendarSettings: com.example.darktodo.data.CalendarWidgetPrefs, onColor: (String, String) -> Unit, onFade: (Int) -> Unit, onFontFamily: (String) -> Unit, onItalic: (Boolean) -> Unit, onCalendarFontFamily: (String) -> Unit, onCalendarItalic: (Boolean) -> Unit, onTaskTitleSize: (Float) -> Unit, onReset: () -> Unit, onCalendarColor: (String, String) -> Unit, onCalendarInt: (String, Int) -> Unit, onCalendarDots: (Boolean) -> Unit, onCalendarReset: () -> Unit) {
     val context = LocalContext.current
-    @Suppress("UNUSED_VARIABLE") val refreshedOnResume = permissionRevision
+    data class PickTarget(val key: String, val label: String, val value: String, val calendar: Boolean)
+    var pickTarget by remember { mutableStateOf<PickTarget?>(null) }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         Text("Widget colors (HEX)", color = Ink, fontSize = 18.sp, modifier = Modifier.padding(top = 8.dp, bottom = 8.dp))
-        val palette = listOf("FF0000", "000000", "FFFFFF", "171717", "F5F5F5", "2979FF", "00C853", "FFD600")
-        ColorSetting("Incomplete checkbox", "incomplete", settings.incomplete, palette, settings, onColor)
-        ColorSetting("Completed checkbox", "complete", settings.complete, palette, settings, onColor)
-        ColorSetting("Task-count panel", "count_panel", settings.countPanel, palette, settings, onColor)
-        ColorSetting("Widget background", "background", settings.widgetBackground, palette, settings, onColor)
-        ColorSetting("Task card background", "task_card", settings.taskCard, palette, settings, onColor)
-        ColorSetting("Task title", "task_title", settings.taskTitle, palette, settings, onColor)
+        ColorSettingRow("Incomplete checkbox", settings.incomplete) { pickTarget = PickTarget("incomplete", "Incomplete checkbox", settings.incomplete, false) }
+        ColorSettingRow("Completed checkbox", settings.complete) { pickTarget = PickTarget("complete", "Completed checkbox", settings.complete, false) }
+        ColorSettingRow("Task-count panel", settings.countPanel) { pickTarget = PickTarget("count_panel", "Task-count panel", settings.countPanel, false) }
+        ColorSettingRow("Widget background", settings.widgetBackground) { pickTarget = PickTarget("background", "Widget background", settings.widgetBackground, false) }
+        ColorSettingRow("Task card background", settings.taskCard) { pickTarget = PickTarget("task_card", "Task card background", settings.taskCard, false) }
+        ColorSettingRow("Task title", settings.taskTitle) { pickTarget = PickTarget("task_title", "Task title", settings.taskTitle, false) }
         Spacer(Modifier.height(8.dp))
         Text("Completed task fading: ${settings.fadePercent}%", color = Ink)
         Slider(value = settings.fadePercent.toFloat(), onValueChange = { onFade(it.toInt()) }, valueRange = 0f..100f)
-        Text("Font weight: ${weightName(settings.fontWeight)} (${settings.fontWeight})", color = Ink)
-        var expanded by remember { mutableStateOf(false) }
-        Box {
-            TextButton(onClick = { expanded = true }) { Text("Choose font weight", color = Accent) }
-            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                listOf(300, 400, 500, 600, 700, 800, 900).forEach { weight ->
-                    DropdownMenuItem(text = { Text("${weightName(weight)} ($weight)") }, onClick = { onWeight(weight); expanded = false })
-                }
-            }
-        }
+        Text("To-Do widget font", color = Ink, fontSize = 16.sp)
+        FontFamilySelector(settings.fontFamily, onFontFamily)
         Text("Task title size: ${settings.taskTitleSizeSp.toInt()} sp", color = Ink)
         Slider(value = settings.taskTitleSizeSp, onValueChange = onTaskTitleSize, valueRange = 12f..24f, steps = 11)
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("Italic task text", color = Ink)
+            Text(if (settings.fontItalic) "Font style: Italic" else "Font style: Regular", color = Ink)
             Switch(
                 checked = settings.fontItalic,
                 onCheckedChange = onItalic,
@@ -474,36 +496,18 @@ private fun friendlyZoneName(id: String): String = TimeZoneCatalog.labelFor(id) 
                 )
             )
         }
-        val notificationGranted = Build.VERSION.SDK_INT < 33 || ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
-        val notificationsEnabled = androidx.core.app.NotificationManagerCompat.from(context).areNotificationsEnabled()
-        val channelImportance = if (Build.VERSION.SDK_INT >= 26) context.getSystemService(android.app.NotificationManager::class.java).getNotificationChannel("task_reminders")?.importance else null
-        Text("Notification permission: ${if (notificationGranted) "Allowed" else "Not granted"}", color = Color.LightGray, fontSize = 12.sp)
-        Text("App notifications: ${if (notificationsEnabled) "On" else "Off"}", color = Color.LightGray, fontSize = 12.sp)
-        Text("Reminder channel: ${when (channelImportance) { android.app.NotificationManager.IMPORTANCE_NONE -> "Blocked"; null -> "Available when first reminder is scheduled"; else -> "On" }}", color = Color.LightGray, fontSize = 12.sp)
-        Text("Pending reminders: reconciled on app start and resume", color = Color.LightGray, fontSize = 12.sp)
-        Text("Android may delay inexact alarms during Doze or battery restrictions.", color = Color.LightGray, fontSize = 12.sp)
-        TextButton(onClick = {
-            val intent = if (Build.VERSION.SDK_INT >= 26) android.content.Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName) else android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.parse("package:${context.packageName}"))
-            context.startActivity(intent)
-        }) { Text("Open notification settings", color = Accent) }
-        if (Build.VERSION.SDK_INT >= 31) {
-            Text(if (com.example.darktodo.reminders.ReminderScheduler.canScheduleExactly(context)) "Precise alarm access is enabled." else "Precise alarm access is off; reminders may be delayed until enabled.", color = Color.LightGray, fontSize = 12.sp)
-            TextButton(onClick = {
-                runCatching { context.startActivity(android.content.Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, android.net.Uri.parse("package:${context.packageName}"))) }
-            }) { Text("Manage exact alarm access", color = Accent) }
-        }
         TextButton(onClick = onReset) { Text("Reset settings to defaults", color = Accent) }
         Spacer(Modifier.height(12.dp))
         Text("Calendar Widget", color = Ink, fontSize = 18.sp, modifier = Modifier.padding(vertical = 8.dp))
-        val calendarColors = listOf("background" to calendarSettings.background, "date" to calendarSettings.date, "weekday" to calendarSettings.weekday, "heading" to calendarSettings.heading, "selected_background" to calendarSettings.selectedBackground, "selected_text" to calendarSettings.selectedText, "complete_dot" to calendarSettings.completeDot, "mixed_dot" to calendarSettings.mixedDot, "open_dot" to calendarSettings.openDot)
+        Text("Calendar widget font", color = Ink, fontSize = 16.sp)
+        FontFamilySelector(calendarSettings.fontFamily, onCalendarFontFamily)
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(if (calendarSettings.fontItalic) "Font style: Italic" else "Font style: Regular", color = Ink)
+            Switch(checked = calendarSettings.fontItalic, onCheckedChange = onCalendarItalic)
+        }
+        val calendarColors = listOf("background" to ("Background" to calendarSettings.background), "date" to ("Date text" to calendarSettings.date), "weekday" to ("Weekday text" to calendarSettings.weekday), "heading" to ("Month heading" to calendarSettings.heading), "selected_background" to ("Selected-date background" to calendarSettings.selectedBackground), "selected_text" to ("Selected-date text" to calendarSettings.selectedText), "complete_dot" to ("Completed-task dot" to calendarSettings.completeDot), "mixed_dot" to ("Mixed-status dot" to calendarSettings.mixedDot), "open_dot" to ("Incomplete-task dot" to calendarSettings.openDot))
         calendarColors.forEach { (key, value) ->
-            var input by remember(key, value) { mutableStateOf(value.removePrefix("#")) }
-            Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(key.replace('_', ' ').replaceFirstChar { it.uppercase() }, color = Ink, modifier = Modifier.weight(1f), fontSize = 13.sp)
-                Text("#", color = Color.Gray)
-                BasicTextField(input, { raw -> input = raw.filter { it.isDigit() || it.uppercaseChar() in 'A'..'F' }.take(6).uppercase(); if (input.length == 6) onCalendarColor(key, input) }, modifier = Modifier.width(72.dp).padding(6.dp), singleLine = true, textStyle = TextStyle(color = Ink))
-                Box(Modifier.size(18.dp).background(colorFromHex(value), RoundedCornerShape(4.dp)))
-            }
+            ColorSettingRow(value.first, value.second) { pickTarget = PickTarget(key, value.first, value.second, true) }
         }
         CalendarSlider("Corner radius: ${calendarSettings.cornerRadius} dp", calendarSettings.cornerRadius, 8, 32) { onCalendarInt("corner_radius", it) }
         CalendarSlider("Date size: ${calendarSettings.dateSize} sp", calendarSettings.dateSize, 12, 20) { onCalendarInt("date_size", it) }
@@ -516,6 +520,25 @@ private fun friendlyZoneName(id: String): String = TimeZoneCatalog.labelFor(id) 
         }
         TextButton(onClick = onCalendarReset) { Text("Reset calendar widget settings", color = Accent) }
     }
+    pickTarget?.let { target ->
+        ColorPickerDialog(target.label, target.value, onApply = { value ->
+            if (target.calendar) onCalendarColor(target.key, value) else onColor(target.key, value)
+            pickTarget = null
+        }, onDismiss = { pickTarget = null })
+    }
+}
+
+@Composable private fun FontFamilySelector(selected: String, onSelect: (String) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    val selectedName = appFontOptions.firstOrNull { it.first == selected }?.second ?: "Nunito"
+    Box {
+        TextButton(onClick = { expanded = true }) { Text("Font: $selectedName", color = Accent) }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            appFontOptions.forEach { (id, name) ->
+                DropdownMenuItem(text = { Text(name) }, onClick = { onSelect(id); expanded = false })
+            }
+        }
+    }
 }
 
 @Composable private fun CalendarSlider(label: String, value: Int, min: Int, max: Int, onChange: (Int) -> Unit) {
@@ -523,25 +546,12 @@ private fun friendlyZoneName(id: String): String = TimeZoneCatalog.labelFor(id) 
     Slider(value = value.toFloat(), onValueChange = { onChange(it.toInt()) }, valueRange = min.toFloat()..max.toFloat(), steps = (max - min - 1).coerceAtLeast(0))
 }
 
-@Composable private fun ColorSetting(label: String, key: String, initial: String, palette: List<String>, settings: WidgetPrefs, onColor: (String, String) -> Unit) {
-    var input by remember(key, initial) { mutableStateOf(initial.removePrefix("#")) }
-    Column(Modifier.fillMaxWidth().padding(vertical = 5.dp).background(Card, RoundedCornerShape(12.dp)).padding(10.dp)) {
-        Text(label, color = Ink, fontSize = 14.sp)
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("#", color = Color.LightGray)
-            BasicTextField(value = input, onValueChange = { value ->
-                input = value.filter { it.isDigit() || it.uppercaseChar() in 'A'..'F' }.take(6).uppercase()
-                if (input.length == 6) onColor(key, input)
-            }, modifier = Modifier.weight(1f).padding(8.dp), singleLine = true, textStyle = TextStyle(color = Ink, fontSize = 15.sp, fontFamily = NunitoFamily, fontWeight = composeWeight(settings.fontWeight), fontStyle = if (settings.fontItalic) FontStyle.Italic else FontStyle.Normal))
-            Box(Modifier.size(22.dp).background(colorFromHex(initial), RoundedCornerShape(5.dp)))
-        }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(1.dp)) {
-            palette.forEach { hex ->
-                TextButton(onClick = { input = hex; onColor(key, hex) }, contentPadding = PaddingValues(horizontal = 4.dp, vertical = 1.dp), modifier = Modifier.weight(1f)) {
-                    Box(Modifier.size(18.dp).background(colorFromHex("#$hex"), RoundedCornerShape(5.dp)))
-                }
-            }
-        }
+@Composable private fun ColorSettingRow(label: String, value: String, onClick: () -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 2.dp).background(Card, RoundedCornerShape(10.dp)).clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, color = Ink, modifier = Modifier.weight(1f), fontSize = 14.sp)
+        Text(value.uppercase(), color = Color.LightGray, fontSize = 12.sp)
+        Spacer(Modifier.width(10.dp))
+        Box(Modifier.size(22.dp).background(colorFromHex(value), RoundedCornerShape(5.dp)).border(1.dp, Color.White.copy(alpha = .35f), RoundedCornerShape(5.dp)))
     }
 }
 
@@ -588,4 +598,3 @@ private fun colorFromHex(hex: String): Color = try { Color(AndroidColor.parseCol
 
 private fun Color.isBlackOrGray(): Boolean =
     maxOf(red, green, blue) - minOf(red, green, blue) <= 0.10f
-private fun weightName(weight: Int): String = when (weight) { 300 -> "Light"; 400 -> "Regular"; 500 -> "Medium"; 600 -> "SemiBold"; 700 -> "Bold"; 800 -> "ExtraBold"; 900 -> "Black"; else -> "Regular" }

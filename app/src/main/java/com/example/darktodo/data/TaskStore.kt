@@ -94,18 +94,17 @@ object TaskStore {
         val current = tasks(context); val old = current.firstOrNull { it.id == id } ?: return@synchronized
         val now = System.currentTimeMillis(); val elapsed = SystemClock.elapsedRealtime(); val boot = TaskTimeFormatter.bootCount(context)
         val duration = (at - now).coerceAtLeast(0L)
-        val keepCountdown = type == "duration" && old.reminderType == "duration" && old.countdownBootCount == boot && old.countdownDeadlineElapsed > 0L && kotlin.math.abs(old.countdownDeadlineElapsed - (elapsed + duration)) < 60_000L
         val unchangedSpecificReminder = type == "time" && old.reminderType == "time" && at == old.reminderAt && timeZone.trim() == if (old.followsDeviceTimeZone) "" else old.timeZoneId
         val local = if (type == "time") Instant.ofEpochMilli(at).atZone(ZoneId.systemDefault()).toLocalDateTime() else null
         val zone = timeZone.ifBlank { ZoneId.systemDefault().id }
         val resolvedAt = if (local != null) TimeZoneCatalog.resolveLocalDateTime(local, zone).toInstant().toEpochMilli() else 0L
         val next = if (old.completed) old.copy(title = title.trim(), reminderType = "none", reminderAt = 0L, deadlineAt = 0L, overdueNotified = false, countdownStartedAt = 0L, countdownDurationMs = 0L, countdownStartElapsed = 0L, countdownDeadlineElapsed = 0L, countdownBootCount = -1, localDateTime = "", timeZoneId = "", taskDate = validDate(taskDate)) else if (unchangedSpecificReminder) old.copy(title = title.trim(), taskDate = validDate(taskDate)) else old.copy(
             title = title.trim(), reminderType = type, reminderAt = if (type == "time") resolvedAt else 0L,
-            deadlineAt = if (type == "duration") if (keepCountdown) old.deadlineAt else at else 0L, overdueNotified = false,
-            countdownStartedAt = if (type == "duration") if (keepCountdown) old.countdownStartedAt else now else 0L,
-            countdownDurationMs = if (type == "duration") if (keepCountdown) old.countdownDurationMs else duration else 0L,
-            countdownStartElapsed = if (type == "duration") if (keepCountdown) old.countdownStartElapsed else elapsed else 0L,
-            countdownDeadlineElapsed = if (type == "duration") if (keepCountdown) old.countdownDeadlineElapsed else elapsed + duration else 0L,
+            deadlineAt = if (type == "duration") at else 0L, overdueNotified = false,
+            countdownStartedAt = if (type == "duration") now else 0L,
+            countdownDurationMs = if (type == "duration") duration else 0L,
+            countdownStartElapsed = if (type == "duration") elapsed else 0L,
+            countdownDeadlineElapsed = if (type == "duration") elapsed + duration else 0L,
             countdownBootCount = if (type == "duration") boot else -1,
             localDateTime = local?.toString() ?: "", timeZoneId = if (type == "time") zone else "", followsDeviceTimeZone = timeZone.isBlank(), taskDate = validDate(taskDate))
         saveTasks(context, current.map { if (it.id == id) next else it }); com.example.darktodo.reminders.ReminderScheduler.cancel(context, id); com.example.darktodo.reminders.ReminderScheduler.schedule(context, next)

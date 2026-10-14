@@ -11,7 +11,7 @@ data class WidgetPrefs(
     val taskCard: String = "#171717",
     val taskTitle: String = "#F5F5F5",
     val fadePercent: Int = 45,
-    val fontWeight: Int = 400,
+    val fontFamily: String = "nunito",
     val fontItalic: Boolean = false,
     val taskTitleSizeSp: Float = 16f
 )
@@ -31,7 +31,7 @@ object WidgetSettings {
             taskCard = p.getString(PREFIX + "task_card", defaults.taskCard)!!,
             taskTitle = p.getString(PREFIX + "task_title", defaults.taskTitle)!!,
             fadePercent = p.getInt(PREFIX + "fade", defaults.fadePercent).coerceIn(0, 100),
-            fontWeight = p.getInt(PREFIX + "font_weight", defaults.fontWeight).coerceIn(300, 900),
+            fontFamily = p.getString(PREFIX + "font_family", defaults.fontFamily).orEmpty().takeIf { it in FONT_FAMILIES } ?: defaults.fontFamily,
             fontItalic = p.getBoolean(PREFIX + "font_italic", defaults.fontItalic),
             taskTitleSizeSp = p.getFloat(PREFIX + "task_title_size_sp", defaults.taskTitleSizeSp).coerceIn(12f, 24f)
         )
@@ -49,8 +49,9 @@ object WidgetSettings {
         context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putInt(PREFIX + "fade", value.coerceIn(0, 100)).apply()
     }
 
-    fun saveFontWeight(context: Context, value: Int) {
-        context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putInt(PREFIX + "font_weight", value.coerceIn(300, 900)).apply()
+    fun saveFontFamily(context: Context, value: String) {
+        if (value !in FONT_FAMILIES) return
+        context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(PREFIX + "font_family", value).apply()
     }
 
     fun saveFontItalic(context: Context, value: Boolean) {
@@ -64,7 +65,9 @@ object WidgetSettings {
 
     fun reset(context: Context) {
         context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().apply {
-            listOf("incomplete", "complete", "count_panel", "background", "task_card", "task_title", "fade", "font_weight", "font_italic", "task_title_size_sp").forEach { remove(PREFIX + it) }
+            listOf("incomplete", "complete", "count_panel", "background", "task_card", "task_title", "fade", "font_weight", "font_family", "font_italic", "task_title_size_sp").forEach { remove(PREFIX + it) }
         }.apply()
     }
 }
+
+private val FONT_FAMILIES = setOf("opensans", "googlesans", "montserrat", "notosans", "ubuntu", "nunito")

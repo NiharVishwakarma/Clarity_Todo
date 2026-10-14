@@ -1,38 +1,29 @@
 package com.example.darktodo.ui
 
 import androidx.compose.ui.text.font.Font
-import androidx.compose.ui.text.ExperimentalTextApi
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
-import androidx.compose.ui.text.font.FontVariation
 import androidx.compose.ui.text.font.FontWeight
 import com.example.darktodo.R
 
-/** Bundled variable Nunito font; all configured weights work offline. */
-@OptIn(ExperimentalTextApi::class)
+/** Bundled font families shared by the app UI and both widgets. */
 val NunitoFamily = FontFamily(
-    Font(R.font.nunito_variable, FontWeight.W300, FontStyle.Normal, variationSettings = FontVariation.Settings(FontVariation.weight(300))),
-    Font(R.font.nunito_variable, FontWeight.W400, FontStyle.Normal, variationSettings = FontVariation.Settings(FontVariation.weight(400))),
-    Font(R.font.nunito_variable, FontWeight.W500, FontStyle.Normal, variationSettings = FontVariation.Settings(FontVariation.weight(500))),
-    Font(R.font.nunito_variable, FontWeight.W600, FontStyle.Normal, variationSettings = FontVariation.Settings(FontVariation.weight(600))),
-    Font(R.font.nunito_variable, FontWeight.W700, FontStyle.Normal, variationSettings = FontVariation.Settings(FontVariation.weight(700))),
-    Font(R.font.nunito_variable, FontWeight.W800, FontStyle.Normal, variationSettings = FontVariation.Settings(FontVariation.weight(800))),
-    Font(R.font.nunito_variable, FontWeight.W900, FontStyle.Normal, variationSettings = FontVariation.Settings(FontVariation.weight(900))),
-    Font(R.font.nunito_italic_variable, FontWeight.W300, FontStyle.Italic, variationSettings = FontVariation.Settings(FontVariation.weight(300))),
-    Font(R.font.nunito_italic_variable, FontWeight.W400, FontStyle.Italic, variationSettings = FontVariation.Settings(FontVariation.weight(400))),
-    Font(R.font.nunito_italic_variable, FontWeight.W500, FontStyle.Italic, variationSettings = FontVariation.Settings(FontVariation.weight(500))),
-    Font(R.font.nunito_italic_variable, FontWeight.W600, FontStyle.Italic, variationSettings = FontVariation.Settings(FontVariation.weight(600))),
-    Font(R.font.nunito_italic_variable, FontWeight.W700, FontStyle.Italic, variationSettings = FontVariation.Settings(FontVariation.weight(700))),
-    Font(R.font.nunito_italic_variable, FontWeight.W800, FontStyle.Italic, variationSettings = FontVariation.Settings(FontVariation.weight(800))),
-    Font(R.font.nunito_italic_variable, FontWeight.W900, FontStyle.Italic, variationSettings = FontVariation.Settings(FontVariation.weight(900)))
+    Font(R.font.nunito_variable, FontWeight.Normal),
+    Font(R.font.nunito_italic_variable, FontWeight.Normal, FontStyle.Italic)
 )
 
-fun composeWeight(value: Int): FontWeight = when (value) {
-    300 -> FontWeight.Light
-    500 -> FontWeight.Medium
-    600 -> FontWeight.SemiBold
-    700 -> FontWeight.Bold
-    800 -> FontWeight.ExtraBold
-    900 -> FontWeight.Black
-    else -> FontWeight.Normal
-}
+private val appFontFamilies = mapOf(
+    "opensans" to FontFamily(Font(R.font.opensans_regular), Font(R.font.opensans_italic, FontWeight.Normal, FontStyle.Italic)),
+    "googlesans" to FontFamily(Font(R.font.googlesans_regular), Font(R.font.googlesans_italic, FontWeight.Normal, FontStyle.Italic)),
+    "montserrat" to FontFamily(Font(R.font.montserrat_regular), Font(R.font.montserrat_italic, FontWeight.Normal, FontStyle.Italic)),
+    "notosans" to FontFamily(Font(R.font.notosans_regular), Font(R.font.notosans_italic, FontWeight.Normal, FontStyle.Italic)),
+    "ubuntu" to FontFamily(Font(R.font.ubuntu_regular), Font(R.font.ubuntu_italic, FontWeight.Normal, FontStyle.Italic)),
+    "nunito" to NunitoFamily
+)
+
+fun appFontFamily(id: String): FontFamily = appFontFamilies[id] ?: NunitoFamily
+
+val appFontOptions = listOf(
+    "opensans" to "Open Sans", "googlesans" to "Google Sans", "montserrat" to "Montserrat",
+    "notosans" to "Noto Sans", "ubuntu" to "Ubuntu", "nunito" to "Nunito"
+)

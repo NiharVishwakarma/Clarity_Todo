@@ -58,6 +58,7 @@ object CalendarWidget {
         views.setImageViewResource(R.id.calendar_background, radiusDrawable(prefs.cornerRadius))
         views.setInt(R.id.calendar_background, "setColorFilter", color(prefs.background))
         views.setTextViewText(R.id.calendar_heading, month.format(DateTimeFormatter.ofPattern("LLLL yyyy", locale)))
+        views.setInt(R.id.calendar_heading, "setTextAppearance", WidgetFontStyles.resolve(prefs.fontFamily, prefs.fontItalic))
         views.setTextViewTextSize(R.id.calendar_heading, 2, prefs.headingSize.toFloat())
         views.setInt(R.id.calendar_heading, "setTextColor", color(prefs.heading))
         views.setInt(R.id.calendar_previous, "setTextColor", color(prefs.heading))
@@ -73,6 +74,7 @@ object CalendarWidget {
         CalendarDates.weekdays(locale).forEach { day ->
             val weekday = RemoteViews(context.packageName, R.layout.calendar_widget_weekday).apply {
                 setTextViewText(android.R.id.text1, day.getDisplayName(TextStyle.SHORT, locale).take(2))
+                setInt(android.R.id.text1, "setTextAppearance", WidgetFontStyles.resolve(prefs.fontFamily, prefs.fontItalic))
                 setTextViewTextSize(android.R.id.text1, 2, prefs.weekdaySize.toFloat())
                 setInt(android.R.id.text1, "setTextColor", color(prefs.weekday))
             }
@@ -81,10 +83,15 @@ object CalendarWidget {
 
         val tasks = TaskStore.tasks(context)
         val cells = CalendarDates.monthCells(month, locale)
+        val options = AppWidgetManager.getInstance(context).getAppWidgetOptions(widgetId)
+        val widgetHeight = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT,
+            options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 250))
+        val maxRowSpacing = ((widgetHeight - 68) / (cells.size / 7) - 26).coerceAtLeast(0)
+        val effectiveRowSpacing = prefs.rowSpacing.coerceAtMost(maxRowSpacing)
         views.removeAllViews(R.id.calendar_grid)
         cells.chunked(7).forEach { week ->
             val row = RemoteViews(context.packageName, R.layout.calendar_widget_week_row)
-            val spacingPx = (prefs.rowSpacing * context.resources.displayMetrics.density).toInt()
+            val spacingPx = (effectiveRowSpacing * context.resources.displayMetrics.density).toInt()
             row.setViewPadding(R.id.calendar_week_row, 0, 0, 0, spacingPx)
             week.forEach { date ->
                 val cell = RemoteViews(context.packageName, R.layout.calendar_widget_day)
@@ -94,18 +101,18 @@ object CalendarWidget {
                     val isSelected = date == selected
                     val isToday = date == currentDate
                     cell.setTextViewText(R.id.calendar_day_number, date.dayOfMonth.toString())
+                    cell.setInt(R.id.calendar_day_number, "setTextAppearance", WidgetFontStyles.resolve(prefs.fontFamily, prefs.fontItalic))
                     cell.setTextViewTextSize(R.id.calendar_day_number, 2, prefs.dateSize.toFloat())
                     cell.setInt(R.id.calendar_day_number, "setTextColor", color(if (isSelected) prefs.selectedText else prefs.date))
                     cell.setViewVisibility(R.id.calendar_selected_circle, if (isSelected) View.VISIBLE else View.GONE)
                     if (isSelected) cell.setInt(R.id.calendar_selected_circle, "setColorFilter", color(prefs.selectedBackground))
                     if (isToday && !isSelected) cell.setInt(R.id.calendar_day_number, "setTextColor", color(prefs.selectedBackground))
                     cell.setContentDescription(R.id.calendar_day_cell, date.format(DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy", locale)) + if (isToday) ", today" else "")
-                    cell.setViewVisibility(R.id.calendar_status_dot, if (prefs.showDots) View.VISIBLE else View.INVISIBLE)
                     when (CalendarDates.status(tasks, date)) {
-                        CalendarTaskStatus.NONE -> cell.setViewVisibility(R.id.calendar_status_dot, View.INVISIBLE)
-                        CalendarTaskStatus.COMPLETE -> cell.setInt(R.id.calendar_status_dot, "setColorFilter", color(prefs.completeDot))
-                        CalendarTaskStatus.MIXED -> cell.setInt(R.id.calendar_status_dot, "setColorFilter", color(prefs.mixedDot))
-                        CalendarTaskStatus.OPEN -> cell.setInt(R.id.calendar_status_dot, "setColorFilter", color(prefs.openDot))
+                        CalendarTaskStatus.NONE -> cell.setViewVisibility(R.id.calendar_status_dot_border, View.GONE)
+                        CalendarTaskStatus.COMPLETE -> { cell.setViewVisibility(R.id.calendar_status_dot_border, if (prefs.showDots) View.VISIBLE else View.GONE); cell.setInt(R.id.calendar_status_dot, "setColorFilter", color(prefs.completeDot)) }
+                        CalendarTaskStatus.MIXED -> { cell.setViewVisibility(R.id.calendar_status_dot_border, if (prefs.showDots) View.VISIBLE else View.GONE); cell.setInt(R.id.calendar_status_dot, "setColorFilter", color(prefs.mixedDot)) }
+                        CalendarTaskStatus.OPEN -> { cell.setViewVisibility(R.id.calendar_status_dot_border, if (prefs.showDots) View.VISIBLE else View.GONE); cell.setInt(R.id.calendar_status_dot, "setColorFilter", color(prefs.openDot)) }
                     }
                     cell.setOnClickPendingIntent(R.id.calendar_day_cell, dateIntent(context, widgetId, date))
                 }

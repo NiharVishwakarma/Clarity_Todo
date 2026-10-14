@@ -7,12 +7,8 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
-import android.graphics.Typeface
 import android.os.Build
 import android.util.TypedValue
-import android.text.SpannableString
-import android.text.Spanned
-import android.text.style.StyleSpan
 import android.widget.RemoteViews
 import com.example.darktodo.MainActivity
 import com.example.darktodo.R
@@ -59,11 +55,11 @@ object TodoWidget {
         views.setInt(R.id.widget_root_background, "setColorFilter", parseColor(settings.widgetBackground))
         views.setInt(R.id.widget_count_panel_background, "setColorFilter", parseColor(settings.countPanel))
         views.setInt(R.id.widget_task_card_background, "setColorFilter", cardColor)
-        setStyledText(views, R.id.widget_count, incompleteCount.toString(), settings.fontWeight, settings.fontItalic)
-        setStyledText(views, R.id.widget_count_label, "Tasks", settings.fontWeight, settings.fontItalic)
-        setStyledText(views, R.id.widget_refresh, "\u21BB", settings.fontWeight, settings.fontItalic)
-        setStyledText(views, R.id.widget_add, "+", settings.fontWeight, settings.fontItalic)
-        setStyledText(views, R.id.widget_empty, "No tasks yet", settings.fontWeight, settings.fontItalic)
+        setStyledText(views, R.id.widget_count, incompleteCount.toString(), settings.fontFamily, settings.fontItalic)
+        setStyledText(views, R.id.widget_count_label, "Tasks", settings.fontFamily, settings.fontItalic)
+        setStyledText(views, R.id.widget_refresh, "\u21BB", settings.fontFamily, settings.fontItalic)
+        setStyledText(views, R.id.widget_add, "+", settings.fontFamily, settings.fontItalic)
+        setStyledText(views, R.id.widget_empty, "No tasks yet", settings.fontFamily, settings.fontItalic)
         views.setInt(R.id.widget_count, "setTextColor", Color.WHITE)
         views.setInt(R.id.widget_count_label, "setTextColor", Color.WHITE)
         views.setInt(R.id.widget_refresh, "setTextColor", incompleteColor)
@@ -72,8 +68,10 @@ object TodoWidget {
 
         val openApp = PendingIntent.getActivity(
             context,
-            1,
-            Intent(context, MainActivity::class.java),
+            1001,
+            Intent(context, MainActivity::class.java)
+                .setAction(MainActivity.ACTION_CREATE_TASK)
+                .setData(android.net.Uri.parse("clarity://tasks/create")),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         views.setOnClickPendingIntent(R.id.widget_add_container, openApp)
@@ -101,9 +99,10 @@ object TodoWidget {
         val cardColor = parseColor(settings.taskCard)
         val opacity = if (task.completed) (255 * (100 - settings.fadePercent) / 100).coerceIn(0, 255) else 255
         row.setTextViewText(R.id.widget_task_check, if (task.completed) "\u25cf" else "\u25cb")
+        row.setInt(R.id.widget_task_check, "setTextAppearance", WidgetFontStyles.resolve(settings.fontFamily, settings.fontItalic))
         row.setInt(R.id.widget_task_check, "setTextColor", withAlpha(if (task.completed) completeColor else incompleteColor, opacity))
         val label = if (!task.completed && task.reminderType != "none") "${task.title} | ${TaskTimeFormatter.widgetLabel(context, task)}" else task.title
-        setStyledText(row, R.id.widget_task_title, label, settings.fontWeight, settings.fontItalic)
+        setStyledText(row, R.id.widget_task_title, label, settings.fontFamily, settings.fontItalic)
         row.setTextViewTextSize(R.id.widget_task_title, TypedValue.COMPLEX_UNIT_SP, settings.taskTitleSizeSp * (13f / 16f))
         row.setInt(R.id.widget_task_title, "setTextColor", withAlpha(titleColor, opacity))
         row.setInt(R.id.widget_task_row, "setBackgroundColor", withAlpha(cardColor, opacity))
@@ -116,15 +115,9 @@ object TodoWidget {
         return row
     }
 
-    private fun setStyledText(views: RemoteViews, viewId: Int, text: String, weight: Int, italic: Boolean) {
-        // StyleSpan's italic bit is resolved against the XML Nunito family, which maps
-        // normal and genuine italic font resources. The variable weight axis is applied
-        // separately so style and weight do not interfere with one another.
-        val styled = if (italic && text.isNotEmpty()) SpannableString(text).apply {
-            setSpan(StyleSpan(Typeface.ITALIC), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-        } else text
-        views.setTextViewText(viewId, styled)
-        views.setString(viewId, "setFontVariationSettings", "'wght' $weight")
+    private fun setStyledText(views: RemoteViews, viewId: Int, text: String, family: String, italic: Boolean) {
+        views.setTextViewText(viewId, text)
+        views.setInt(viewId, "setTextAppearance", WidgetFontStyles.resolve(family, italic))
     }
 
     private fun parseColor(value: String): Int = try {
