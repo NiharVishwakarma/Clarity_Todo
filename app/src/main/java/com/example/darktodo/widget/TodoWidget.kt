@@ -102,7 +102,7 @@ object TodoWidget {
         val opacity = if (task.completed) (255 * (100 - settings.fadePercent) / 100).coerceIn(0, 255) else 255
         row.setTextViewText(R.id.widget_task_check, if (task.completed) "\u25cf" else "\u25cb")
         row.setInt(R.id.widget_task_check, "setTextColor", withAlpha(if (task.completed) completeColor else incompleteColor, opacity))
-        val label = if (!task.completed && task.reminderType != "none") "${task.title} | ${TaskTimeFormatter.label(context, task)}" else task.title
+        val label = if (!task.completed && task.reminderType != "none") "${task.title} | ${TaskTimeFormatter.widgetLabel(context, task)}" else task.title
         setStyledText(row, R.id.widget_task_title, label, settings.fontWeight, settings.fontItalic)
         row.setTextViewTextSize(R.id.widget_task_title, TypedValue.COMPLEX_UNIT_SP, settings.taskTitleSizeSp * (13f / 16f))
         row.setInt(R.id.widget_task_title, "setTextColor", withAlpha(titleColor, opacity))

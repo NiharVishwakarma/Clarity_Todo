@@ -40,6 +40,12 @@ object TaskTimeFormatter {
         return countdownLabel(remaining)
     }
 
+    /** The widget shows time remaining for both clock-time and duration reminders. */
+    fun widgetLabel(context: Context, task: Task, wallNow: Long = System.currentTimeMillis(), elapsedNow: Long = SystemClock.elapsedRealtime()): String? {
+        if (task.completed || task.reminderType == "none") return null
+        return countdownLabel(remainingMillis(context, task, wallNow, elapsedNow))
+    }
+
     /** Pure formatter shared by app and widget, with positive durations rounded up. */
     fun countdownLabel(remainingMillis: Long): String {
         if (remainingMillis < 0L) return "OVERDUE"

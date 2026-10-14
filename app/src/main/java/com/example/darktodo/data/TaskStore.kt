@@ -34,7 +34,11 @@ object TaskStore {
     private fun saveTasks(context: Context, values: List<Task>) {
         val array = JSONArray()
         values.forEach { array.put(JSONObject().put("id", it.id).put("title", it.title).put("completed", it.completed).put("reminderType", it.reminderType).put("reminderAt", it.reminderAt).put("deadlineAt", it.deadlineAt).put("overdueNotified", it.overdueNotified).put("countdownStartedAt", it.countdownStartedAt).put("countdownDurationMs", it.countdownDurationMs).put("countdownStartElapsed", it.countdownStartElapsed).put("countdownDeadlineElapsed", it.countdownDeadlineElapsed).put("countdownBootCount", it.countdownBootCount).put("localDateTime", it.localDateTime).put("timeZoneId", it.timeZoneId).put("followsDeviceTimeZone", it.followsDeviceTimeZone)) }
-        prefs(context).edit().putString(ACTIVE_KEY, array.toString()).apply()
+        // Alarm scheduling happens immediately after this call. Commit the task state first so
+        // a process/device crash cannot leave an alarm whose task data was only in memory.
+        check(prefs(context).edit().putString(ACTIVE_KEY, array.toString()).commit()) {
+            "Could not persist active tasks"
+        }
     }
 
     private fun log(context: Context, task: Task, type: String) {
@@ -133,6 +137,17 @@ object TaskStore {
 
     fun consumeReminder(context: Context, id: String) = synchronized(lock) {
         saveTasks(context, tasks(context).map { if (it.id == id) it.copy(reminderType = "none", reminderAt = 0L, deadlineAt = 0L, countdownStartedAt = 0L, countdownDurationMs = 0L, countdownStartElapsed = 0L, countdownDeadlineElapsed = 0L, countdownBootCount = -1, localDateTime = "", timeZoneId = "") else it })
+    }
+
+    fun consumeReminders(context: Context, ids: Set<String>) = synchronized(lock) {
+        if (ids.isEmpty()) return@synchronized
+        saveTasks(context, tasks(context).map { task ->
+            if (task.id in ids) task.copy(
+                reminderType = "none", reminderAt = 0L, deadlineAt = 0L, overdueNotified = false,
+                countdownStartedAt = 0L, countdownDurationMs = 0L, countdownStartElapsed = 0L,
+                countdownDeadlineElapsed = 0L, countdownBootCount = -1, localDateTime = "", timeZoneId = ""
+            ) else task
+        })
     }
 
     fun recalculateSystemDeadlines(context: Context) = synchronized(lock) {

@@ -278,6 +278,14 @@ class MainActivity : ComponentActivity() {
                 )
                 if (timeZone.isNotBlank()) TextButton(onClick = { onTimeZone("") }) { Text("Use device time zone", color = Accent) }
                 Text("Blank follows this device. Skipped local times move forward; repeated times use the earlier occurrence.", color = Color.LightGray, fontSize = 11.sp)
+                if (Build.VERSION.SDK_INT >= 31 && !com.example.darktodo.reminders.ReminderScheduler.canScheduleExactly(context)) {
+                    Text("Precise alarm access is off. Android may delay this reminder until access is enabled.", color = Color.LightGray, fontSize = 11.sp)
+                    TextButton(onClick = {
+                        runCatching {
+                            context.startActivity(Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, android.net.Uri.parse("package:${context.packageName}")))
+                        }
+                    }) { Text("Enable Alarms & reminders", color = Accent) }
+                }
             }
             if (kind == "duration" && !completed) {
                 val focusAccent = Color(0xFF7E57C2)
@@ -402,9 +410,12 @@ private fun friendlyZoneName(id: String): String = TimeZoneCatalog.labelFor(id) 
             val intent = if (Build.VERSION.SDK_INT >= 26) android.content.Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName) else android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.parse("package:${context.packageName}"))
             context.startActivity(intent)
         }) { Text("Open notification settings", color = Accent) }
-        if (Build.VERSION.SDK_INT >= 31) TextButton(onClick = {
-            runCatching { context.startActivity(android.content.Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, android.net.Uri.parse("package:${context.packageName}"))) }
-        }) { Text("Manage exact alarm access", color = Accent) }
+        if (Build.VERSION.SDK_INT >= 31) {
+            Text(if (com.example.darktodo.reminders.ReminderScheduler.canScheduleExactly(context)) "Precise alarm access is enabled." else "Precise alarm access is off; reminders may be delayed until enabled.", color = Color.LightGray, fontSize = 12.sp)
+            TextButton(onClick = {
+                runCatching { context.startActivity(android.content.Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, android.net.Uri.parse("package:${context.packageName}"))) }
+            }) { Text("Manage exact alarm access", color = Accent) }
+        }
         TextButton(onClick = onReset) { Text("Reset settings to defaults", color = Accent) }
     }
 }
