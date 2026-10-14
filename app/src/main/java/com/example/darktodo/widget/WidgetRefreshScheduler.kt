@@ -20,7 +20,7 @@ object WidgetRefreshScheduler {
         val app = context.applicationContext
         val manager = AppWidgetManager.getInstance(app)
         val ids = manager.getAppWidgetIds(ComponentName(app, TodoWidgetReceiver::class.java))
-        val tasks = TaskStore.tasks(app).take(5).filter { !it.completed && it.reminderType == "duration" }
+        val tasks = TaskStore.tasks(app).filter { !it.completed && it.reminderType == "duration" }
         val wallNow = System.currentTimeMillis()
         val elapsedNow = SystemClock.elapsedRealtime()
         val nextAt = tasks.mapNotNull { task ->
