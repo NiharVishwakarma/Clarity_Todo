@@ -14,7 +14,7 @@ class WidgetFontLayoutsTest {
         assertDistinct(families.map { WidgetFontLayouts.calendar(it) })
         assertDistinct(families.map { WidgetFontLayouts.calendarDay(it) })
         assertDistinct(families.map { WidgetFontLayouts.calendarWeekday(it) })
-        assertEquals(5, WidgetFontLayouts.TASK_ROW_VIEW_TYPE_COUNT)
+        assertEquals(6, WidgetFontLayouts.TASK_ROW_VIEW_TYPE_COUNT)
     }
 
     private fun assertDistinct(layouts: List<Int>) {
