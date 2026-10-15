@@ -37,12 +37,12 @@ object TodoWidget {
             try {
                 if (tasks == null || settings == null) error("Widget state is unavailable")
                 val views = render(context, tasks.count { !it.completed }, settings)
-                // Include typography in the adapter identity so launcher-cached list rows
-                // cannot survive a font change with their old RemoteViews layout.
+                // Include the selected family so launcher-cached list rows are invalidated
+                // when a system font is changed.
                 views.setRemoteAdapter(
                     R.id.widget_task_rows,
                     Intent(context, TodoWidgetService::class.java).setData(
-                        android.net.Uri.parse("clarity://todo/widget/$id/${settings.fontFamily.key}/${settings.fontStyle.key}")
+                        android.net.Uri.parse("clarity://todo/widget/$id/${settings.fontFamily.key}")
                     )
                 )
                 views.setEmptyView(R.id.widget_task_rows, R.id.widget_empty)
@@ -81,7 +81,7 @@ object TodoWidget {
     )
 
     private fun render(context: Context, incompleteCount: Int, settings: WidgetPrefs): RemoteViews {
-        val views = RemoteViews(context.packageName, WidgetFontLayouts.todo(settings.fontFamily, settings.fontStyle))
+        val views = RemoteViews(context.packageName, WidgetFontLayouts.todo(settings.fontFamily))
         val titleColor = parseColor(settings.taskTitle)
         val incompleteColor = parseColor(settings.incomplete)
         val completeColor = parseColor(settings.complete)
@@ -119,7 +119,7 @@ object TodoWidget {
 
     internal fun renderTaskRow(context: Context, task: Task): RemoteViews {
         val settings = WidgetSettings.load(context)
-        val row = RemoteViews(context.packageName, WidgetFontLayouts.taskRow(settings.fontFamily, settings.fontStyle))
+        val row = RemoteViews(context.packageName, WidgetFontLayouts.taskRow(settings.fontFamily))
         val titleColor = parseColor(settings.taskTitle)
         val incompleteColor = parseColor(settings.incomplete)
         val completeColor = parseColor(settings.complete)

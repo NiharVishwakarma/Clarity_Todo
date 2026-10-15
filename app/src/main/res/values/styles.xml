@@ -1,18 +1,6 @@
 <resources>
-    <style name="FontOpenSansRegular"><item name="android:fontFamily">@font/opensans_regular</item><item name="android:textStyle">normal</item></style>
-    <style name="FontOpenSansItalic"><item name="android:fontFamily">@font/opensans_italic</item><item name="android:textStyle">italic</item></style>
-    <style name="FontGoogleSansRegular"><item name="android:fontFamily">@font/googlesans_regular</item><item name="android:textStyle">normal</item></style>
-    <style name="FontGoogleSansItalic"><item name="android:fontFamily">@font/googlesans_italic</item><item name="android:textStyle">italic</item></style>
-    <style name="FontMontserratRegular"><item name="android:fontFamily">@font/montserrat_regular</item><item name="android:textStyle">normal</item></style>
-    <style name="FontMontserratItalic"><item name="android:fontFamily">@font/montserrat_italic</item><item name="android:textStyle">italic</item></style>
-    <style name="FontNotoSansRegular"><item name="android:fontFamily">@font/notosans_regular</item><item name="android:textStyle">normal</item></style>
-    <style name="FontNotoSansItalic"><item name="android:fontFamily">@font/notosans_italic</item><item name="android:textStyle">italic</item></style>
-    <style name="FontUbuntuRegular"><item name="android:fontFamily">@font/ubuntu_regular</item><item name="android:textStyle">normal</item></style>
-    <style name="FontUbuntuItalic"><item name="android:fontFamily">@font/ubuntu_italic</item><item name="android:textStyle">italic</item></style>
-    <style name="FontNunitoRegular"><item name="android:fontFamily">@font/nunito</item><item name="android:textStyle">normal</item></style>
-    <style name="FontNunitoItalic"><item name="android:fontFamily">@font/nunito</item><item name="android:textStyle">italic</item></style>
     <style name="Theme.DarkTodo" parent="android:style/Theme.Material.NoActionBar">
-        <item name="android:fontFamily">sans</item>
+        <item name="android:fontFamily">sans-serif</item>
         <item name="android:colorAccent">#FF0000</item>
         <item name="android:statusBarColor">#000000</item>
         <item name="android:navigationBarColor">#000000</item>

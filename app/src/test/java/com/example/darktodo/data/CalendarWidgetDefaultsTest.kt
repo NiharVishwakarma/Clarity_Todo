@@ -24,25 +24,21 @@ class CalendarWidgetDefaultsTest {
         assertEquals(17, defaults.headingSize)
         assertEquals(2, defaults.rowSpacing)
         assertTrue(defaults.showDots)
-        assertEquals(WidgetFontFamily.GOOGLE_SANS, defaults.fontFamily)
-        assertEquals(false, defaults.fontItalic)
+        assertEquals(WidgetFontFamily.SANS_SERIF, defaults.fontFamily)
     }
 
-    @Test fun todoWidgetDefaultsToGoogleSansWithoutCouplingCalendarPreferences() {
-        assertEquals(WidgetFontFamily.GOOGLE_SANS, WidgetPrefs().fontFamily)
-        assertEquals(WidgetFontFamily.GOOGLE_SANS, CalendarWidgetPrefs().fontFamily)
-        assertEquals(false, WidgetPrefs().fontItalic)
-        assertEquals(false, CalendarWidgetPrefs().fontItalic)
+    @Test fun todoAndCalendarDefaultToSystemSansSerifIndependently() {
+        assertEquals(WidgetFontFamily.SANS_SERIF, WidgetPrefs().fontFamily)
+        assertEquals(WidgetFontFamily.SANS_SERIF, CalendarWidgetPrefs().fontFamily)
     }
 
-    @Test fun fontKeysResolveExactlyWithoutRendererFallbacks() {
+    @Test fun onlyTheFiveSupportedAndroidSystemFamiliesResolve() {
         WidgetFontFamily.entries.forEach { family ->
             assertEquals(family, WidgetFontFamily.fromKey(family.key))
         }
-        WidgetFontStyle.entries.forEach { style ->
-            assertEquals(style, WidgetFontStyle.fromKey(style.key))
-        }
-        assertNull(WidgetFontFamily.fromKey("Google Sans"))
-        assertNull(WidgetFontStyle.fromKey("ITALIC"))
+        assertEquals(5, WidgetFontFamily.entries.size)
+        assertEquals(WidgetFontFamily.SANS_SERIF, WidgetFontFamily.fromStoredKey("googlesans"))
+        assertEquals(WidgetFontFamily.SANS_SERIF, WidgetFontFamily.fromStoredKey("opensans"))
+        assertNull(WidgetFontFamily.fromStoredKey("unknown"))
     }
 }

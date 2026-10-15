@@ -11,14 +11,9 @@ data class WidgetPrefs(
     val taskCard: String = "#171717",
     val taskTitle: String = "#F5F5F5",
     val fadePercent: Int = 45,
-    val fontFamily: WidgetFontFamily = WidgetFontFamily.GOOGLE_SANS,
-    val fontStyle: WidgetFontStyle = WidgetFontStyle.REGULAR,
+    val fontFamily: WidgetFontFamily = WidgetFontFamily.SANS_SERIF,
     val taskTitleSizeSp: Float = 16f
-) {
-    /** Compatibility view for callers that used the previous binary setting. */
-    @Deprecated("Use fontStyle to distinguish Regular, Bold, and Italic")
-    val fontItalic: Boolean get() = fontStyle == WidgetFontStyle.ITALIC
-}
+)
 object WidgetSettings {
     private const val PREFS = "todo_store"
     private const val PREFIX = "widget_setting_"
@@ -26,6 +21,10 @@ object WidgetSettings {
 
     fun load(context: Context): WidgetPrefs {
         val p = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val family = WidgetFontFamily.fromStoredKey(p.getString(PREFIX + "font_family", null)) ?: defaults.fontFamily
+        if (p.contains(PREFIX + "font_style") || p.contains(PREFIX + "font_italic")) {
+            p.edit().remove(PREFIX + "font_style").remove(PREFIX + "font_italic").apply()
+        }
         return WidgetPrefs(
             incomplete = p.getString(PREFIX + "incomplete", defaults.incomplete)!!,
             complete = p.getString(PREFIX + "complete", defaults.complete)!!,
@@ -34,9 +33,7 @@ object WidgetSettings {
             taskCard = p.getString(PREFIX + "task_card", defaults.taskCard)!!,
             taskTitle = p.getString(PREFIX + "task_title", defaults.taskTitle)!!,
             fadePercent = p.getInt(PREFIX + "fade", defaults.fadePercent).coerceIn(0, 100),
-            fontFamily = WidgetFontFamily.fromKey(p.getString(PREFIX + "font_family", null)) ?: defaults.fontFamily,
-            fontStyle = WidgetFontStyle.fromKey(p.getString(PREFIX + "font_style", null))
-                ?: if (p.getBoolean(PREFIX + "font_italic", false)) WidgetFontStyle.ITALIC else defaults.fontStyle,
+            fontFamily = family,
             taskTitleSizeSp = p.getFloat(PREFIX + "task_title_size_sp", defaults.taskTitleSizeSp).coerceIn(12f, 24f)
         )
     }
@@ -55,11 +52,6 @@ object WidgetSettings {
 
     fun saveFontFamily(context: Context, family: WidgetFontFamily) {
         context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(PREFIX + "font_family", family.key).apply()
-    }
-
-    fun saveFontStyle(context: Context, style: WidgetFontStyle) {
-        context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
-            .putString(PREFIX + "font_style", style.key).remove(PREFIX + "font_italic").apply()
     }
 
     fun saveTaskTitleSize(context: Context, value: Float) {

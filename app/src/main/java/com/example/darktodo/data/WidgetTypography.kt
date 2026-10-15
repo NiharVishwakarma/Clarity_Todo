@@ -1,26 +1,20 @@
 package com.example.darktodo.data
 
-/** Canonical font family keys shared by preference storage, settings, and widget rendering. */
+/** Android system font families usable directly by TextViews in widget RemoteViews. */
 enum class WidgetFontFamily(val key: String, val label: String) {
-    OPEN_SANS("opensans", "Open Sans"),
-    GOOGLE_SANS("googlesans", "Google Sans"),
-    MONTSERRAT("montserrat", "Montserrat"),
-    NOTO_SANS("notosans", "Noto Sans"),
-    UBUNTU("ubuntu", "Ubuntu"),
-    NUNITO("nunito", "Nunito");
+    SANS_SERIF("sans-serif", "Sans serif"),
+    SANS_SERIF_CONDENSED("sans-serif-condensed", "Sans serif condensed"),
+    SANS_SERIF_LIGHT("sans-serif-light", "Sans serif light"),
+    SERIF("serif", "Serif"),
+    MONOSPACE("monospace", "Monospace");
 
     companion object {
         fun fromKey(key: String?): WidgetFontFamily? = entries.firstOrNull { it.key == key }
-    }
-}
 
-/** Canonical style values shared by both independent widget preference sets. */
-enum class WidgetFontStyle(val key: String, val label: String) {
-    REGULAR("regular", "Regular"),
-    BOLD("bold", "Bold"),
-    ITALIC("italic", "Italic");
-
-    companion object {
-        fun fromKey(key: String?): WidgetFontStyle? = entries.firstOrNull { it.key == key }
+        /** Old bundled-font selections fall back to the standard system sans family. */
+        fun fromStoredKey(key: String?): WidgetFontFamily? = fromKey(key) ?: when (key) {
+            "googlesans", "opensans", "montserrat", "notosans", "ubuntu", "nunito" -> SANS_SERIF
+            else -> null
+        }
     }
 }
