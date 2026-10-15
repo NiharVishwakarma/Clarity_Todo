@@ -77,10 +77,11 @@ import com.example.darktodo.data.HistoryDateFormatter
 import com.example.darktodo.data.TimeZoneCatalog
 import com.example.darktodo.data.TimeZoneOption
 import com.example.darktodo.data.WidgetPrefs
+import com.example.darktodo.data.WidgetFontFamily
+import com.example.darktodo.data.WidgetFontStyle
 import com.example.darktodo.data.WidgetSettings
 import com.example.darktodo.data.CalendarWidgetSettings
 import com.example.darktodo.ui.appFontFamily
-import com.example.darktodo.ui.appFontOptions
 import com.example.darktodo.ui.ColorPickerDialog
 import com.example.darktodo.widget.TodoWidget
 import java.time.Instant
@@ -207,10 +208,10 @@ class MainActivity : ComponentActivity() {
     LaunchedEffect(settings) { TodoWidget.updateAll(context) }
     // Widget font preferences belong to the home-screen widget. Keep the Tasks UI on
     // the app's Google Sans typography so changing widget settings cannot restyle this tab.
-    val taskUiFontFamily = appFontFamily("googlesans")
+    val taskUiFontFamily = appFontFamily(WidgetFontFamily.GOOGLE_SANS)
     val iconColor = colorFromHex(settings.incomplete)
     val caretColor = if (iconColor.isBlackOrGray()) Color.White else iconColor
-    ProvideTextStyle(TextStyle(fontFamily = appFontFamily("googlesans"), fontStyle = FontStyle.Normal, fontWeight = FontWeight.Normal)) {
+    ProvideTextStyle(TextStyle(fontFamily = appFontFamily(WidgetFontFamily.GOOGLE_SANS), fontStyle = FontStyle.Normal, fontWeight = FontWeight.Normal)) {
         Column(Modifier.fillMaxSize().background(Bg).windowInsetsPadding(WindowInsets.safeDrawing).padding(UiTokens.PageMargin)) {
             Row(Modifier.fillMaxWidth().padding(bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("Clarity", color = Ink, fontSize = 20.sp, fontWeight = FontWeight.Bold, maxLines = 1, modifier = Modifier.weight(1f))
@@ -514,10 +515,10 @@ private data class ColorPickTarget(val key: String, val label: String, val value
     calendarSettings: com.example.darktodo.data.CalendarWidgetPrefs,
     onColor: (String, String) -> Unit,
     onFade: (Int) -> Unit,
-    onFontFamily: (String) -> Unit,
-    onFontStyle: (String) -> Unit,
-    onCalendarFontFamily: (String) -> Unit,
-    onCalendarFontStyle: (String) -> Unit,
+    onFontFamily: (WidgetFontFamily) -> Unit,
+    onFontStyle: (WidgetFontStyle) -> Unit,
+    onCalendarFontFamily: (WidgetFontFamily) -> Unit,
+    onCalendarFontStyle: (WidgetFontStyle) -> Unit,
     onTaskTitleSize: (Float) -> Unit,
     onReset: () -> Unit,
     onCalendarColor: (String, String) -> Unit,
@@ -546,10 +547,10 @@ private data class ColorPickTarget(val key: String, val label: String, val value
                 ColorSettingRow("Task title", settings.taskTitle) { pickTarget = ColorPickTarget("task_title", "Task title", settings.taskTitle, false) }
             }
             SettingsPanel {
-                SettingSlider("Completed-task fade", "${settings.fadePercent}%", settings.fadePercent.toFloat(), 0f..100f, { onFade(it.toInt()) })
                 FontFamilyRow("Font family", settings.fontFamily, onFontFamily)
                 FontStyleControl("Font style", settings.fontStyle, onFontStyle)
                 SettingSlider("Task-title size", "${settings.taskTitleSizeSp.toInt()} sp", settings.taskTitleSizeSp, 12f..24f, onTaskTitleSize, steps = 11)
+                SettingSlider("Completed-task fade", "${settings.fadePercent}%", settings.fadePercent.toFloat(), 0f..100f, { onFade(it.toInt()) })
             }
             ResetAction("Reset To-Do settings") { confirmTodoReset = true }
         }
@@ -558,6 +559,11 @@ private data class ColorPickTarget(val key: String, val label: String, val value
             SettingsPanel {
                 FontFamilyRow("Font family", calendarSettings.fontFamily, onCalendarFontFamily)
                 FontStyleControl("Font style", calendarSettings.fontStyle, onCalendarFontStyle)
+            }
+            SettingsPanel {
+                SettingSlider("Date size", "${calendarSettings.dateSize} sp", calendarSettings.dateSize.toFloat(), 12f..20f, { onCalendarInt("date_size", it.toInt()) })
+                SettingSlider("Weekday size", "${calendarSettings.weekdaySize} sp", calendarSettings.weekdaySize.toFloat(), 8f..14f, { onCalendarInt("weekday_size", it.toInt()) })
+                SettingSlider("Month heading size", "${calendarSettings.headingSize} sp", calendarSettings.headingSize.toFloat(), 14f..24f, { onCalendarInt("heading_size", it.toInt()) })
             }
             Text("Widget colors", color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp, modifier = Modifier.padding(start = 2.dp))
             Column(verticalArrangement = Arrangement.spacedBy(UiTokens.ControlGap)) {
@@ -579,9 +585,6 @@ private data class ColorPickTarget(val key: String, val label: String, val value
             }
             SettingsPanel {
                 SettingSlider("Corner radius", "${calendarSettings.cornerRadius} dp", calendarSettings.cornerRadius.toFloat(), 8f..32f, { onCalendarInt("corner_radius", it.toInt()) })
-                SettingSlider("Date size", "${calendarSettings.dateSize} sp", calendarSettings.dateSize.toFloat(), 12f..20f, { onCalendarInt("date_size", it.toInt()) })
-                SettingSlider("Weekday size", "${calendarSettings.weekdaySize} sp", calendarSettings.weekdaySize.toFloat(), 8f..14f, { onCalendarInt("weekday_size", it.toInt()) })
-                SettingSlider("Month heading size", "${calendarSettings.headingSize} sp", calendarSettings.headingSize.toFloat(), 14f..24f, { onCalendarInt("heading_size", it.toInt()) })
                 SettingSlider("Vertical row spacing", "${calendarSettings.rowSpacing} dp", calendarSettings.rowSpacing.toFloat(), 0f..8f, { onCalendarInt("row_spacing", it.toInt()) })
             }
             SettingsPanel {
@@ -663,41 +666,40 @@ private data class ColorPickTarget(val key: String, val label: String, val value
     }
 }
 
-@Composable private fun FontFamilyRow(label: String, selected: String, onSelect: (String) -> Unit) {
+@Composable private fun FontFamilyRow(label: String, selected: WidgetFontFamily, onSelect: (WidgetFontFamily) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
-    val selectedName = appFontOptions.firstOrNull { it.first == selected }?.second ?: "Google Sans"
     Row(Modifier.fillMaxWidth().heightIn(min = UiTokens.ControlHeight), verticalAlignment = Alignment.CenterVertically) {
         Text(label, color = Ink, fontSize = UiTokens.LabelSp.sp, modifier = Modifier.weight(1f))
         Box {
             TextButton(onClick = { expanded = true }, contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)) {
-                Text(selectedName, color = UiTokens.Secondary, fontSize = UiTokens.LabelSp.sp, maxLines = 1)
+                Text(selected.label, color = UiTokens.Secondary, fontSize = UiTokens.LabelSp.sp, maxLines = 1)
             }
             DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                appFontOptions.forEach { (id, name) ->
-                    DropdownMenuItem(text = { Text(name) }, onClick = { onSelect(id); expanded = false })
+                WidgetFontFamily.entries.forEach { family ->
+                    DropdownMenuItem(text = { Text(family.label) }, onClick = { onSelect(family); expanded = false })
                 }
             }
         }
     }
 }
 
-@Composable private fun FontStyleControl(label: String, selected: String, onSelect: (String) -> Unit) {
+@Composable private fun FontStyleControl(label: String, selected: WidgetFontStyle, onSelect: (WidgetFontStyle) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(label, color = Ink, fontSize = UiTokens.LabelSp.sp)
         Row(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(UiTokens.RowRadius)).background(UiTokens.Background).padding(UiTokens.CompactGap).selectableGroup(),
             horizontalArrangement = Arrangement.spacedBy(UiTokens.CompactGap)
         ) {
-            listOf("regular" to "Regular", "bold" to "Bold", "italic" to "Italic").forEach { (value, title) ->
-                val isSelected = selected == value
+            WidgetFontStyle.entries.forEach { style ->
+                val isSelected = selected == style
                 Box(
                     Modifier.weight(1f).clip(RoundedCornerShape(UiTokens.SegmentRadius))
                         .background(if (isSelected) Accent else Color.Transparent)
-                        .selectable(isSelected, role = Role.RadioButton) { onSelect(value) }
+                        .selectable(isSelected, role = Role.RadioButton) { onSelect(style) }
                         .heightIn(min = UiTokens.SegmentHeight),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(title, color = if (isSelected) Color.White else UiTokens.Muted, fontSize = UiTokens.DetailSp.sp, fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium, maxLines = 1)
+                    Text(style.label, color = if (isSelected) Color.White else UiTokens.Muted, fontSize = UiTokens.DetailSp.sp, fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium, maxLines = 1)
                 }
             }
         }

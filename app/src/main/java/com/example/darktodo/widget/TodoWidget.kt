@@ -42,7 +42,7 @@ object TodoWidget {
                 views.setRemoteAdapter(
                     R.id.widget_task_rows,
                     Intent(context, TodoWidgetService::class.java).setData(
-                        android.net.Uri.parse("clarity://todo/widget/$id/${settings.fontFamily}/${settings.fontStyle}")
+                        android.net.Uri.parse("clarity://todo/widget/$id/${settings.fontFamily.key}/${settings.fontStyle.key}")
                     )
                 )
                 views.setEmptyView(R.id.widget_task_rows, R.id.widget_empty)

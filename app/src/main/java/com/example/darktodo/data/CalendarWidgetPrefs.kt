@@ -10,13 +10,12 @@ data class CalendarWidgetPrefs(
     val navigationArrows: String = "#F20D24",
     val cornerRadius: Int = 8, val dateSize: Int = 17, val weekdaySize: Int = 11, val headingSize: Int = 17,
     val rowSpacing: Int = 2, val showDots: Boolean = true,
-    val fontFamily: String = "googlesans", val fontStyle: String = "regular"
+    val fontFamily: WidgetFontFamily = WidgetFontFamily.GOOGLE_SANS, val fontStyle: WidgetFontStyle = WidgetFontStyle.REGULAR
 ) {
     /** Compatibility view for callers that used the previous binary setting. */
     @Deprecated("Use fontStyle to distinguish Regular, Bold, and Italic")
-    val fontItalic: Boolean get() = fontStyle == "italic"
+    val fontItalic: Boolean get() = fontStyle == WidgetFontStyle.ITALIC
 }
-
 object CalendarWidgetSettings {
     private const val FILE = "calendar_widget_settings"
     private val defaults = CalendarWidgetPrefs()
@@ -31,9 +30,9 @@ object CalendarWidgetSettings {
             p.getInt("corner_radius", defaults.cornerRadius).let { value -> listOf(8, 16, 22, 32).minBy { kotlin.math.abs(it - value) } }, p.getInt("date_size", defaults.dateSize).coerceIn(12, 20),
             p.getInt("weekday_size", defaults.weekdaySize).coerceIn(8, 14), p.getInt("heading_size", defaults.headingSize).coerceIn(14, 24),
             p.getInt("row_spacing", defaults.rowSpacing).coerceIn(0, 8), p.getBoolean("show_dots", defaults.showDots),
-            p.getString("font_family", defaults.fontFamily).orEmpty().takeIf { it in FONT_FAMILIES } ?: defaults.fontFamily,
-            p.getString("font_style", null).orEmpty().takeIf { it in FONT_STYLES }
-                ?: if (p.getBoolean("font_italic", false)) "italic" else defaults.fontStyle
+            WidgetFontFamily.fromKey(p.getString("font_family", null)) ?: defaults.fontFamily,
+            WidgetFontStyle.fromKey(p.getString("font_style", null))
+                ?: if (p.getBoolean("font_italic", false)) WidgetFontStyle.ITALIC else defaults.fontStyle
         )
     }
     fun saveColor(context: Context, key: String, value: String): Boolean {
@@ -51,13 +50,12 @@ object CalendarWidgetSettings {
         }
     }
     fun saveDots(context: Context, enabled: Boolean) { context.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit().putBoolean("show_dots", enabled).apply() }
-    fun saveFontFamily(context: Context, family: String) {
-        if (family in FONT_FAMILIES) context.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit().putString("font_family", family).apply()
+    fun saveFontFamily(context: Context, family: WidgetFontFamily) {
+        context.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit().putString("font_family", family.key).apply()
     }
-    fun saveFontStyle(context: Context, style: String) {
-        if (style !in FONT_STYLES) return
+    fun saveFontStyle(context: Context, style: WidgetFontStyle) {
         context.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit()
-            .putString("font_style", style).remove("font_italic").apply()
+            .putString("font_style", style.key).remove("font_italic").apply()
     }
     fun reset(context: Context) {
         // Remove only this settings file's customization keys; calendar navigation state and
@@ -65,6 +63,3 @@ object CalendarWidgetSettings {
         context.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit().clear().apply()
     }
 }
-
-private val FONT_FAMILIES = setOf("opensans", "googlesans", "montserrat", "notosans", "ubuntu", "nunito")
-private val FONT_STYLES = setOf("regular", "bold", "italic")

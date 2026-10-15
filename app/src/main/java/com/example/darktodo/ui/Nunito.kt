@@ -5,6 +5,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import com.example.darktodo.R
+import com.example.darktodo.data.WidgetFontFamily
 
 /** Bundled font families shared by the app UI and both widgets. */
 val NunitoFamily = FontFamily(
@@ -19,17 +20,13 @@ val GoogleSansFamily = FontFamily(
 )
 
 private val appFontFamilies = mapOf(
-    "opensans" to FontFamily(Font(R.font.opensans_regular), Font(R.font.opensans_italic, FontWeight.Normal, FontStyle.Italic)),
-    "googlesans" to GoogleSansFamily,
-    "montserrat" to FontFamily(Font(R.font.montserrat_regular), Font(R.font.montserrat_italic, FontWeight.Normal, FontStyle.Italic)),
-    "notosans" to FontFamily(Font(R.font.notosans_regular), Font(R.font.notosans_italic, FontWeight.Normal, FontStyle.Italic)),
-    "ubuntu" to FontFamily(Font(R.font.ubuntu_regular), Font(R.font.ubuntu_italic, FontWeight.Normal, FontStyle.Italic)),
-    "nunito" to NunitoFamily
+    WidgetFontFamily.OPEN_SANS to FontFamily(Font(R.font.opensans_regular), Font(R.font.opensans_italic, FontWeight.Normal, FontStyle.Italic)),
+    WidgetFontFamily.GOOGLE_SANS to GoogleSansFamily,
+    WidgetFontFamily.MONTSERRAT to FontFamily(Font(R.font.montserrat_regular), Font(R.font.montserrat_italic, FontWeight.Normal, FontStyle.Italic)),
+    WidgetFontFamily.NOTO_SANS to FontFamily(Font(R.font.notosans_regular), Font(R.font.notosans_italic, FontWeight.Normal, FontStyle.Italic)),
+    WidgetFontFamily.UBUNTU to FontFamily(Font(R.font.ubuntu_regular), Font(R.font.ubuntu_italic, FontWeight.Normal, FontStyle.Italic)),
+    WidgetFontFamily.NUNITO to NunitoFamily
 )
 
-fun appFontFamily(id: String): FontFamily = appFontFamilies[id] ?: GoogleSansFamily
-
-val appFontOptions = listOf(
-    "opensans" to "Open Sans", "googlesans" to "Google Sans", "montserrat" to "Montserrat",
-    "notosans" to "Noto Sans", "ubuntu" to "Ubuntu", "nunito" to "Nunito"
-)
+fun appFontFamily(family: WidgetFontFamily): FontFamily =
+    checkNotNull(appFontFamilies[family]) { "No Compose font registered for ${family.key}" }
