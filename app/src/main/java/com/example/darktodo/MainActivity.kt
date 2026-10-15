@@ -265,19 +265,20 @@ class MainActivity : ComponentActivity() {
                 else -> SettingsScreen(
                     settings = settings,
                     calendarSettings = calendarSettings,
-                    onColor = { key, value -> WidgetSettings.saveColor(context, key, value); refreshSettings() },
-                    onFade = { WidgetSettings.saveFade(context, it); refreshSettings() },
-                    onFontFamily = { WidgetSettings.saveFontFamily(context, it); refreshSettings() },
-                    onFontStyle = { WidgetSettings.saveFontStyle(context, it); refreshSettings() },
+                    onColor = { key, value -> WidgetSettings.saveColor(context, key, value); refreshSettings(); TodoWidget.updateAll(context) },
+                    onFade = { WidgetSettings.saveFade(context, it); refreshSettings(); TodoWidget.updateAll(context) },
+                    onFontFamily = { WidgetSettings.saveFontFamily(context, it); refreshSettings(); TodoWidget.updateAll(context) },
+                    onFontStyle = { WidgetSettings.saveFontStyle(context, it); refreshSettings(); TodoWidget.updateAll(context) },
                     onCalendarFontFamily = { CalendarWidgetSettings.saveFontFamily(context, it); refreshSettings(); com.example.darktodo.widget.CalendarWidget.updateAll(context) },
                     onCalendarFontStyle = { CalendarWidgetSettings.saveFontStyle(context, it); refreshSettings(); com.example.darktodo.widget.CalendarWidget.updateAll(context) },
-                    onTaskTitleSize = { WidgetSettings.saveTaskTitleSize(context, it); refreshSettings() },
+                    onTaskTitleSize = { WidgetSettings.saveTaskTitleSize(context, it); refreshSettings(); TodoWidget.updateAll(context) },
                     onReset = {
                         WidgetSettings.reset(context)
                         context.getSharedPreferences("todo_store", Context.MODE_PRIVATE).edit().remove("reminder_setup_complete_v1").apply()
                         showPermissionDialog = true
                         permissionRevision++
                         refreshSettings()
+                        TodoWidget.updateAll(context)
                     },
                     onCalendarColor = { key, value -> CalendarWidgetSettings.saveColor(context, key, value); refreshSettings(); com.example.darktodo.widget.CalendarWidget.updateAll(context) },
                     onCalendarInt = { key, value -> CalendarWidgetSettings.saveInt(context, key, value); refreshSettings(); com.example.darktodo.widget.CalendarWidget.updateAll(context) },
