@@ -19,6 +19,7 @@ import com.example.darktodo.data.CalendarDates
 import com.example.darktodo.data.CalendarTaskStatus
 import com.example.darktodo.data.CalendarWidgetPrefs
 import com.example.darktodo.data.CalendarWidgetSettings
+import com.example.darktodo.data.LocalWidgetFonts
 import com.example.darktodo.data.TaskStore
 import java.time.LocalDate
 import java.time.YearMonth
@@ -81,11 +82,13 @@ object CalendarWidget {
             ?: currentDate.also { state.edit().putString(KEY_SELECTED + widgetId, it.toString()).apply() }
         views.setImageViewResource(R.id.calendar_background, radiusDrawable(prefs.cornerRadius))
         views.setInt(R.id.calendar_background, "setColorFilter", color(prefs.background))
-        views.setTextViewText(R.id.calendar_heading, month.format(DateTimeFormatter.ofPattern("LLLL yyyy", locale)))
+        views.setTextViewText(R.id.calendar_heading, LocalWidgetFonts.styledText(context, month.format(DateTimeFormatter.ofPattern("LLLL yyyy", locale)), prefs.fontFileId))
         views.setTextViewTextSize(R.id.calendar_heading, 2, prefs.headingSize.toFloat())
         views.setInt(R.id.calendar_heading, "setTextColor", color(prefs.heading))
         views.setInt(R.id.calendar_previous, "setTextColor", color(prefs.navigationArrows))
         views.setInt(R.id.calendar_next, "setTextColor", color(prefs.navigationArrows))
+        views.setTextViewText(R.id.calendar_previous, LocalWidgetFonts.styledText(context, "\u2039", prefs.fontFileId))
+        views.setTextViewText(R.id.calendar_next, LocalWidgetFonts.styledText(context, "\u203A", prefs.fontFileId))
         views.setContentDescription(R.id.calendar_previous, "Previous month, ${month.format(DateTimeFormatter.ofPattern("LLLL yyyy", locale))}")
         views.setContentDescription(R.id.calendar_next, "Next month, ${month.format(DateTimeFormatter.ofPattern("LLLL yyyy", locale))}")
         val prev = navIntent(context, widgetId, -1)
@@ -96,7 +99,7 @@ object CalendarWidget {
         views.removeAllViews(R.id.calendar_weekdays)
         CalendarDates.weekdays(locale).forEach { day ->
             val weekday = RemoteViews(context.packageName, WidgetFontLayouts.calendarWeekday(prefs.fontFamily)).apply {
-                setTextViewText(android.R.id.text1, day.getDisplayName(TextStyle.SHORT, locale).take(2))
+                setTextViewText(android.R.id.text1, LocalWidgetFonts.styledText(context, day.getDisplayName(TextStyle.SHORT, locale).take(2), prefs.fontFileId))
                 setTextViewTextSize(android.R.id.text1, 2, prefs.weekdaySize.toFloat())
                 setInt(android.R.id.text1, "setTextColor", color(prefs.weekday))
             }
@@ -136,7 +139,7 @@ object CalendarWidget {
                         cell.setViewLayoutWidth(R.id.calendar_selected_circle, circleDiameterDp, TypedValue.COMPLEX_UNIT_DIP)
                         cell.setViewLayoutHeight(R.id.calendar_selected_circle, circleDiameterDp, TypedValue.COMPLEX_UNIT_DIP)
                     }
-                    cell.setTextViewText(R.id.calendar_day_number, date.dayOfMonth.toString())
+                    cell.setTextViewText(R.id.calendar_day_number, LocalWidgetFonts.styledText(context, date.dayOfMonth.toString(), prefs.fontFileId))
                     cell.setTextViewTextSize(R.id.calendar_day_number, TypedValue.COMPLEX_UNIT_SP, effectiveDateSizeSp)
                     cell.setInt(R.id.calendar_day_number, "setTextColor", color(if (isSelected) prefs.selectedText else prefs.date))
                     cell.setViewVisibility(R.id.calendar_selected_circle, if (isSelected) View.VISIBLE else View.GONE)

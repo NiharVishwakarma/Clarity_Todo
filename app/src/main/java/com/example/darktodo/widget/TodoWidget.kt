@@ -19,6 +19,7 @@ import com.example.darktodo.data.TaskStore
 import com.example.darktodo.data.TaskTimeFormatter
 import com.example.darktodo.data.WidgetPrefs
 import com.example.darktodo.data.WidgetSettings
+import com.example.darktodo.data.LocalWidgetFonts
 
 /** Renders the home-screen widget with platform RemoteViews and XML TextViews. */
 object TodoWidget {
@@ -89,11 +90,11 @@ object TodoWidget {
         views.setInt(R.id.widget_root_background, "setColorFilter", parseColor(settings.widgetBackground))
         views.setInt(R.id.widget_count_panel_background, "setColorFilter", parseColor(settings.countPanel))
         views.setInt(R.id.widget_task_card_background, "setColorFilter", cardColor)
-        setText(views, R.id.widget_count, incompleteCount.toString())
-        setText(views, R.id.widget_count_label, "Tasks")
-        setText(views, R.id.widget_refresh, "\u21BB")
-        setText(views, R.id.widget_add, "+")
-        setText(views, R.id.widget_empty, "No tasks yet")
+        setText(context, views, R.id.widget_count, incompleteCount.toString(), settings.fontFileId)
+        setText(context, views, R.id.widget_count_label, "Tasks", settings.fontFileId)
+        setText(context, views, R.id.widget_refresh, "\u21BB", settings.fontFileId)
+        setText(context, views, R.id.widget_add, "+", settings.fontFileId)
+        setText(context, views, R.id.widget_empty, "No tasks yet", settings.fontFileId)
         views.setInt(R.id.widget_count, "setTextColor", Color.WHITE)
         views.setInt(R.id.widget_count_label, "setTextColor", Color.WHITE)
         views.setInt(R.id.widget_refresh, "setTextColor", incompleteColor)
@@ -125,10 +126,10 @@ object TodoWidget {
         val completeColor = parseColor(settings.complete)
         val cardColor = parseColor(settings.taskCard)
         val opacity = if (task.completed) (255 * (100 - settings.fadePercent) / 100).coerceIn(0, 255) else 255
-        row.setTextViewText(R.id.widget_task_check, if (task.completed) "\u25cf" else "\u25cb")
+        row.setTextViewText(R.id.widget_task_check, LocalWidgetFonts.styledText(context, if (task.completed) "\u25cf" else "\u25cb", settings.fontFileId))
         row.setInt(R.id.widget_task_check, "setTextColor", withAlpha(if (task.completed) completeColor else incompleteColor, opacity))
         val label = if (!task.completed && task.reminderType != "none") "${task.title} | ${TaskTimeFormatter.widgetLabel(context, task)}" else task.title
-        setText(row, R.id.widget_task_title, label)
+        setText(context, row, R.id.widget_task_title, label, settings.fontFileId)
         row.setTextViewTextSize(R.id.widget_task_title, TypedValue.COMPLEX_UNIT_SP, settings.taskTitleSizeSp * (13f / 16f))
         row.setInt(R.id.widget_task_title, "setTextColor", withAlpha(titleColor, opacity))
         row.setInt(R.id.widget_task_row, "setBackgroundColor", withAlpha(cardColor, opacity))
@@ -141,8 +142,8 @@ object TodoWidget {
         return row
     }
 
-    private fun setText(views: RemoteViews, viewId: Int, text: String) {
-        views.setTextViewText(viewId, text)
+    private fun setText(context: Context, views: RemoteViews, viewId: Int, text: String, fontFileId: String? = null) {
+        views.setTextViewText(viewId, LocalWidgetFonts.styledText(context, text, fontFileId))
     }
 
     private fun parseColor(value: String): Int = try {

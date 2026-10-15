@@ -1,0 +1,4 @@
+<resources>
+    <!-- On legacy launchers, request nearly the full width of a typical phone grid. -->
+    <dimen name="calendar_widget_min_width">320dp</dimen>
+</resources>

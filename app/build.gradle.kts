@@ -4,6 +4,22 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+val signingProperties = java.util.Properties().apply {
+    rootProject.file("keystore.properties").takeIf { it.isFile }?.inputStream()?.use { load(it) }
+}
+val signingStoreFile = System.getenv("ANDROID_KEYSTORE_PATH")
+    ?: signingProperties.getProperty("storeFile")
+val signingStorePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+    ?: signingProperties.getProperty("storePassword")
+val signingKeyAlias = System.getenv("ANDROID_KEY_ALIAS")
+    ?: signingProperties.getProperty("keyAlias")
+val signingKeyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+    ?: signingProperties.getProperty("keyPassword")
+val persistentSigningValues = listOf(signingStoreFile, signingStorePassword, signingKeyAlias, signingKeyPassword)
+check(persistentSigningValues.all { it == null } || persistentSigningValues.all { !it.isNullOrBlank() }) {
+    "Persistent APK signing is only partially configured. Set all keystore values or none."
+}
+
 android {
     namespace = "com.example.darktodo"
     compileSdk = 35
@@ -20,6 +36,16 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
+
+    if (persistentSigningValues.all { !it.isNullOrBlank() }) {
+        signingConfigs.create("persistent") {
+            storeFile = file(signingStoreFile!!)
+            storePassword = signingStorePassword
+            keyAlias = signingKeyAlias
+            keyPassword = signingKeyPassword
+        }
+        buildTypes.getByName("debug").signingConfig = signingConfigs.getByName("persistent")
+    }
 }
 
 dependencies {

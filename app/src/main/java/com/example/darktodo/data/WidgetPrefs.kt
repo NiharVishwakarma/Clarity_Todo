@@ -12,6 +12,7 @@ data class WidgetPrefs(
     val taskTitle: String = "#F5F5F5",
     val fadePercent: Int = 45,
     val fontFamily: WidgetFontFamily = WidgetFontFamily.SANS_SERIF,
+    val fontFileId: String? = null,
     val taskTitleSizeSp: Float = 16f
 )
 object WidgetSettings {
@@ -21,7 +22,10 @@ object WidgetSettings {
 
     fun load(context: Context): WidgetPrefs {
         val p = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        val family = WidgetFontFamily.fromStoredKey(p.getString(PREFIX + "font_family", null)) ?: defaults.fontFamily
+        val storedFamily = WidgetFontFamily.fromStoredKey(p.getString(PREFIX + "font_family", null)) ?: defaults.fontFamily
+        val storedFontId = p.getString(PREFIX + "font_file_id", null)
+        val fontFileId = storedFontId?.takeIf { id -> LocalWidgetFonts.list(context).any { it.id == id } }
+        val family = storedFamily
         if (p.contains(PREFIX + "font_style") || p.contains(PREFIX + "font_italic")) {
             p.edit().remove(PREFIX + "font_style").remove(PREFIX + "font_italic").apply()
         }
@@ -34,6 +38,7 @@ object WidgetSettings {
             taskTitle = p.getString(PREFIX + "task_title", defaults.taskTitle)!!,
             fadePercent = p.getInt(PREFIX + "fade", defaults.fadePercent).coerceIn(0, 100),
             fontFamily = family,
+            fontFileId = fontFileId,
             taskTitleSizeSp = p.getFloat(PREFIX + "task_title_size_sp", defaults.taskTitleSizeSp).coerceIn(12f, 24f)
         )
     }
@@ -51,7 +56,15 @@ object WidgetSettings {
     }
 
     fun saveFontFamily(context: Context, family: WidgetFontFamily) {
-        context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(PREFIX + "font_family", family.key).apply()
+        context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().apply {
+            putString(PREFIX + "font_family", family.key)
+            remove(PREFIX + "font_file_id")
+        }.apply()
+    }
+
+    fun saveImportedFont(context: Context, fontId: String) {
+        context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putString(PREFIX + "font_file_id", fontId).apply()
     }
 
     fun saveTaskTitleSize(context: Context, value: Float) {
@@ -61,7 +74,7 @@ object WidgetSettings {
 
     fun reset(context: Context) {
         context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().apply {
-            listOf("incomplete", "complete", "count_panel", "background", "task_card", "task_title", "fade", "font_weight", "font_family", "font_italic", "font_style", "task_title_size_sp").forEach { remove(PREFIX + it) }
+            listOf("incomplete", "complete", "count_panel", "background", "task_card", "task_title", "fade", "font_weight", "font_family", "font_file_id", "font_italic", "font_style", "task_title_size_sp").forEach { remove(PREFIX + it) }
         }.apply()
     }
 }

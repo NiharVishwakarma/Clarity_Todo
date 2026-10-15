@@ -49,6 +49,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -77,6 +80,8 @@ import com.example.darktodo.data.WidgetPrefs
 import com.example.darktodo.data.WidgetFontFamily
 import com.example.darktodo.data.WidgetSettings
 import com.example.darktodo.data.CalendarWidgetSettings
+import com.example.darktodo.data.ImportedWidgetFont
+import com.example.darktodo.data.LocalWidgetFonts
 import com.example.darktodo.ui.ColorPickerDialog
 import com.example.darktodo.widget.TodoWidget
 import java.time.Instant
@@ -168,12 +173,41 @@ class MainActivity : ComponentActivity() {
     var confirmClear by remember { mutableStateOf(false) }
     var dateFilter by remember { mutableStateOf(openTaskDate) }
     var calendarSettings by remember { mutableStateOf(CalendarWidgetSettings.load(context)) }
+    var importedWidgetFonts by remember { mutableStateOf(LocalWidgetFonts.list(context)) }
+    var fontImportTargetCalendar by remember { mutableStateOf<Boolean?>(null) }
+    var fontImportMessage by remember { mutableStateOf<String?>(null) }
     var permissionRevision by remember { mutableIntStateOf(0) }
     var showPermissionDialog by remember { mutableStateOf(!context.getSharedPreferences("todo_store", Context.MODE_PRIVATE).getBoolean("reminder_setup_complete_v1", false)) }
     @Suppress("UNUSED_VARIABLE") val permissionStatusRevision = permissionRevision
     val notificationPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { permissionRevision++ }
     fun refresh() { tasks = TaskStore.tasks(context); events = TaskStore.history(context) }
-    fun refreshSettings() { settings = WidgetSettings.load(context); calendarSettings = CalendarWidgetSettings.load(context) }
+    fun refreshSettings() {
+        settings = WidgetSettings.load(context)
+        calendarSettings = CalendarWidgetSettings.load(context)
+        importedWidgetFonts = LocalWidgetFonts.list(context)
+    }
+    val fontImportScope = rememberCoroutineScope()
+    val fontFilePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        val targetCalendar = fontImportTargetCalendar
+        fontImportTargetCalendar = null
+        if (uri != null && targetCalendar != null) fontImportScope.launch {
+            val readPermission = Intent.FLAG_GRANT_READ_URI_PERMISSION
+            runCatching { context.contentResolver.takePersistableUriPermission(uri, readPermission) }
+            val result = withContext(Dispatchers.IO) { runCatching { LocalWidgetFonts.import(context, uri) } }
+            runCatching { context.contentResolver.releasePersistableUriPermission(uri, readPermission) }
+            result.fold(
+                onSuccess = { font ->
+                    if (targetCalendar) CalendarWidgetSettings.saveImportedFont(context, font.id)
+                    else WidgetSettings.saveImportedFont(context, font.id)
+                    refreshSettings()
+                    TodoWidget.updateAll(context)
+                    com.example.darktodo.widget.CalendarWidget.updateAll(context)
+                    fontImportMessage = "${font.name} is ready for the ${if (targetCalendar) "calendar" else "To-Do"} widget."
+                },
+                onFailure = { error -> fontImportMessage = error.message ?: "Could not import that font file." }
+            )
+        }
+    }
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_RESUME) {
@@ -261,10 +295,19 @@ class MainActivity : ComponentActivity() {
                 else -> SettingsScreen(
                     settings = settings,
                     calendarSettings = calendarSettings,
+                    importedFonts = importedWidgetFonts,
+                    fontImportMessage = fontImportMessage,
+                    onDismissFontImportMessage = { fontImportMessage = null },
+                    onImportFont = { targetCalendar ->
+                        fontImportTargetCalendar = targetCalendar
+                        fontFilePicker.launch(arrayOf("*/*"))
+                    },
                     onColor = { key, value -> WidgetSettings.saveColor(context, key, value); refreshSettings(); TodoWidget.updateAll(context) },
                     onFade = { WidgetSettings.saveFade(context, it); refreshSettings(); TodoWidget.updateAll(context) },
                     onFontFamily = { WidgetSettings.saveFontFamily(context, it); refreshSettings(); TodoWidget.updateAll(context) },
+                    onTodoImportedFont = { font -> WidgetSettings.saveImportedFont(context, font.id); refreshSettings(); TodoWidget.updateAll(context) },
                     onCalendarFontFamily = { CalendarWidgetSettings.saveFontFamily(context, it); refreshSettings(); com.example.darktodo.widget.CalendarWidget.updateAll(context) },
+                    onCalendarImportedFont = { font -> CalendarWidgetSettings.saveImportedFont(context, font.id); refreshSettings(); com.example.darktodo.widget.CalendarWidget.updateAll(context) },
                     onTaskTitleSize = { WidgetSettings.saveTaskTitleSize(context, it); refreshSettings(); TodoWidget.updateAll(context) },
                     onReset = {
                         WidgetSettings.reset(context)
@@ -503,10 +546,16 @@ private data class ColorPickTarget(val key: String, val label: String, val value
 @Composable private fun SettingsScreen(
     settings: WidgetPrefs,
     calendarSettings: com.example.darktodo.data.CalendarWidgetPrefs,
+    importedFonts: List<ImportedWidgetFont>,
+    fontImportMessage: String?,
+    onDismissFontImportMessage: () -> Unit,
+    onImportFont: (calendar: Boolean) -> Unit,
     onColor: (String, String) -> Unit,
     onFade: (Int) -> Unit,
     onFontFamily: (WidgetFontFamily) -> Unit,
+    onTodoImportedFont: (ImportedWidgetFont) -> Unit,
     onCalendarFontFamily: (WidgetFontFamily) -> Unit,
+    onCalendarImportedFont: (ImportedWidgetFont) -> Unit,
     onTaskTitleSize: (Float) -> Unit,
     onReset: () -> Unit,
     onCalendarColor: (String, String) -> Unit,
@@ -526,7 +575,8 @@ private data class ColorPickTarget(val key: String, val label: String, val value
 
         SettingsSection("To-Do Widget", "Colors, typography, and task display") {
             SettingsPanel {
-                FontFamilyRow("Font family", settings.fontFamily, onFontFamily)
+                FontFamilyRow("Font family", settings.fontFamily, settings.fontFileId, importedFonts, onFontFamily, onTodoImportedFont)
+                LocalFontImportRow(importedFonts.size) { onImportFont(false) }
                 SettingSlider("Task-title size", "${settings.taskTitleSizeSp.toInt()} sp", settings.taskTitleSizeSp, 12f..24f, onTaskTitleSize)
                 SettingSlider("Completed-task fade", "${settings.fadePercent}%", settings.fadePercent.toFloat(), 0f..100f, { onFade(it.toInt()) })
             }
@@ -544,7 +594,8 @@ private data class ColorPickTarget(val key: String, val label: String, val value
 
         SettingsSection("Calendar Widget", "Calendar appearance and task indicators") {
             SettingsPanel {
-                FontFamilyRow("Font family", calendarSettings.fontFamily, onCalendarFontFamily)
+                FontFamilyRow("Font family", calendarSettings.fontFamily, calendarSettings.fontFileId, importedFonts, onCalendarFontFamily, onCalendarImportedFont)
+                LocalFontImportRow(importedFonts.size) { onImportFont(true) }
             }
             SettingsPanel {
                 SettingSlider("Date size", "${calendarSettings.dateSize} sp", calendarSettings.dateSize.toFloat(), 12f..20f, { onCalendarInt("date_size", it.toInt()) })
@@ -606,6 +657,15 @@ private data class ColorPickTarget(val key: String, val label: String, val value
             dismissButton = { TextButton(onClick = { confirmCalendarReset = false }) { Text("Cancel", color = Ink) } }
         )
     }
+    fontImportMessage?.let { message ->
+        AlertDialog(
+            onDismissRequest = onDismissFontImportMessage,
+            containerColor = UiTokens.SurfaceRaised,
+            title = { Text("Widget font", color = Ink) },
+            text = { Text(message, color = UiTokens.Muted) },
+            confirmButton = { TextButton(onClick = onDismissFontImportMessage) { Text("OK", color = Accent) } }
+        )
+    }
 }
 
 @Composable private fun NavigationItem(label: String, selected: Boolean, onClick: () -> Unit) {
@@ -652,19 +712,46 @@ private data class ColorPickTarget(val key: String, val label: String, val value
     }
 }
 
-@Composable private fun FontFamilyRow(label: String, selected: WidgetFontFamily, onSelect: (WidgetFontFamily) -> Unit) {
+@Composable private fun FontFamilyRow(
+    label: String,
+    selected: WidgetFontFamily,
+    selectedFontId: String?,
+    importedFonts: List<ImportedWidgetFont>,
+    onSelect: (WidgetFontFamily) -> Unit,
+    onSelectImported: (ImportedWidgetFont) -> Unit
+) {
     var expanded by remember { mutableStateOf(false) }
     Row(Modifier.fillMaxWidth().heightIn(min = UiTokens.ControlHeight), verticalAlignment = Alignment.CenterVertically) {
         Text(label, color = Ink, fontSize = UiTokens.LabelSp.sp, modifier = Modifier.weight(1f))
         Box {
             TextButton(onClick = { expanded = true }, contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)) {
-                Text(selected.label, color = UiTokens.Secondary, fontSize = UiTokens.LabelSp.sp, maxLines = 1)
+                Text(
+                    importedFonts.firstOrNull { it.id == selectedFontId }?.name ?: selected.label,
+                    color = UiTokens.Secondary, fontSize = UiTokens.LabelSp.sp, maxLines = 1, overflow = TextOverflow.Ellipsis
+                )
             }
             DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                 WidgetFontFamily.entries.forEach { family ->
                     DropdownMenuItem(text = { Text(family.label) }, onClick = { onSelect(family); expanded = false })
                 }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) importedFonts.forEach { font ->
+                    DropdownMenuItem(text = { Text(font.name, maxLines = 1, overflow = TextOverflow.Ellipsis) }, onClick = { onSelectImported(font); expanded = false })
+                }
             }
+        }
+    }
+}
+
+@Composable private fun LocalFontImportRow(importedCount: Int, onImport: () -> Unit) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                if (importedCount == 0) "Use a local .ttf, .otf, or .ttc file" else "$importedCount local font${if (importedCount == 1) "" else "s"} available"
+            } else "Local widget fonts require Android 9 or newer",
+            color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp, modifier = Modifier.weight(1f)
+        )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            TextButton(onClick = onImport) { Text("Import", color = UiTokens.Secondary) }
         }
     }
 }

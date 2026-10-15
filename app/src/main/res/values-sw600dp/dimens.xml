@@ -1,0 +1,4 @@
+<resources>
+    <!-- Keep the legacy tablet widget compact; targetCellWidth still defaults to four cells. -->
+    <dimen name="calendar_widget_min_width">240dp</dimen>
+</resources>

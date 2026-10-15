@@ -10,7 +10,7 @@ data class CalendarWidgetPrefs(
     val navigationArrows: String = "#F20D24",
     val cornerRadius: Int = 8, val dateSize: Int = 17, val weekdaySize: Int = 11, val headingSize: Int = 17,
     val rowSpacing: Int = 2, val showDots: Boolean = true,
-    val fontFamily: WidgetFontFamily = WidgetFontFamily.SANS_SERIF
+    val fontFamily: WidgetFontFamily = WidgetFontFamily.SANS_SERIF, val fontFileId: String? = null
 )
 object CalendarWidgetSettings {
     private const val FILE = "calendar_widget_settings"
@@ -18,7 +18,10 @@ object CalendarWidgetSettings {
     fun load(context: Context): CalendarWidgetPrefs {
         val p = context.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE)
         fun color(key: String, value: String) = p.getString(key, value) ?: value
-        val family = WidgetFontFamily.fromStoredKey(p.getString("font_family", null)) ?: defaults.fontFamily
+        val storedFamily = WidgetFontFamily.fromStoredKey(p.getString("font_family", null)) ?: defaults.fontFamily
+        val storedFontId = p.getString("font_file_id", null)
+        val fontFileId = storedFontId?.takeIf { id -> LocalWidgetFonts.list(context).any { it.id == id } }
+        val family = storedFamily
         if (p.contains("font_style") || p.contains("font_italic")) {
             p.edit().remove("font_style").remove("font_italic").apply()
         }
@@ -30,7 +33,7 @@ object CalendarWidgetSettings {
             p.getInt("corner_radius", defaults.cornerRadius).let { value -> listOf(8, 16, 22, 32).minBy { kotlin.math.abs(it - value) } }, p.getInt("date_size", defaults.dateSize).coerceIn(12, 20),
             p.getInt("weekday_size", defaults.weekdaySize).coerceIn(8, 14), p.getInt("heading_size", defaults.headingSize).coerceIn(14, 24),
             p.getInt("row_spacing", defaults.rowSpacing).coerceIn(0, 8), p.getBoolean("show_dots", defaults.showDots),
-            family
+            family, fontFileId
         )
     }
     fun saveColor(context: Context, key: String, value: String): Boolean {
@@ -49,7 +52,14 @@ object CalendarWidgetSettings {
     }
     fun saveDots(context: Context, enabled: Boolean) { context.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit().putBoolean("show_dots", enabled).apply() }
     fun saveFontFamily(context: Context, family: WidgetFontFamily) {
-        context.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit().putString("font_family", family.key).apply()
+        context.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit().apply {
+            putString("font_family", family.key)
+            remove("font_file_id")
+        }.apply()
+    }
+    fun saveImportedFont(context: Context, fontId: String) {
+        context.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit()
+            .putString("font_file_id", fontId).apply()
     }
     fun reset(context: Context) {
         // Remove only this settings file's customization keys; calendar navigation state and
