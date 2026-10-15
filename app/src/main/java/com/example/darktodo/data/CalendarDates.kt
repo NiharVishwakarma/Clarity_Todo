@@ -3,7 +3,6 @@ package com.example.darktodo.data
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.YearMonth
-import java.time.temporal.WeekFields
 import java.util.Locale
 
 enum class CalendarTaskStatus { NONE, COMPLETE, MIXED, OPEN }
@@ -11,7 +10,7 @@ enum class CalendarTaskStatus { NONE, COMPLETE, MIXED, OPEN }
 object CalendarDates {
     fun monthCells(month: YearMonth, locale: Locale): List<LocalDate?> {
         val first = month.atDay(1)
-        val firstDay = WeekFields.of(locale).firstDayOfWeek
+        val firstDay = DayOfWeek.MONDAY
         val offset = (first.dayOfWeek.value - firstDay.value + 7) % 7
         val rows = ((offset + month.lengthOfMonth() + 6) / 7).coerceIn(4, 6)
         return List(rows * 7) { index ->
@@ -21,7 +20,7 @@ object CalendarDates {
     }
 
     fun weekdays(locale: Locale): List<DayOfWeek> {
-        val first = WeekFields.of(locale).firstDayOfWeek
+        val first = DayOfWeek.MONDAY
         return List(7) { first.plus(it.toLong()) }
     }
 

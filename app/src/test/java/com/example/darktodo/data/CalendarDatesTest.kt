@@ -7,14 +7,15 @@ import java.time.YearMonth
 import java.util.Locale
 
 class CalendarDatesTest {
-    @Test fun monthGridUsesLocaleFirstWeekdayAndVariableRowCount() {
+    @Test fun monthGridStartsMondayAndUsesVariableRowCount() {
         assertEquals(35, CalendarDates.monthCells(YearMonth.of(2026, 10), Locale.US).size)
         assertEquals(42, CalendarDates.monthCells(YearMonth.of(2026, 8), Locale.US).size)
-        assertEquals(28, CalendarDates.monthCells(YearMonth.of(2015, 2), Locale.US).size)
+        assertEquals(35, CalendarDates.monthCells(YearMonth.of(2015, 2), Locale.US).size)
         assertEquals(28, CalendarDates.monthCells(YearMonth.of(2021, 2), Locale.US).size)
         assertEquals(35, CalendarDates.monthCells(YearMonth.of(2024, 2), Locale.US).size)
         val october = CalendarDates.monthCells(YearMonth.of(2026, 10), Locale.US)
-        assertEquals(4, october.indexOfFirst { it != null })
+        assertEquals(3, october.indexOfFirst { it != null })
+        assertEquals(java.time.DayOfWeek.MONDAY, CalendarDates.weekdays(Locale.US).first())
         assertEquals(LocalDate.of(2026, 10, 1), october.first { it != null })
     }
 

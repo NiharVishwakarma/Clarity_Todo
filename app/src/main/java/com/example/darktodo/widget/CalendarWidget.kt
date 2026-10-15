@@ -113,7 +113,7 @@ object CalendarWidget {
             options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, 280)
         ).coerceAtLeast(1)
         val cellWidthDp = (widgetWidthDp - 24f) / 7f // calendar root has 12dp side padding
-        val circleDiameterDp = minOf(46f, cellWidthDp * 0.88f, maxOf(24f, prefs.dateSize * 2.1f))
+        val circleDiameterDp = minOf(50f, cellWidthDp * 0.96f, maxOf(28f, prefs.dateSize * 2.3f))
         val effectiveDateSizeSp = minOf(prefs.dateSize.toFloat(), (circleDiameterDp * 0.58f).coerceAtLeast(10f))
         val widgetHeight = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT,
             options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 250))
