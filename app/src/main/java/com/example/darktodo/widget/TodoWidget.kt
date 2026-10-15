@@ -74,7 +74,7 @@ object TodoWidget {
     )
 
     private fun render(context: Context, incompleteCount: Int, settings: WidgetPrefs): RemoteViews {
-        val views = RemoteViews(context.packageName, WidgetFontLayouts.todo(settings.fontFamily, settings.fontItalic))
+        val views = RemoteViews(context.packageName, WidgetFontLayouts.todo(settings.fontFamily, settings.fontStyle))
         val titleColor = parseColor(settings.taskTitle)
         val incompleteColor = parseColor(settings.incomplete)
         val completeColor = parseColor(settings.complete)
@@ -112,7 +112,7 @@ object TodoWidget {
 
     internal fun renderTaskRow(context: Context, task: Task): RemoteViews {
         val settings = WidgetSettings.load(context)
-        val row = RemoteViews(context.packageName, WidgetFontLayouts.taskRow(settings.fontFamily, settings.fontItalic))
+        val row = RemoteViews(context.packageName, WidgetFontLayouts.taskRow(settings.fontFamily, settings.fontStyle))
         val titleColor = parseColor(settings.taskTitle)
         val incompleteColor = parseColor(settings.incomplete)
         val completeColor = parseColor(settings.complete)

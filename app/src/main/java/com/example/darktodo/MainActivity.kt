@@ -24,11 +24,14 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
@@ -40,6 +43,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -49,6 +53,7 @@ import androidx.compose.runtime.*
 import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
@@ -58,7 +63,9 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.darktodo.data.Task
@@ -82,10 +89,38 @@ import java.time.LocalDateTime
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
-private val Bg = Color(0xFF000000)
-private val Card = Color(0xFF171717)
-private val Accent = Color(0xFFFF0000)
-private val Ink = Color(0xFFF5F5F5)
+private object UiTokens {
+    val Background = Color(0xFF0D0D10)
+    val Surface = Color(0xFF19191E)
+    val SurfaceRaised = Color(0xFF222228)
+    val Accent = Color(0xFFF20D24)
+    val Secondary = Color(0xFFAA91C6)
+    val Ink = Color(0xFFF4F3F5)
+    val Muted = Color(0xFFAAA8B0)
+    val Subdued = Color(0xFF817F88)
+    val PageMargin = 18.dp
+    val SectionGap = 22.dp
+    val ControlGap = 10.dp
+    val CompactGap = 4.dp
+    val SmallGap = 8.dp
+    val CardRadius = 16.dp
+    val RowRadius = 12.dp
+    val SegmentRadius = 9.dp
+    val ControlHeight = 52.dp
+    val NavigationHeight = 40.dp
+    val PanelPadding = 14.dp
+    val SwatchSize = 24.dp
+    val SwatchRadius = 7.dp
+    val SegmentHeight = 40.dp
+    const val PageTitleSp = 24f
+    const val SectionTitleSp = 17f
+    const val LabelSp = 14f
+    const val DetailSp = 12f
+}
+private val Bg = UiTokens.Background
+private val Card = UiTokens.Surface
+private val Accent = UiTokens.Accent
+private val Ink = UiTokens.Ink
 class MainActivity : ComponentActivity() {
     companion object {
         const val ACTION_CREATE_TASK = "com.example.darktodo.action.CREATE_TASK"
@@ -170,17 +205,20 @@ class MainActivity : ComponentActivity() {
     LaunchedEffect(openTaskDate) { if (openTaskDate != null) { dateFilter = runCatching { LocalDate.parse(openTaskDate).toString() }.getOrNull(); page = "Tasks" } }
 
     LaunchedEffect(settings) { TodoWidget.updateAll(context) }
-    val selectedFontStyle = if (settings.fontItalic) FontStyle.Italic else FontStyle.Normal
+    val selectedFontStyle = if (settings.fontStyle == "italic") FontStyle.Italic else FontStyle.Normal
+    val selectedFontWeight = if (settings.fontStyle == "bold") FontWeight.Bold else FontWeight.Normal
     val selectedFontFamily = appFontFamily(settings.fontFamily)
     val iconColor = colorFromHex(settings.incomplete)
     val caretColor = if (iconColor.isBlackOrGray()) Color.White else iconColor
-    ProvideTextStyle(TextStyle(fontFamily = selectedFontFamily, fontStyle = selectedFontStyle)) {
-        Column(Modifier.fillMaxSize().background(Bg).windowInsetsPadding(WindowInsets.safeDrawing).padding(18.dp)) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("Clarity", color = Ink, fontSize = 24.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                TextButton(onClick = { page = "Tasks"; refresh() }) { Text("Tasks", color = if (page == "Tasks") Accent else Ink) }
-                TextButton(onClick = { page = "History"; route = emptyList(); refresh() }) { Text("History", color = if (page == "History") Accent else Ink) }
-                TextButton(onClick = { page = "Settings"; refreshSettings() }) { Text("Settings", color = if (page == "Settings") Accent else Ink) }
+    ProvideTextStyle(TextStyle(fontFamily = appFontFamily("googlesans"), fontStyle = FontStyle.Normal, fontWeight = FontWeight.Normal)) {
+        Column(Modifier.fillMaxSize().background(Bg).windowInsetsPadding(WindowInsets.safeDrawing).padding(UiTokens.PageMargin)) {
+            Row(Modifier.fillMaxWidth().padding(bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("Clarity", color = Ink, fontSize = 20.sp, fontWeight = FontWeight.Bold, maxLines = 1, modifier = Modifier.weight(1f))
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(UiTokens.CompactGap), verticalAlignment = Alignment.CenterVertically) {
+                    NavigationItem("Tasks", page == "Tasks") { page = "Tasks"; refresh() }
+                    NavigationItem("History", page == "History") { page = "History"; route = emptyList(); refresh() }
+                    NavigationItem("Settings", page == "Settings") { page = "Settings"; refreshSettings() }
+                }
             }
             when (page) {
                 "Tasks" -> {
@@ -189,8 +227,8 @@ class MainActivity : ComponentActivity() {
                         TextButton(onClick = { dateFilter = null }) { Text("Show all", color = Ink) }
                     } else Text("${tasks.count { !it.completed }} incomplete", color = Accent, fontSize = 13.sp)
                     Spacer(Modifier.height(16.dp))
-                    Row(Modifier.fillMaxWidth().background(Card, RoundedCornerShape(16.dp)).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                        BasicTextField(value = title, onValueChange = { title = it }, modifier = Modifier.weight(1f), singleLine = true, cursorBrush = SolidColor(caretColor), textStyle = TextStyle(color = Ink, fontSize = settings.taskTitleSizeSp.sp, fontFamily = selectedFontFamily, fontStyle = selectedFontStyle), decorationBox = { inner -> if (title.isEmpty()) Text("Add a task", color = Color.Gray); inner() })
+                    Row(Modifier.fillMaxWidth().background(Card, RoundedCornerShape(UiTokens.CardRadius)).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        BasicTextField(value = title, onValueChange = { title = it }, modifier = Modifier.weight(1f), singleLine = true, cursorBrush = SolidColor(caretColor), textStyle = TextStyle(color = Ink, fontSize = settings.taskTitleSizeSp.sp, fontFamily = selectedFontFamily, fontStyle = selectedFontStyle, fontWeight = selectedFontWeight), decorationBox = { inner -> if (title.isEmpty()) Text("Add a task", color = Color.Gray); inner() })
                         TextButton(onClick = { if (title.isNotBlank()) addReminder = true }) { Text("Add", color = Accent) }
                     }
                     Spacer(Modifier.height(12.dp))
@@ -205,7 +243,7 @@ class MainActivity : ComponentActivity() {
                                 Text(if (task.completed) "\u25cf" else "\u25cb", modifier = Modifier.clickable { TaskStore.toggle(context, task.id); refresh() }, color = checkColor, fontSize = 22.sp)
                                 Spacer(Modifier.width(12.dp))
                                 Column(Modifier.weight(1f).clickable { editing = task }) {
-                                    Text(task.title, color = taskColor, textDecoration = if (task.completed) TextDecoration.LineThrough else TextDecoration.None, fontSize = settings.taskTitleSizeSp.sp)
+                                    Text(task.title, color = taskColor, textDecoration = if (task.completed) TextDecoration.LineThrough else TextDecoration.None, fontSize = settings.taskTitleSizeSp.sp, fontFamily = selectedFontFamily, fontStyle = selectedFontStyle, fontWeight = selectedFontWeight)
                                     TaskTimeFormatter.label(context, task, wallNow = timeTick)?.let { Text(it, color = if (it == "OVERDUE") Accent else Color.LightGray, fontSize = 11.sp) }
                                 }
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -230,9 +268,9 @@ class MainActivity : ComponentActivity() {
                     onColor = { key, value -> WidgetSettings.saveColor(context, key, value); refreshSettings() },
                     onFade = { WidgetSettings.saveFade(context, it); refreshSettings() },
                     onFontFamily = { WidgetSettings.saveFontFamily(context, it); refreshSettings() },
-                    onItalic = { WidgetSettings.saveFontItalic(context, it); refreshSettings() },
+                    onFontStyle = { WidgetSettings.saveFontStyle(context, it); refreshSettings() },
                     onCalendarFontFamily = { CalendarWidgetSettings.saveFontFamily(context, it); refreshSettings(); com.example.darktodo.widget.CalendarWidget.updateAll(context) },
-                    onCalendarItalic = { CalendarWidgetSettings.saveFontItalic(context, it); refreshSettings(); com.example.darktodo.widget.CalendarWidget.updateAll(context) },
+                    onCalendarFontStyle = { CalendarWidgetSettings.saveFontStyle(context, it); refreshSettings(); com.example.darktodo.widget.CalendarWidget.updateAll(context) },
                     onTaskTitleSize = { WidgetSettings.saveTaskTitleSize(context, it); refreshSettings() },
                     onReset = {
                         WidgetSettings.reset(context)
@@ -285,7 +323,7 @@ class MainActivity : ComponentActivity() {
                 else TaskStore.updateTitleAndDate(context, task.id, value, taskDate)
                 editing = null; refresh()
             }
-        }, task.completed, selectedFontFamily, selectedFontStyle)
+        }, task.completed, selectedFontFamily, selectedFontStyle, selectedFontWeight)
     }
     if (addReminder) {
         var kind by remember { mutableStateOf("none") }; var deadline by remember { mutableLongStateOf(System.currentTimeMillis() + 3_600_000L) }; var hours by remember { mutableStateOf("1") }; var minutes by remember { mutableStateOf("0") }; var timeZone by remember { mutableStateOf("") }; var taskDate by remember { mutableStateOf(LocalDate.now().toString()) }; var error by remember { mutableStateOf("") }
@@ -293,7 +331,7 @@ class MainActivity : ComponentActivity() {
             val at = when (kind) { "time" -> deadline; "duration" -> System.currentTimeMillis() + ((hours.toLongOrNull() ?: 0L) * 60 + (minutes.toLongOrNull() ?: 0L)) * 60_000L; else -> 0L }
             val badZone = kind == "time" && timeZone.isNotBlank() && runCatching { ZoneId.of(timeZone.trim()) }.isFailure
             if (title.isBlank()) error = "Enter a task name" else if (badZone) error = "Enter a valid IANA time zone, such as Europe/London" else if (kind == "time" && at <= System.currentTimeMillis()) error = "Choose a future time" else if (kind == "duration" && at <= System.currentTimeMillis()) error = "Enter a duration greater than zero" else { TaskStore.addConfigured(context, title, kind, at, timeZone.trim(), taskDate); title = ""; addReminder = false; refresh() }
-        }, false, selectedFontFamily, selectedFontStyle)
+        }, false, selectedFontFamily, selectedFontStyle, selectedFontWeight)
     }
     actionTask?.let { task ->
         AlertDialog(onDismissRequest = { actionTask = null }, containerColor = Card, shape = RoundedCornerShape(20.dp), title = { Text(task.title, color = Ink) },
@@ -347,12 +385,12 @@ class MainActivity : ComponentActivity() {
     )
 }
 
-@Composable private fun ReminderDialog(value: String, onValue: (String) -> Unit, kind: String, onKind: (String) -> Unit, deadline: Long, onDeadline: (Long) -> Unit, hours: String, onHours: (String) -> Unit, minutes: String, onMinutes: (String) -> Unit, timeZone: String, onTimeZone: (String) -> Unit, taskDate: String, onTaskDate: (String) -> Unit, error: String, onError: (String) -> Unit, dismiss: () -> Unit, save: () -> Unit, completed: Boolean, fontFamily: FontFamily, fontStyle: FontStyle) {
+@Composable private fun ReminderDialog(value: String, onValue: (String) -> Unit, kind: String, onKind: (String) -> Unit, deadline: Long, onDeadline: (Long) -> Unit, hours: String, onHours: (String) -> Unit, minutes: String, onMinutes: (String) -> Unit, timeZone: String, onTimeZone: (String) -> Unit, taskDate: String, onTaskDate: (String) -> Unit, error: String, onError: (String) -> Unit, dismiss: () -> Unit, save: () -> Unit, completed: Boolean, fontFamily: FontFamily, fontStyle: FontStyle, fontWeight: FontWeight) {
     val context = LocalContext.current
     var showTimeZonePicker by remember { mutableStateOf(false) }
     AlertDialog(onDismissRequest = dismiss, containerColor = Card, title = { Text(if (completed) "Edit task" else "Task and reminder", color = Ink) },
         text = { Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            androidx.compose.material3.OutlinedTextField(value, onValue, label = { Text("Task name") }, singleLine = true, textStyle = TextStyle(color = Ink, fontFamily = fontFamily, fontStyle = fontStyle))
+            androidx.compose.material3.OutlinedTextField(value, onValue, label = { Text("Task name") }, singleLine = true, textStyle = TextStyle(color = Ink, fontFamily = fontFamily, fontStyle = fontStyle, fontWeight = fontWeight))
             TextButton(onClick = {
                 val date = runCatching { LocalDate.parse(taskDate) }.getOrDefault(LocalDate.now())
                 DatePickerDialog(context, { _, year, month, day -> onTaskDate(LocalDate.of(year, month + 1, day).toString()) }, date.year, date.monthValue - 1, date.dayOfMonth).show()
@@ -380,7 +418,7 @@ class MainActivity : ComponentActivity() {
                     label = { Text("Time zone (optional)") },
                     trailingIcon = { TextButton(onClick = { showTimeZonePicker = true }) { Text("Choose", color = Accent) } },
                     singleLine = true,
-                    textStyle = TextStyle(color = Ink, fontFamily = fontFamily, fontStyle = fontStyle),
+                    textStyle = TextStyle(color = Ink, fontFamily = fontFamily, fontStyle = fontStyle, fontWeight = fontWeight),
                     colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(focusedTextColor = Ink, unfocusedTextColor = Ink, cursorColor = Accent, focusedBorderColor = Color.Gray, unfocusedBorderColor = Color.Gray, focusedLabelColor = Color.LightGray, unfocusedLabelColor = Color.LightGray)
                 )
                 if (timeZone.isNotBlank()) TextButton(onClick = { onTimeZone("") }) { Text("Use device time zone", color = Accent) }
@@ -396,8 +434,8 @@ class MainActivity : ComponentActivity() {
                     focusedPlaceholderColor = Color(0xFF9E9E9E), unfocusedPlaceholderColor = Color(0xFF9E9E9E)
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    androidx.compose.material3.OutlinedTextField(hours, { onHours(it.filter(Char::isDigit).take(4)) }, label = { Text("Hours") }, modifier = Modifier.weight(1f), singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), textStyle = TextStyle(color = Ink, fontFamily = fontFamily, fontStyle = fontStyle), colors = fieldColors)
-                    Spacer(Modifier.width(8.dp)); androidx.compose.material3.OutlinedTextField(minutes, { onMinutes(it.filter(Char::isDigit).take(2)) }, label = { Text("Minutes") }, modifier = Modifier.weight(1f), singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), textStyle = TextStyle(color = Ink, fontFamily = fontFamily, fontStyle = fontStyle), colors = fieldColors)
+                    androidx.compose.material3.OutlinedTextField(hours, { onHours(it.filter(Char::isDigit).take(4)) }, label = { Text("Hours") }, modifier = Modifier.weight(1f), singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), textStyle = TextStyle(color = Ink, fontFamily = fontFamily, fontStyle = fontStyle, fontWeight = fontWeight), colors = fieldColors)
+                    Spacer(Modifier.width(8.dp)); androidx.compose.material3.OutlinedTextField(minutes, { onMinutes(it.filter(Char::isDigit).take(2)) }, label = { Text("Minutes") }, modifier = Modifier.weight(1f), singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), textStyle = TextStyle(color = Ink, fontFamily = fontFamily, fontStyle = fontStyle, fontWeight = fontWeight), colors = fieldColors)
                 }
             }
             if (completed) Text("Reopened/completed tasks need a new reminder configured explicitly after reopening.", color = Color.Gray, fontSize = 12.sp)
@@ -409,12 +447,13 @@ class MainActivity : ComponentActivity() {
         selectedId = timeZone,
         fontFamily = fontFamily,
         fontStyle = fontStyle,
+        fontWeight = fontWeight,
         onSelect = { onTimeZone(it); showTimeZonePicker = false },
         onDismiss = { showTimeZonePicker = false }
     )
 }
 
-@Composable private fun TimeZonePickerDialog(selectedId: String, fontFamily: FontFamily, fontStyle: FontStyle, onSelect: (String) -> Unit, onDismiss: () -> Unit) {
+@Composable private fun TimeZonePickerDialog(selectedId: String, fontFamily: FontFamily, fontStyle: FontStyle, fontWeight: FontWeight, onSelect: (String) -> Unit, onDismiss: () -> Unit) {
     var query by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -428,7 +467,7 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text("Search city, country or zone") },
                     singleLine = true,
-                    textStyle = TextStyle(color = Ink, fontFamily = fontFamily, fontStyle = fontStyle),
+                    textStyle = TextStyle(color = Ink, fontFamily = fontFamily, fontStyle = fontStyle, fontWeight = fontWeight),
                     colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
                         focusedTextColor = Ink, unfocusedTextColor = Ink, cursorColor = Accent,
                         focusedBorderColor = Accent, unfocusedBorderColor = Color.Gray,
@@ -467,94 +506,234 @@ class MainActivity : ComponentActivity() {
 
 private fun friendlyZoneName(id: String): String = TimeZoneCatalog.labelFor(id) ?: id.replace('_', ' ')
 
-@Composable private fun SettingsScreen(settings: WidgetPrefs, calendarSettings: com.example.darktodo.data.CalendarWidgetPrefs, onColor: (String, String) -> Unit, onFade: (Int) -> Unit, onFontFamily: (String) -> Unit, onItalic: (Boolean) -> Unit, onCalendarFontFamily: (String) -> Unit, onCalendarItalic: (Boolean) -> Unit, onTaskTitleSize: (Float) -> Unit, onReset: () -> Unit, onCalendarColor: (String, String) -> Unit, onCalendarInt: (String, Int) -> Unit, onCalendarDots: (Boolean) -> Unit, onCalendarReset: () -> Unit) {
-    val context = LocalContext.current
-    data class PickTarget(val key: String, val label: String, val value: String, val calendar: Boolean)
-    var pickTarget by remember { mutableStateOf<PickTarget?>(null) }
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-        Text("Widget colors (HEX)", color = Ink, fontSize = 18.sp, modifier = Modifier.padding(top = 8.dp, bottom = 8.dp))
-        ColorSettingRow("Incomplete checkbox", settings.incomplete) { pickTarget = PickTarget("incomplete", "Incomplete checkbox", settings.incomplete, false) }
-        ColorSettingRow("Completed checkbox", settings.complete) { pickTarget = PickTarget("complete", "Completed checkbox", settings.complete, false) }
-        ColorSettingRow("Task-count panel", settings.countPanel) { pickTarget = PickTarget("count_panel", "Task-count panel", settings.countPanel, false) }
-        ColorSettingRow("Widget background", settings.widgetBackground) { pickTarget = PickTarget("background", "Widget background", settings.widgetBackground, false) }
-        ColorSettingRow("Task card background", settings.taskCard) { pickTarget = PickTarget("task_card", "Task card background", settings.taskCard, false) }
-        ColorSettingRow("Task title", settings.taskTitle) { pickTarget = PickTarget("task_title", "Task title", settings.taskTitle, false) }
-        Spacer(Modifier.height(8.dp))
-        Text("Completed task fading: ${settings.fadePercent}%", color = Ink)
-        Slider(value = settings.fadePercent.toFloat(), onValueChange = { onFade(it.toInt()) }, valueRange = 0f..100f)
-        Text("To-Do widget font", color = Ink, fontSize = 16.sp)
-        FontFamilySelector(settings.fontFamily, onFontFamily)
-        Text("Task title size: ${settings.taskTitleSizeSp.toInt()} sp", color = Ink)
-        Slider(value = settings.taskTitleSizeSp, onValueChange = onTaskTitleSize, valueRange = 12f..24f, steps = 11)
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(if (settings.fontItalic) "Font style: Italic" else "Font style: Regular", color = Ink)
-            Switch(
-                checked = settings.fontItalic,
-                onCheckedChange = onItalic,
-                colors = SwitchDefaults.colors(
-                    checkedThumbColor = Ink,
-                    checkedTrackColor = Accent,
-                    uncheckedThumbColor = Color.LightGray,
-                    uncheckedTrackColor = Card
+private data class ColorPickTarget(val key: String, val label: String, val value: String, val calendar: Boolean)
+
+@Composable private fun SettingsScreen(
+    settings: WidgetPrefs,
+    calendarSettings: com.example.darktodo.data.CalendarWidgetPrefs,
+    onColor: (String, String) -> Unit,
+    onFade: (Int) -> Unit,
+    onFontFamily: (String) -> Unit,
+    onFontStyle: (String) -> Unit,
+    onCalendarFontFamily: (String) -> Unit,
+    onCalendarFontStyle: (String) -> Unit,
+    onTaskTitleSize: (Float) -> Unit,
+    onReset: () -> Unit,
+    onCalendarColor: (String, String) -> Unit,
+    onCalendarInt: (String, Int) -> Unit,
+    onCalendarDots: (Boolean) -> Unit,
+    onCalendarReset: () -> Unit
+) {
+    var pickTarget by remember { mutableStateOf<ColorPickTarget?>(null) }
+    var confirmTodoReset by remember { mutableStateOf(false) }
+    var confirmCalendarReset by remember { mutableStateOf(false) }
+
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(UiTokens.SectionGap)) {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("Settings", color = Ink, fontSize = UiTokens.PageTitleSp.sp, fontWeight = FontWeight.Bold)
+            Text("Make Clarity widgets yours", color = UiTokens.Muted, fontSize = UiTokens.LabelSp.sp)
+        }
+
+        SettingsSection("To-Do Widget", "Colors, typography, and task display") {
+            Text("Widget colors", color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp, modifier = Modifier.padding(start = 2.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(UiTokens.ControlGap)) {
+                ColorSettingRow("Incomplete checkbox", settings.incomplete) { pickTarget = ColorPickTarget("incomplete", "Incomplete checkbox", settings.incomplete, false) }
+                ColorSettingRow("Completed checkbox", settings.complete) { pickTarget = ColorPickTarget("complete", "Completed checkbox", settings.complete, false) }
+                ColorSettingRow("Task-count panel", settings.countPanel) { pickTarget = ColorPickTarget("count_panel", "Task-count panel", settings.countPanel, false) }
+                ColorSettingRow("Widget background", settings.widgetBackground) { pickTarget = ColorPickTarget("background", "Widget background", settings.widgetBackground, false) }
+                ColorSettingRow("Task card background", settings.taskCard) { pickTarget = ColorPickTarget("task_card", "Task card background", settings.taskCard, false) }
+                ColorSettingRow("Task title", settings.taskTitle) { pickTarget = ColorPickTarget("task_title", "Task title", settings.taskTitle, false) }
+            }
+            SettingsPanel {
+                SettingSlider("Completed-task fade", "${settings.fadePercent}%", settings.fadePercent.toFloat(), 0f..100f, { onFade(it.toInt()) })
+                FontFamilyRow("Font family", settings.fontFamily, onFontFamily)
+                FontStyleControl("Font style", settings.fontStyle, onFontStyle)
+                SettingSlider("Task-title size", "${settings.taskTitleSizeSp.toInt()} sp", settings.taskTitleSizeSp, 12f..24f, onTaskTitleSize, steps = 11)
+            }
+            ResetAction("Reset To-Do settings") { confirmTodoReset = true }
+        }
+
+        SettingsSection("Calendar Widget", "Calendar appearance and task indicators") {
+            SettingsPanel {
+                FontFamilyRow("Font family", calendarSettings.fontFamily, onCalendarFontFamily)
+                FontStyleControl("Font style", calendarSettings.fontStyle, onCalendarFontStyle)
+            }
+            Text("Widget colors", color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp, modifier = Modifier.padding(start = 2.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(UiTokens.ControlGap)) {
+                val colors = listOf(
+                    "background" to ("Background" to calendarSettings.background),
+                    "date" to ("Date text" to calendarSettings.date),
+                    "weekday" to ("Weekday text" to calendarSettings.weekday),
+                    "heading" to ("Month heading" to calendarSettings.heading),
+                    "selected_background" to ("Selected-date circle" to calendarSettings.selectedBackground),
+                    "selected_text" to ("Selected-date text" to calendarSettings.selectedText),
+                    "navigation_arrows" to ("Month navigation arrows" to calendarSettings.navigationArrows),
+                    "complete_dot" to ("Completed-task dot" to calendarSettings.completeDot),
+                    "mixed_dot" to ("Mixed-status dot" to calendarSettings.mixedDot),
+                    "open_dot" to ("Incomplete-task dot" to calendarSettings.openDot)
                 )
-            )
+                colors.forEach { (key, pair) ->
+                    ColorSettingRow(pair.first, pair.second) { pickTarget = ColorPickTarget(key, pair.first, pair.second, true) }
+                }
+            }
+            SettingsPanel {
+                SettingSlider("Corner radius", "${calendarSettings.cornerRadius} dp", calendarSettings.cornerRadius.toFloat(), 8f..32f, { onCalendarInt("corner_radius", it.toInt()) })
+                SettingSlider("Date size", "${calendarSettings.dateSize} sp", calendarSettings.dateSize.toFloat(), 12f..20f, { onCalendarInt("date_size", it.toInt()) })
+                SettingSlider("Weekday size", "${calendarSettings.weekdaySize} sp", calendarSettings.weekdaySize.toFloat(), 8f..14f, { onCalendarInt("weekday_size", it.toInt()) })
+                SettingSlider("Month heading size", "${calendarSettings.headingSize} sp", calendarSettings.headingSize.toFloat(), 14f..24f, { onCalendarInt("heading_size", it.toInt()) })
+                SettingSlider("Vertical row spacing", "${calendarSettings.rowSpacing} dp", calendarSettings.rowSpacing.toFloat(), 0f..8f, { onCalendarInt("row_spacing", it.toInt()) })
+            }
+            SettingsPanel {
+                SettingsSwitchRow("Show task-status dots", "Mark dates with completed or open tasks", calendarSettings.showDots, onCalendarDots)
+            }
+            ResetAction("Reset Calendar settings") { confirmCalendarReset = true }
         }
-        TextButton(onClick = onReset) { Text("Reset settings to defaults", color = Accent) }
-        Spacer(Modifier.height(12.dp))
-        Text("Calendar Widget", color = Ink, fontSize = 18.sp, modifier = Modifier.padding(vertical = 8.dp))
-        Text("Calendar widget font", color = Ink, fontSize = 16.sp)
-        FontFamilySelector(calendarSettings.fontFamily, onCalendarFontFamily)
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(if (calendarSettings.fontItalic) "Font style: Italic" else "Font style: Regular", color = Ink)
-            Switch(checked = calendarSettings.fontItalic, onCheckedChange = onCalendarItalic)
-        }
-        val calendarColors = listOf("background" to ("Background" to calendarSettings.background), "date" to ("Date text" to calendarSettings.date), "weekday" to ("Weekday text" to calendarSettings.weekday), "heading" to ("Month heading" to calendarSettings.heading), "selected_background" to ("Selected-date circle" to calendarSettings.selectedBackground), "selected_text" to ("Selected-date text" to calendarSettings.selectedText), "navigation_arrows" to ("Month navigation arrows" to calendarSettings.navigationArrows), "complete_dot" to ("Completed-task dot" to calendarSettings.completeDot), "mixed_dot" to ("Mixed-status dot" to calendarSettings.mixedDot), "open_dot" to ("Incomplete-task dot" to calendarSettings.openDot))
-        calendarColors.forEach { (key, value) ->
-            ColorSettingRow(value.first, value.second) { pickTarget = PickTarget(key, value.first, value.second, true) }
-        }
-        CalendarSlider("Corner radius: ${calendarSettings.cornerRadius} dp", calendarSettings.cornerRadius, 8, 32) { onCalendarInt("corner_radius", it) }
-        CalendarSlider("Date size: ${calendarSettings.dateSize} sp", calendarSettings.dateSize, 12, 20) { onCalendarInt("date_size", it) }
-        CalendarSlider("Weekday size: ${calendarSettings.weekdaySize} sp", calendarSettings.weekdaySize, 8, 14) { onCalendarInt("weekday_size", it) }
-        CalendarSlider("Month heading size: ${calendarSettings.headingSize} sp", calendarSettings.headingSize, 14, 24) { onCalendarInt("heading_size", it) }
-        CalendarSlider("Vertical row spacing: ${calendarSettings.rowSpacing} dp", calendarSettings.rowSpacing, 0, 8) { onCalendarInt("row_spacing", it) }
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("Show task status dots", color = Ink)
-            Switch(checked = calendarSettings.showDots, onCheckedChange = onCalendarDots)
-        }
-        TextButton(onClick = onCalendarReset) { Text("Reset calendar widget settings", color = Accent) }
     }
+
     pickTarget?.let { target ->
         ColorPickerDialog(target.label, target.value, onApply = { value ->
             if (target.calendar) onCalendarColor(target.key, value) else onColor(target.key, value)
             pickTarget = null
         }, onDismiss = { pickTarget = null })
     }
+    if (confirmTodoReset) {
+        AlertDialog(
+            onDismissRequest = { confirmTodoReset = false },
+            containerColor = UiTokens.SurfaceRaised,
+            title = { Text("Reset To-Do settings?", color = Ink) },
+            text = { Text("To-Do widget preferences will return to their defaults. Tasks and history are kept.", color = UiTokens.Muted) },
+            confirmButton = { TextButton(onClick = { onReset(); confirmTodoReset = false }) { Text("Reset", color = Accent) } },
+            dismissButton = { TextButton(onClick = { confirmTodoReset = false }) { Text("Cancel", color = Ink) } }
+        )
+    }
+    if (confirmCalendarReset) {
+        AlertDialog(
+            onDismissRequest = { confirmCalendarReset = false },
+            containerColor = UiTokens.SurfaceRaised,
+            title = { Text("Reset Calendar settings?", color = Ink) },
+            text = { Text("Calendar appearance will return to its defaults. Tasks and To-Do settings are kept.", color = UiTokens.Muted) },
+            confirmButton = { TextButton(onClick = { onCalendarReset(); confirmCalendarReset = false }) { Text("Reset", color = Accent) } },
+            dismissButton = { TextButton(onClick = { confirmCalendarReset = false }) { Text("Cancel", color = Ink) } }
+        )
+    }
 }
 
-@Composable private fun FontFamilySelector(selected: String, onSelect: (String) -> Unit) {
+@Composable private fun NavigationItem(label: String, selected: Boolean, onClick: () -> Unit) {
+    Box(
+        Modifier.clip(RoundedCornerShape(12.dp))
+            .background(if (selected) Accent.copy(alpha = .16f) else Color.Transparent)
+            .clickable(onClick = onClick)
+            .heightIn(min = UiTokens.NavigationHeight)
+            .padding(horizontal = UiTokens.ControlGap, vertical = UiTokens.SmallGap),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(label, color = if (selected) Accent else UiTokens.Muted, fontSize = 12.sp, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium, maxLines = 1)
+    }
+}
+
+@Composable private fun SettingsSection(title: String, description: String, content: @Composable ColumnScope.() -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(UiTokens.ControlGap), content = {
+        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text(title, color = Ink, fontSize = UiTokens.SectionTitleSp.sp, fontWeight = FontWeight.SemiBold)
+            Text(description, color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp)
+        }
+        content()
+    })
+}
+
+@Composable private fun SettingsPanel(content: @Composable ColumnScope.() -> Unit) {
+    Surface(color = UiTokens.Surface, shape = RoundedCornerShape(UiTokens.CardRadius)) {
+        Column(Modifier.fillMaxWidth().padding(UiTokens.PanelPadding), verticalArrangement = Arrangement.spacedBy(14.dp), content = content)
+    }
+}
+
+@Composable private fun ColorSettingRow(label: String, value: String, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        color = UiTokens.Surface,
+        shape = RoundedCornerShape(UiTokens.RowRadius),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(Modifier.heightIn(min = UiTokens.ControlHeight).padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(label, color = Ink, modifier = Modifier.weight(1f), fontSize = UiTokens.LabelSp.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(value.uppercase(), color = UiTokens.Subdued, fontSize = UiTokens.DetailSp.sp, maxLines = 1)
+            Box(Modifier.size(UiTokens.SwatchSize).background(colorFromHex(value), RoundedCornerShape(UiTokens.SwatchRadius)).border(1.dp, Color.White.copy(alpha = .32f), RoundedCornerShape(UiTokens.SwatchRadius)))
+        }
+    }
+}
+
+@Composable private fun FontFamilyRow(label: String, selected: String, onSelect: (String) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
-    val selectedName = appFontOptions.firstOrNull { it.first == selected }?.second ?: "Nunito"
-    Box {
-        TextButton(onClick = { expanded = true }) { Text("Font: $selectedName", color = Accent) }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            appFontOptions.forEach { (id, name) ->
-                DropdownMenuItem(text = { Text(name) }, onClick = { onSelect(id); expanded = false })
+    val selectedName = appFontOptions.firstOrNull { it.first == selected }?.second ?: "Google Sans"
+    Row(Modifier.fillMaxWidth().heightIn(min = UiTokens.ControlHeight), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, color = Ink, fontSize = UiTokens.LabelSp.sp, modifier = Modifier.weight(1f))
+        Box {
+            TextButton(onClick = { expanded = true }, contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)) {
+                Text(selectedName, color = UiTokens.Secondary, fontSize = UiTokens.LabelSp.sp, maxLines = 1)
+            }
+            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                appFontOptions.forEach { (id, name) ->
+                    DropdownMenuItem(text = { Text(name) }, onClick = { onSelect(id); expanded = false })
+                }
             }
         }
     }
 }
 
-@Composable private fun CalendarSlider(label: String, value: Int, min: Int, max: Int, onChange: (Int) -> Unit) {
-    Text(label, color = Ink, fontSize = 13.sp)
-    Slider(value = value.toFloat(), onValueChange = { onChange(it.toInt()) }, valueRange = min.toFloat()..max.toFloat(), steps = (max - min - 1).coerceAtLeast(0))
+@Composable private fun FontStyleControl(label: String, selected: String, onSelect: (String) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(label, color = Ink, fontSize = UiTokens.LabelSp.sp)
+        Row(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(UiTokens.RowRadius)).background(UiTokens.Background).padding(UiTokens.CompactGap).selectableGroup(),
+            horizontalArrangement = Arrangement.spacedBy(UiTokens.CompactGap)
+        ) {
+            listOf("regular" to "Regular", "bold" to "Bold", "italic" to "Italic").forEach { (value, title) ->
+                val isSelected = selected == value
+                Box(
+                    Modifier.weight(1f).clip(RoundedCornerShape(UiTokens.SegmentRadius))
+                        .background(if (isSelected) Accent else Color.Transparent)
+                        .selectable(isSelected, role = Role.RadioButton) { onSelect(value) }
+                        .heightIn(min = UiTokens.SegmentHeight),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(title, color = if (isSelected) Color.White else UiTokens.Muted, fontSize = UiTokens.DetailSp.sp, fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium, maxLines = 1)
+                }
+            }
+        }
+    }
 }
 
-@Composable private fun ColorSettingRow(label: String, value: String, onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().padding(vertical = 2.dp).background(Card, RoundedCornerShape(10.dp)).clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(label, color = Ink, modifier = Modifier.weight(1f), fontSize = 14.sp)
-        Text(value.uppercase(), color = Color.LightGray, fontSize = 12.sp)
-        Spacer(Modifier.width(10.dp))
-        Box(Modifier.size(22.dp).background(colorFromHex(value), RoundedCornerShape(5.dp)).border(1.dp, Color.White.copy(alpha = .35f), RoundedCornerShape(5.dp)))
+@Composable private fun SettingSlider(label: String, valueLabel: String, value: Float, range: ClosedFloatingPointRange<Float>, onChange: (Float) -> Unit, steps: Int = 0) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(label, color = Ink, fontSize = UiTokens.LabelSp.sp, modifier = Modifier.weight(1f))
+            Text(valueLabel, color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp)
+        }
+        Slider(
+            value = value.coerceIn(range),
+            onValueChange = onChange,
+            valueRange = range,
+            steps = steps,
+            colors = SliderDefaults.colors(thumbColor = UiTokens.Secondary, activeTrackColor = UiTokens.Secondary, inactiveTrackColor = UiTokens.Secondary.copy(alpha = .25f), activeTickColor = UiTokens.Background, inactiveTickColor = UiTokens.Secondary.copy(alpha = .5f))
+        )
+    }
+}
+
+@Composable private fun SettingsSwitchRow(label: String, description: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    Row(Modifier.fillMaxWidth().heightIn(min = 56.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text(label, color = Ink, fontSize = UiTokens.LabelSp.sp)
+            Text(description, color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp)
+        }
+        Switch(checked = checked, onCheckedChange = onCheckedChange, colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = Accent, uncheckedThumbColor = UiTokens.Muted, uncheckedTrackColor = UiTokens.SurfaceRaised))
+    }
+}
+
+@Composable private fun ResetAction(label: String, onClick: () -> Unit) {
+    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
+        TextButton(onClick = onClick, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp)) {
+            Text(label, color = Accent, fontSize = UiTokens.LabelSp.sp, fontWeight = FontWeight.Medium)
+        }
     }
 }
 

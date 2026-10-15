@@ -10,7 +10,7 @@ data class CalendarWidgetPrefs(
     val navigationArrows: String = "#F20D24",
     val cornerRadius: Int = 8, val dateSize: Int = 17, val weekdaySize: Int = 11, val headingSize: Int = 17,
     val rowSpacing: Int = 2, val showDots: Boolean = true,
-    val fontFamily: String = "googlesans", val fontItalic: Boolean = false
+    val fontFamily: String = "googlesans", val fontStyle: String = "regular"
 )
 
 object CalendarWidgetSettings {
@@ -28,7 +28,8 @@ object CalendarWidgetSettings {
             p.getInt("weekday_size", defaults.weekdaySize).coerceIn(8, 14), p.getInt("heading_size", defaults.headingSize).coerceIn(14, 24),
             p.getInt("row_spacing", defaults.rowSpacing).coerceIn(0, 8), p.getBoolean("show_dots", defaults.showDots),
             p.getString("font_family", defaults.fontFamily).orEmpty().takeIf { it in FONT_FAMILIES } ?: defaults.fontFamily,
-            p.getBoolean("font_italic", defaults.fontItalic)
+            p.getString("font_style", null).orEmpty().takeIf { it in FONT_STYLES }
+                ?: if (p.getBoolean("font_italic", false)) "italic" else defaults.fontStyle
         )
     }
     fun saveColor(context: Context, key: String, value: String): Boolean {
@@ -49,7 +50,11 @@ object CalendarWidgetSettings {
     fun saveFontFamily(context: Context, family: String) {
         if (family in FONT_FAMILIES) context.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit().putString("font_family", family).apply()
     }
-    fun saveFontItalic(context: Context, italic: Boolean) { context.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit().putBoolean("font_italic", italic).apply() }
+    fun saveFontStyle(context: Context, style: String) {
+        if (style !in FONT_STYLES) return
+        context.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit()
+            .putString("font_style", style).remove("font_italic").apply()
+    }
     fun reset(context: Context) {
         // Remove only this settings file's customization keys; calendar navigation state and
         // every To-Do preference/task remain untouched.
@@ -58,3 +63,4 @@ object CalendarWidgetSettings {
 }
 
 private val FONT_FAMILIES = setOf("opensans", "googlesans", "montserrat", "notosans", "ubuntu", "nunito")
+private val FONT_STYLES = setOf("regular", "bold", "italic")
