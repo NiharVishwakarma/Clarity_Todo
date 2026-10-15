@@ -8,6 +8,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
+import android.graphics.Paint
 import android.os.Build
 import android.util.Log
 import android.util.TypedValue
@@ -72,9 +73,15 @@ object CalendarWidget {
 
     private fun render(context: Context, widgetId: Int): RemoteViews {
         val prefs = CalendarWidgetSettings.load(context)
-        val views = RemoteViews(context.packageName, WidgetFontLayouts.calendar(prefs.fontFamily))
+        val importedFont = prefs.fontFileId != null
+        val views = RemoteViews(context.packageName, WidgetFontLayouts.calendar(prefs.fontFamily, importedFont))
         val locale = Locale.getDefault()
         val currentDate = LocalDate.now(ZoneId.systemDefault())
+        val options = AppWidgetManager.getInstance(context).getAppWidgetOptions(widgetId)
+        val widgetWidthDp = options.getInt(
+            AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH,
+            options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, 280)
+        ).coerceAtLeast(1)
         val state = context.getSharedPreferences(STATE_FILE, Context.MODE_PRIVATE)
         val monthValue = state.getString(KEY_MONTH + widgetId, "")
         val month = runCatching { YearMonth.parse(monthValue) }.getOrDefault(YearMonth.from(currentDate))
@@ -82,13 +89,16 @@ object CalendarWidget {
             ?: currentDate.also { state.edit().putString(KEY_SELECTED + widgetId, it.toString()).apply() }
         views.setImageViewResource(R.id.calendar_background, radiusDrawable(prefs.cornerRadius))
         views.setInt(R.id.calendar_background, "setColorFilter", color(prefs.background))
-        views.setTextViewText(R.id.calendar_heading, LocalWidgetFonts.styledText(context, month.format(DateTimeFormatter.ofPattern("LLLL yyyy", locale)), prefs.fontFileId))
-        views.setTextViewTextSize(R.id.calendar_heading, 2, prefs.headingSize.toFloat())
-        views.setInt(R.id.calendar_heading, "setTextColor", color(prefs.heading))
-        views.setInt(R.id.calendar_previous, "setTextColor", color(prefs.navigationArrows))
-        views.setInt(R.id.calendar_next, "setTextColor", color(prefs.navigationArrows))
-        views.setTextViewText(R.id.calendar_previous, LocalWidgetFonts.styledText(context, "\u2039", prefs.fontFileId))
-        views.setTextViewText(R.id.calendar_next, LocalWidgetFonts.styledText(context, "\u203A", prefs.fontFileId))
+        setText(context, views, if (importedFont) R.id.calendar_heading_image else R.id.calendar_heading,
+            month.format(DateTimeFormatter.ofPattern("LLLL yyyy", locale)), prefs.fontFileId, prefs.headingSize.toFloat(), color(prefs.heading), (widgetWidthDp - 112).coerceAtLeast(50).toFloat())
+        if (!importedFont) {
+            views.setTextViewTextSize(R.id.calendar_heading, 2, prefs.headingSize.toFloat())
+            views.setInt(R.id.calendar_heading, "setTextColor", color(prefs.heading))
+            views.setInt(R.id.calendar_previous, "setTextColor", color(prefs.navigationArrows))
+            views.setInt(R.id.calendar_next, "setTextColor", color(prefs.navigationArrows))
+        }
+        setText(context, views, R.id.calendar_previous, "\u2039", prefs.fontFileId, 26f, color(prefs.navigationArrows), 40f, Paint.Align.CENTER)
+        setText(context, views, R.id.calendar_next, "\u203A", prefs.fontFileId, 26f, color(prefs.navigationArrows), 40f, Paint.Align.CENTER)
         views.setContentDescription(R.id.calendar_previous, "Previous month, ${month.format(DateTimeFormatter.ofPattern("LLLL yyyy", locale))}")
         views.setContentDescription(R.id.calendar_next, "Next month, ${month.format(DateTimeFormatter.ofPattern("LLLL yyyy", locale))}")
         val prev = navIntent(context, widgetId, -1)
@@ -98,23 +108,19 @@ object CalendarWidget {
 
         views.removeAllViews(R.id.calendar_weekdays)
         CalendarDates.weekdays(locale).forEach { day ->
-            val weekday = RemoteViews(context.packageName, WidgetFontLayouts.calendarWeekday(prefs.fontFamily)).apply {
-                setTextViewText(android.R.id.text1, LocalWidgetFonts.styledText(context, day.getDisplayName(TextStyle.SHORT, locale).take(2), prefs.fontFileId))
-                setTextViewTextSize(android.R.id.text1, 2, prefs.weekdaySize.toFloat())
-                setInt(android.R.id.text1, "setTextColor", color(prefs.weekday))
+            val weekday = RemoteViews(context.packageName, WidgetFontLayouts.calendarWeekday(prefs.fontFamily, importedFont))
+            setText(context, weekday, android.R.id.text1, day.getDisplayName(TextStyle.SHORT, locale).take(2), prefs.fontFileId, prefs.weekdaySize.toFloat(), color(prefs.weekday), 28f, Paint.Align.CENTER)
+            if (!importedFont) {
+                weekday.setTextViewTextSize(android.R.id.text1, 2, prefs.weekdaySize.toFloat())
+                weekday.setInt(android.R.id.text1, "setTextColor", color(prefs.weekday))
             }
             views.addView(R.id.calendar_weekdays, weekday)
         }
 
         val tasks = TaskStore.tasks(context)
         val cells = CalendarDates.monthCells(month, locale)
-        val options = AppWidgetManager.getInstance(context).getAppWidgetOptions(widgetId)
         // Widget option dimensions are reported in dp. Base the highlight on a date-cell's
         // available width, then cap the user-selected date size so two-digit dates stay inside.
-        val widgetWidthDp = options.getInt(
-            AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH,
-            options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, 280)
-        ).coerceAtLeast(1)
         val cellWidthDp = (widgetWidthDp - 24f) / 7f // calendar root has 12dp side padding
         val circleDiameterDp = minOf(50f, cellWidthDp * 0.96f, maxOf(28f, prefs.dateSize * 2.3f))
         val effectiveDateSizeSp = minOf(prefs.dateSize.toFloat(), (circleDiameterDp * 0.58f).coerceAtLeast(10f))
@@ -127,7 +133,7 @@ object CalendarWidget {
             val spacingPx = (effectiveRowSpacing * context.resources.displayMetrics.density).toInt()
             row.setViewPadding(R.id.calendar_week_row, 0, 0, 0, spacingPx)
             week.forEach { date ->
-                val cell = RemoteViews(context.packageName, WidgetFontLayouts.calendarDay(prefs.fontFamily))
+                val cell = RemoteViews(context.packageName, WidgetFontLayouts.calendarDay(prefs.fontFamily, importedFont))
                 if (date == null) {
                     cell.setViewVisibility(R.id.calendar_day_cell, View.INVISIBLE)
                 } else {
@@ -139,12 +145,19 @@ object CalendarWidget {
                         cell.setViewLayoutWidth(R.id.calendar_selected_circle, circleDiameterDp, TypedValue.COMPLEX_UNIT_DIP)
                         cell.setViewLayoutHeight(R.id.calendar_selected_circle, circleDiameterDp, TypedValue.COMPLEX_UNIT_DIP)
                     }
-                    cell.setTextViewText(R.id.calendar_day_number, LocalWidgetFonts.styledText(context, date.dayOfMonth.toString(), prefs.fontFileId))
-                    cell.setTextViewTextSize(R.id.calendar_day_number, TypedValue.COMPLEX_UNIT_SP, effectiveDateSizeSp)
-                    cell.setInt(R.id.calendar_day_number, "setTextColor", color(if (isSelected) prefs.selectedText else prefs.date))
+                    val dateColor = color(when {
+                        isToday && !isSelected -> prefs.selectedBackground
+                        isSelected -> prefs.selectedText
+                        else -> prefs.date
+                    })
+                    setText(context, cell, R.id.calendar_day_number, date.dayOfMonth.toString(), prefs.fontFileId, effectiveDateSizeSp, dateColor, 22f, Paint.Align.CENTER)
+                    if (!importedFont) {
+                        cell.setTextViewTextSize(R.id.calendar_day_number, TypedValue.COMPLEX_UNIT_SP, effectiveDateSizeSp)
+                        cell.setInt(R.id.calendar_day_number, "setTextColor", color(if (isSelected) prefs.selectedText else prefs.date))
+                    }
                     cell.setViewVisibility(R.id.calendar_selected_circle, if (isSelected) View.VISIBLE else View.GONE)
                     if (isSelected) cell.setInt(R.id.calendar_selected_circle, "setColorFilter", color(prefs.selectedBackground))
-                    if (isToday && !isSelected) cell.setInt(R.id.calendar_day_number, "setTextColor", color(prefs.selectedBackground))
+                    if (isToday && !isSelected && !importedFont) cell.setInt(R.id.calendar_day_number, "setTextColor", color(prefs.selectedBackground))
                     cell.setContentDescription(R.id.calendar_day_cell, date.format(DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy", locale)) + if (isToday) ", today" else "")
                     when (CalendarDates.status(tasks, date)) {
                         CalendarTaskStatus.NONE -> cell.setViewVisibility(R.id.calendar_status_dot_border, View.GONE)
@@ -159,6 +172,24 @@ object CalendarWidget {
             views.addView(R.id.calendar_grid, row)
         }
         return views
+    }
+
+    private fun setText(
+        context: Context,
+        views: RemoteViews,
+        viewId: Int,
+        text: String,
+        fontFileId: String?,
+        sizeSp: Float,
+        textColor: Int,
+        maxWidthDp: Float,
+        align: Paint.Align = Paint.Align.LEFT
+    ) {
+        val bitmap = LocalWidgetFonts.renderText(context, text, fontFileId, sizeSp, textColor, maxWidthDp, align)
+        if (bitmap == null) views.setTextViewText(viewId, text) else {
+            views.setImageViewBitmap(viewId, bitmap)
+            views.setContentDescription(viewId, text)
+        }
     }
 
     fun receive(context: Context, intent: Intent) {

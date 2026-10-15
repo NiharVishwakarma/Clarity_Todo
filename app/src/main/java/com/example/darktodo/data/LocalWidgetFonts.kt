@@ -2,14 +2,16 @@ package com.example.darktodo.data
 
 import android.content.Context
 import android.graphics.Typeface
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Paint
 import android.net.Uri
 import android.os.Build
 import android.provider.OpenableColumns
-import android.text.SpannableString
-import android.text.Spanned
-import android.text.style.TypefaceSpan
+import android.text.TextUtils
 import java.io.File
 import java.util.UUID
+import kotlin.math.ceil
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -85,16 +87,45 @@ object LocalWidgetFonts {
         }
     }
 
-    /** TypefaceSpan is parcelable, allowing the selected Typeface to travel with RemoteViews text. */
-    fun styledText(context: Context, text: String, fontId: String?): CharSequence {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P || fontId == null || text.isEmpty()) return text
+    /** Render imported-font text to a bitmap in this process; Typeface itself cannot cross into a launcher process. */
+    fun renderText(
+        context: Context,
+        text: String,
+        fontId: String?,
+        sizeSp: Float,
+        color: Int,
+        maxWidthDp: Float = 600f,
+        align: Paint.Align = Paint.Align.LEFT
+    ): Bitmap? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P || fontId == null || text.isEmpty()) return null
         val typeface = synchronized(typefaceCache) {
             typefaceCache[fontId] ?: runCatching { Typeface.createFromFile(File(root(context), fontId)) }
                 .getOrNull()?.also { typefaceCache[fontId] = it }
-        } ?: return text
-        return SpannableString(text).apply {
-            setSpan(TypefaceSpan(typeface), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        } ?: return null
+        val density = context.resources.displayMetrics.density
+        val scale = minOf(density, 2f)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.SUBPIXEL_TEXT_FLAG).apply {
+            this.typeface = typeface
+            textSize = sizeSp * context.resources.displayMetrics.scaledDensity * (scale / density)
+            this.color = color
+            textAlign = align
         }
+        val maxWidthPx = (maxWidthDp * scale).toInt().coerceAtLeast(1)
+        val padding = (2f * scale).toInt().coerceAtLeast(1)
+        val contentMaxWidthPx = (maxWidthPx - padding * 2).coerceAtLeast(1)
+        val measured = TextUtils.ellipsize(text, android.text.TextPaint(paint), contentMaxWidthPx.toFloat(), TextUtils.TruncateAt.END).toString()
+        val metrics = paint.fontMetrics
+        val width = (ceil(paint.measureText(measured)).toInt() + padding * 2).coerceAtLeast(1).coerceAtMost(maxWidthPx)
+        val height = ceil(metrics.descent - metrics.ascent).toInt().coerceAtLeast(1) + padding * 2
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        bitmap.density = (context.resources.displayMetrics.densityDpi * scale / density).toInt()
+        val x = when (align) {
+            Paint.Align.LEFT -> padding.toFloat()
+            Paint.Align.CENTER -> width / 2f
+            Paint.Align.RIGHT -> width - padding.toFloat()
+        }
+        Canvas(bitmap).drawText(measured, x, padding - metrics.ascent, paint)
+        return bitmap
     }
 
     private fun displayName(context: Context, uri: Uri): String {

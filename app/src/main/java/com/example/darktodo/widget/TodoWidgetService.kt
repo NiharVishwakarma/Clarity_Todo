@@ -1,6 +1,7 @@
 package com.example.darktodo.widget
 
 import android.content.Intent
+import android.appwidget.AppWidgetManager
 import android.widget.RemoteViews
 import android.widget.RemoteViewsService
 import android.util.Log
@@ -8,10 +9,16 @@ import com.example.darktodo.data.Task
 import com.example.darktodo.data.TaskStore
 
 class TodoWidgetService : RemoteViewsService() {
-    override fun onGetViewFactory(intent: Intent): RemoteViewsFactory = TaskRowsFactory(applicationContext)
+    override fun onGetViewFactory(intent: Intent): RemoteViewsFactory {
+        val widgetId = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
+        val widthDp = if (widgetId == AppWidgetManager.INVALID_APPWIDGET_ID) 320 else
+            AppWidgetManager.getInstance(this).getAppWidgetOptions(widgetId)
+                .getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 320).coerceAtLeast(1)
+        return TaskRowsFactory(applicationContext, widthDp)
+    }
 }
 
-private class TaskRowsFactory(private val context: android.content.Context) : RemoteViewsService.RemoteViewsFactory {
+private class TaskRowsFactory(private val context: android.content.Context, private val widgetWidthDp: Int) : RemoteViewsService.RemoteViewsFactory {
     private var tasks: List<Task> = emptyList()
 
     override fun onCreate() = Unit
@@ -29,7 +36,7 @@ private class TaskRowsFactory(private val context: android.content.Context) : Re
     override fun getCount(): Int = tasks.size
 
     override fun getViewAt(position: Int): RemoteViews? =
-        tasks.getOrNull(position)?.let { TodoWidget.renderTaskRow(context, it) }
+        tasks.getOrNull(position)?.let { TodoWidget.renderTaskRow(context, it, widgetWidthDp) }
 
     override fun getLoadingView(): RemoteViews = RemoteViews(context.packageName, com.example.darktodo.R.layout.widget_task_loading)
 

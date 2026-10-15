@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root" android:layout_width="match_parent" android:layout_height="match_parent" android:background="@android:color/transparent">
+    <ImageView android:id="@+id/widget_root_background" android:layout_width="match_parent" android:layout_height="match_parent" android:src="@drawable/widget_outer_background" android:scaleType="fitXY" />
+    <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="horizontal" android:padding="8dp">
+        <FrameLayout android:id="@+id/widget_count_panel" android:layout_width="58dp" android:layout_height="match_parent" android:background="@android:color/transparent">
+            <ImageView android:id="@+id/widget_count_panel_background" android:layout_width="match_parent" android:layout_height="match_parent" android:src="@drawable/widget_count_background" android:scaleType="fitXY" />
+            <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent" android:gravity="center" android:orientation="vertical">
+                <ImageView android:id="@+id/widget_count" android:layout_width="wrap_content" android:layout_height="wrap_content" android:contentDescription="Task count" />
+                <ImageView android:id="@+id/widget_count_label" android:layout_width="wrap_content" android:layout_height="wrap_content" android:contentDescription="Tasks" />
+            </LinearLayout>
+        </FrameLayout>
+        <FrameLayout android:id="@+id/widget_task_card" android:layout_width="0dp" android:layout_height="match_parent" android:layout_marginStart="8dp" android:layout_weight="1" android:background="@android:color/transparent">
+            <ImageView android:id="@+id/widget_task_card_background" android:layout_width="match_parent" android:layout_height="match_parent" android:src="@drawable/widget_task_card_background" android:scaleType="fitXY" />
+            <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:paddingStart="8dp" android:paddingEnd="8dp">
+                <FrameLayout android:id="@+id/widget_refresh_container" android:layout_width="match_parent" android:layout_height="wrap_content">
+                    <ImageView android:id="@+id/widget_refresh" android:layout_width="48dp" android:layout_height="32dp" android:layout_gravity="end|center_vertical" android:contentDescription="Refresh task countdowns" android:scaleType="center" />
+                </FrameLayout>
+                <FrameLayout android:id="@+id/widget_empty" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:visibility="gone">
+                    <ImageView android:id="@+id/widget_empty_image" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="start|center_vertical" android:contentDescription="No tasks yet" />
+                </FrameLayout>
+                <ListView android:id="@+id/widget_task_rows" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:divider="@android:color/transparent" android:dividerHeight="0dp" android:scrollbars="none" android:clipToPadding="false" />
+                <FrameLayout android:id="@+id/widget_add_container" android:layout_width="match_parent" android:layout_height="wrap_content">
+                    <ImageView android:id="@+id/widget_add" android:layout_width="48dp" android:layout_height="32dp" android:layout_gravity="end|center_vertical" android:contentDescription="Add task" android:scaleType="center" />
+                </FrameLayout>
+            </LinearLayout>
+        </FrameLayout>
+    </LinearLayout>
+</FrameLayout>

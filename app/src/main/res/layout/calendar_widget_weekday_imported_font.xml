@@ -1,0 +1,2 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ImageView xmlns:android="http://schemas.android.com/apk/res/android" android:id="@android:id/text1" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:contentDescription="Weekday" android:scaleType="center" />

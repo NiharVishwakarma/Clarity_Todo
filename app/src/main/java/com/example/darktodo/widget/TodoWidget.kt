@@ -7,6 +7,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
+import android.graphics.Paint
 import android.os.Build
 import android.util.TypedValue
 import android.util.Log
@@ -38,13 +39,15 @@ object TodoWidget {
             try {
                 if (tasks == null || settings == null) error("Widget state is unavailable")
                 val views = render(context, tasks.count { !it.completed }, settings)
+                val widgetWidthDp = manager.getAppWidgetOptions(id)
+                    .getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 320).coerceAtLeast(1)
                 // Include the selected family so launcher-cached list rows are invalidated
                 // when a system font is changed.
                 views.setRemoteAdapter(
                     R.id.widget_task_rows,
-                    Intent(context, TodoWidgetService::class.java).setData(
-                        android.net.Uri.parse("clarity://todo/widget/$id/${settings.fontFamily.key}")
-                    )
+                    Intent(context, TodoWidgetService::class.java)
+                        .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id)
+                        .setData(android.net.Uri.parse("clarity://todo/widget/$id/$widgetWidthDp/${settings.fontFamily.key}/${settings.fontFileId ?: "system"}"))
                 )
                 views.setEmptyView(R.id.widget_task_rows, R.id.widget_empty)
                 val clickTemplate = PendingIntent.getBroadcast(
@@ -82,7 +85,8 @@ object TodoWidget {
     )
 
     private fun render(context: Context, incompleteCount: Int, settings: WidgetPrefs): RemoteViews {
-        val views = RemoteViews(context.packageName, WidgetFontLayouts.todo(settings.fontFamily))
+        val importedFont = settings.fontFileId != null
+        val views = RemoteViews(context.packageName, WidgetFontLayouts.todo(settings.fontFamily, importedFont))
         val titleColor = parseColor(settings.taskTitle)
         val incompleteColor = parseColor(settings.incomplete)
         val completeColor = parseColor(settings.complete)
@@ -90,16 +94,25 @@ object TodoWidget {
         views.setInt(R.id.widget_root_background, "setColorFilter", parseColor(settings.widgetBackground))
         views.setInt(R.id.widget_count_panel_background, "setColorFilter", parseColor(settings.countPanel))
         views.setInt(R.id.widget_task_card_background, "setColorFilter", cardColor)
-        setText(context, views, R.id.widget_count, incompleteCount.toString(), settings.fontFileId)
-        setText(context, views, R.id.widget_count_label, "Tasks", settings.fontFileId)
-        setText(context, views, R.id.widget_refresh, "\u21BB", settings.fontFileId)
-        setText(context, views, R.id.widget_add, "+", settings.fontFileId)
-        setText(context, views, R.id.widget_empty, "No tasks yet", settings.fontFileId)
-        views.setInt(R.id.widget_count, "setTextColor", Color.WHITE)
-        views.setInt(R.id.widget_count_label, "setTextColor", Color.WHITE)
-        views.setInt(R.id.widget_refresh, "setTextColor", incompleteColor)
+        setText(context, views, R.id.widget_count, incompleteCount.toString(), settings.fontFileId, 22f, Color.WHITE)
+        setText(context, views, R.id.widget_count_label, "Tasks", settings.fontFileId, 11f, Color.WHITE)
+        setText(context, views, R.id.widget_refresh, "\u21BB", settings.fontFileId, 18f, incompleteColor, align = Paint.Align.CENTER)
+        setText(context, views, R.id.widget_add, "+", settings.fontFileId, 21f, incompleteColor, align = Paint.Align.CENTER)
+        if (importedFont) {
+            val emptyBitmap = LocalWidgetFonts.renderText(context, "No tasks yet", settings.fontFileId, 13f, titleColor, 400f)
+                ?: error("The selected To-Do font could not be rendered")
+            views.setImageViewBitmap(R.id.widget_empty_image, emptyBitmap)
+            views.setContentDescription(R.id.widget_empty_image, "No tasks yet")
+        } else {
+            views.setTextViewText(R.id.widget_empty, "No tasks yet")
+        }
+        if (!importedFont) {
+            views.setInt(R.id.widget_count, "setTextColor", Color.WHITE)
+            views.setInt(R.id.widget_count_label, "setTextColor", Color.WHITE)
+            views.setInt(R.id.widget_refresh, "setTextColor", incompleteColor)
+        }
         views.setContentDescription(R.id.widget_refresh_container, "Refresh task countdowns")
-        views.setInt(R.id.widget_add, "setTextColor", incompleteColor)
+        if (!importedFont) views.setInt(R.id.widget_add, "setTextColor", incompleteColor)
 
         val openApp = createTaskPendingIntent(context)
         views.setOnClickPendingIntent(R.id.widget_add_container, openApp)
@@ -114,24 +127,34 @@ object TodoWidget {
         )
         views.setOnClickPendingIntent(R.id.widget_refresh_container, refreshPendingIntent)
 
-        views.setInt(R.id.widget_empty, "setTextColor", titleColor)
+        if (!importedFont) views.setInt(R.id.widget_empty, "setTextColor", titleColor)
         return views
     }
 
-    internal fun renderTaskRow(context: Context, task: Task): RemoteViews {
+    internal fun renderTaskRow(context: Context, task: Task, widgetWidthDp: Int = 320): RemoteViews {
         val settings = WidgetSettings.load(context)
-        val row = RemoteViews(context.packageName, WidgetFontLayouts.taskRow(settings.fontFamily))
+        val importedFont = settings.fontFileId != null
+        val row = RemoteViews(context.packageName, WidgetFontLayouts.taskRow(settings.fontFamily, importedFont))
         val titleColor = parseColor(settings.taskTitle)
         val incompleteColor = parseColor(settings.incomplete)
         val completeColor = parseColor(settings.complete)
         val cardColor = parseColor(settings.taskCard)
         val opacity = if (task.completed) (255 * (100 - settings.fadePercent) / 100).coerceIn(0, 255) else 255
-        row.setTextViewText(R.id.widget_task_check, LocalWidgetFonts.styledText(context, if (task.completed) "\u25cf" else "\u25cb", settings.fontFileId))
-        row.setInt(R.id.widget_task_check, "setTextColor", withAlpha(if (task.completed) completeColor else incompleteColor, opacity))
+        val checkColor = withAlpha(if (task.completed) completeColor else incompleteColor, opacity)
+        if (importedFont) {
+            setText(context, row, R.id.widget_task_check, if (task.completed) "\u25cf" else "\u25cb", settings.fontFileId, 17f, checkColor)
+        } else {
+            row.setTextViewText(R.id.widget_task_check, if (task.completed) "\u25cf" else "\u25cb")
+            row.setInt(R.id.widget_task_check, "setTextColor", checkColor)
+        }
         val label = if (!task.completed && task.reminderType != "none") "${task.title} | ${TaskTimeFormatter.widgetLabel(context, task)}" else task.title
-        setText(context, row, R.id.widget_task_title, label, settings.fontFileId)
-        row.setTextViewTextSize(R.id.widget_task_title, TypedValue.COMPLEX_UNIT_SP, settings.taskTitleSizeSp * (13f / 16f))
-        row.setInt(R.id.widget_task_title, "setTextColor", withAlpha(titleColor, opacity))
+        val rowTitleSize = settings.taskTitleSizeSp * (13f / 16f)
+        val renderedTitleColor = withAlpha(titleColor, opacity)
+        setText(context, row, R.id.widget_task_title, label, settings.fontFileId, rowTitleSize, renderedTitleColor, (widgetWidthDp - 104).coerceAtLeast(60).toFloat())
+        if (!importedFont) {
+            row.setTextViewTextSize(R.id.widget_task_title, TypedValue.COMPLEX_UNIT_SP, rowTitleSize)
+            row.setInt(R.id.widget_task_title, "setTextColor", renderedTitleColor)
+        }
         row.setInt(R.id.widget_task_row, "setBackgroundColor", withAlpha(cardColor, opacity))
         val toggleIntent = Intent()
             .putExtra(EXTRA_COLLECTION_ACTION, ACTION_TOGGLE_TASK)
@@ -142,8 +165,22 @@ object TodoWidget {
         return row
     }
 
-    private fun setText(context: Context, views: RemoteViews, viewId: Int, text: String, fontFileId: String? = null) {
-        views.setTextViewText(viewId, LocalWidgetFonts.styledText(context, text, fontFileId))
+    private fun setText(
+        context: Context,
+        views: RemoteViews,
+        viewId: Int,
+        text: String,
+        fontFileId: String?,
+        sizeSp: Float,
+        color: Int,
+        maxWidthDp: Float = 600f,
+        align: Paint.Align = Paint.Align.LEFT
+    ) {
+        val bitmap = LocalWidgetFonts.renderText(context, text, fontFileId, sizeSp, color, maxWidthDp, align)
+        if (bitmap == null) views.setTextViewText(viewId, text) else {
+            views.setImageViewBitmap(viewId, bitmap)
+            views.setContentDescription(viewId, text)
+        }
     }
 
     private fun parseColor(value: String): Int = try {

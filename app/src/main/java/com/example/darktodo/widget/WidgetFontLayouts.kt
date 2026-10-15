@@ -10,7 +10,12 @@ internal object WidgetFontLayouts {
         val taskRow: Int,
         val calendar: Int,
         val calendarDay: Int,
-        val calendarWeekday: Int
+        val calendarWeekday: Int,
+        val todoImported: Int = R.layout.todo_widget_imported_font,
+        val taskRowImported: Int = R.layout.widget_task_row_imported_font,
+        val calendarImported: Int = R.layout.calendar_widget_imported_font,
+        val calendarDayImported: Int = R.layout.calendar_widget_day_imported_font,
+        val calendarWeekdayImported: Int = R.layout.calendar_widget_weekday_imported_font
     )
 
     private val byFamily = mapOf(
@@ -24,10 +29,10 @@ internal object WidgetFontLayouts {
     private fun layouts(family: WidgetFontFamily): FamilyLayouts =
         checkNotNull(byFamily[family]) { "No widget layouts registered for ${family.key}" }
 
-    fun todo(family: WidgetFontFamily) = layouts(family).todo
-    fun taskRow(family: WidgetFontFamily) = layouts(family).taskRow
-    const val TASK_ROW_VIEW_TYPE_COUNT = 5
-    fun calendar(family: WidgetFontFamily) = layouts(family).calendar
-    fun calendarDay(family: WidgetFontFamily) = layouts(family).calendarDay
-    fun calendarWeekday(family: WidgetFontFamily) = layouts(family).calendarWeekday
+    fun todo(family: WidgetFontFamily, imported: Boolean = false) = if (imported) layouts(family).todoImported else layouts(family).todo
+    fun taskRow(family: WidgetFontFamily, imported: Boolean = false) = if (imported) layouts(family).taskRowImported else layouts(family).taskRow
+    const val TASK_ROW_VIEW_TYPE_COUNT = 6
+    fun calendar(family: WidgetFontFamily, imported: Boolean = false) = if (imported) layouts(family).calendarImported else layouts(family).calendar
+    fun calendarDay(family: WidgetFontFamily, imported: Boolean = false) = if (imported) layouts(family).calendarDayImported else layouts(family).calendarDay
+    fun calendarWeekday(family: WidgetFontFamily, imported: Boolean = false) = if (imported) layouts(family).calendarWeekdayImported else layouts(family).calendarWeekday
 }
