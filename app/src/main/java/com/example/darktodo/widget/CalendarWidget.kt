@@ -115,10 +115,9 @@ object CalendarWidget {
         val cellWidthDp = (widgetWidthDp - 24f) / 7f // calendar root has 12dp side padding
         val circleDiameterDp = minOf(50f, cellWidthDp * 0.96f, maxOf(28f, prefs.dateSize * 2.3f))
         val effectiveDateSizeSp = minOf(prefs.dateSize.toFloat(), (circleDiameterDp * 0.58f).coerceAtLeast(10f))
-        val widgetHeight = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT,
-            options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 250))
-        val maxRowSpacing = ((widgetHeight - 68) / (cells.size / 7) - 26).coerceAtLeast(0)
-        val effectiveRowSpacing = prefs.rowSpacing.coerceAtMost(maxRowSpacing)
+        // Keep the configured spacing visible. The previous height-based clamp often
+        // reduced this to zero for normal launcher widget sizes, making the slider inert.
+        val effectiveRowSpacing = prefs.rowSpacing
         views.removeAllViews(R.id.calendar_grid)
         cells.chunked(7).forEach { week ->
             val row = RemoteViews(context.packageName, R.layout.calendar_widget_week_row)

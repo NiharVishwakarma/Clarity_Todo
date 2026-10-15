@@ -205,9 +205,9 @@ class MainActivity : ComponentActivity() {
     LaunchedEffect(openTaskDate) { if (openTaskDate != null) { dateFilter = runCatching { LocalDate.parse(openTaskDate).toString() }.getOrNull(); page = "Tasks" } }
 
     LaunchedEffect(settings) { TodoWidget.updateAll(context) }
-    val selectedFontStyle = if (settings.fontStyle == "italic") FontStyle.Italic else FontStyle.Normal
-    val selectedFontWeight = if (settings.fontStyle == "bold") FontWeight.Bold else FontWeight.Normal
-    val selectedFontFamily = appFontFamily(settings.fontFamily)
+    // Widget font preferences belong to the home-screen widget. Keep the Tasks UI on
+    // the app's Google Sans typography so changing widget settings cannot restyle this tab.
+    val taskUiFontFamily = appFontFamily("googlesans")
     val iconColor = colorFromHex(settings.incomplete)
     val caretColor = if (iconColor.isBlackOrGray()) Color.White else iconColor
     ProvideTextStyle(TextStyle(fontFamily = appFontFamily("googlesans"), fontStyle = FontStyle.Normal, fontWeight = FontWeight.Normal)) {
@@ -228,7 +228,7 @@ class MainActivity : ComponentActivity() {
                     } else Text("${tasks.count { !it.completed }} incomplete", color = Accent, fontSize = 13.sp)
                     Spacer(Modifier.height(16.dp))
                     Row(Modifier.fillMaxWidth().background(Card, RoundedCornerShape(UiTokens.CardRadius)).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                        BasicTextField(value = title, onValueChange = { title = it }, modifier = Modifier.weight(1f), singleLine = true, cursorBrush = SolidColor(caretColor), textStyle = TextStyle(color = Ink, fontSize = settings.taskTitleSizeSp.sp, fontFamily = selectedFontFamily, fontStyle = selectedFontStyle, fontWeight = selectedFontWeight), decorationBox = { inner -> if (title.isEmpty()) Text("Add a task", color = Color.Gray); inner() })
+                        BasicTextField(value = title, onValueChange = { title = it }, modifier = Modifier.weight(1f), singleLine = true, cursorBrush = SolidColor(caretColor), textStyle = TextStyle(color = Ink, fontSize = 16.sp, fontFamily = taskUiFontFamily, fontStyle = FontStyle.Normal, fontWeight = FontWeight.Normal), decorationBox = { inner -> if (title.isEmpty()) Text("Add a task", color = Color.Gray); inner() })
                         TextButton(onClick = { if (title.isNotBlank()) addReminder = true }) { Text("Add", color = Accent) }
                     }
                     Spacer(Modifier.height(12.dp))
@@ -243,7 +243,7 @@ class MainActivity : ComponentActivity() {
                                 Text(if (task.completed) "\u25cf" else "\u25cb", modifier = Modifier.clickable { TaskStore.toggle(context, task.id); refresh() }, color = checkColor, fontSize = 22.sp)
                                 Spacer(Modifier.width(12.dp))
                                 Column(Modifier.weight(1f).clickable { editing = task }) {
-                                    Text(task.title, color = taskColor, textDecoration = if (task.completed) TextDecoration.LineThrough else TextDecoration.None, fontSize = settings.taskTitleSizeSp.sp, fontFamily = selectedFontFamily, fontStyle = selectedFontStyle, fontWeight = selectedFontWeight)
+                                    Text(task.title, color = taskColor, textDecoration = if (task.completed) TextDecoration.LineThrough else TextDecoration.None, fontSize = 16.sp, fontFamily = taskUiFontFamily, fontStyle = FontStyle.Normal, fontWeight = FontWeight.Normal)
                                     TaskTimeFormatter.label(context, task, wallNow = timeTick)?.let { Text(it, color = if (it == "OVERDUE") Accent else Color.LightGray, fontSize = 11.sp) }
                                 }
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -324,7 +324,7 @@ class MainActivity : ComponentActivity() {
                 else TaskStore.updateTitleAndDate(context, task.id, value, taskDate)
                 editing = null; refresh()
             }
-        }, task.completed, selectedFontFamily, selectedFontStyle, selectedFontWeight)
+        }, task.completed, taskUiFontFamily, FontStyle.Normal, FontWeight.Normal)
     }
     if (addReminder) {
         var kind by remember { mutableStateOf("none") }; var deadline by remember { mutableLongStateOf(System.currentTimeMillis() + 3_600_000L) }; var hours by remember { mutableStateOf("1") }; var minutes by remember { mutableStateOf("0") }; var timeZone by remember { mutableStateOf("") }; var taskDate by remember { mutableStateOf(LocalDate.now().toString()) }; var error by remember { mutableStateOf("") }
@@ -332,7 +332,7 @@ class MainActivity : ComponentActivity() {
             val at = when (kind) { "time" -> deadline; "duration" -> System.currentTimeMillis() + ((hours.toLongOrNull() ?: 0L) * 60 + (minutes.toLongOrNull() ?: 0L)) * 60_000L; else -> 0L }
             val badZone = kind == "time" && timeZone.isNotBlank() && runCatching { ZoneId.of(timeZone.trim()) }.isFailure
             if (title.isBlank()) error = "Enter a task name" else if (badZone) error = "Enter a valid IANA time zone, such as Europe/London" else if (kind == "time" && at <= System.currentTimeMillis()) error = "Choose a future time" else if (kind == "duration" && at <= System.currentTimeMillis()) error = "Enter a duration greater than zero" else { TaskStore.addConfigured(context, title, kind, at, timeZone.trim(), taskDate); title = ""; addReminder = false; refresh() }
-        }, false, selectedFontFamily, selectedFontStyle, selectedFontWeight)
+        }, false, taskUiFontFamily, FontStyle.Normal, FontWeight.Normal)
     }
     actionTask?.let { task ->
         AlertDialog(onDismissRequest = { actionTask = null }, containerColor = Card, shape = RoundedCornerShape(20.dp), title = { Text(task.title, color = Ink) },
