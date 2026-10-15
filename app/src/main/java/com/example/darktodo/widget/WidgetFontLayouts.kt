@@ -62,10 +62,7 @@ internal object WidgetFontLayouts {
 
     fun todo(family: String, italic: Boolean) = select(family, italic) { it.todo }
     fun taskRow(family: String, italic: Boolean) = select(family, italic) { it.taskRow }
-    /** Stable collection view type for each row layout, so Android does not recycle a row
-     * created with the previously selected font after the widget settings change. */
-    fun taskRowType(family: String, italic: Boolean): Int =
-        (byFamily.keys.indexOf(family).takeIf { it >= 0 } ?: byFamily.keys.indexOf("googlesans")) * 2 + if (italic) 1 else 0
+    /** The collection contains one row layout for each of six fonts and two styles. */
     const val TASK_ROW_VIEW_TYPE_COUNT = 12
     fun calendar(family: String, italic: Boolean) = select(family, italic) { it.calendar }
     fun calendarDay(family: String, italic: Boolean) = select(family, italic) { it.calendarDay }
