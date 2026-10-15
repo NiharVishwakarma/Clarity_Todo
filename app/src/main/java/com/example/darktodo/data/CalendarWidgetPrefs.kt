@@ -11,7 +11,11 @@ data class CalendarWidgetPrefs(
     val cornerRadius: Int = 8, val dateSize: Int = 17, val weekdaySize: Int = 11, val headingSize: Int = 17,
     val rowSpacing: Int = 2, val showDots: Boolean = true,
     val fontFamily: String = "googlesans", val fontStyle: String = "regular"
-)
+) {
+    /** Compatibility view for callers that used the previous binary setting. */
+    @Deprecated("Use fontStyle to distinguish Regular, Bold, and Italic")
+    val fontItalic: Boolean get() = fontStyle == "italic"
+}
 
 object CalendarWidgetSettings {
     private const val FILE = "calendar_widget_settings"

@@ -14,7 +14,11 @@ data class WidgetPrefs(
     val fontFamily: String = "googlesans",
     val fontStyle: String = "regular",
     val taskTitleSizeSp: Float = 16f
-)
+) {
+    /** Compatibility view for callers that used the previous binary setting. */
+    @Deprecated("Use fontStyle to distinguish Regular, Bold, and Italic")
+    val fontItalic: Boolean get() = fontStyle == "italic"
+}
 
 object WidgetSettings {
     private const val PREFS = "todo_store"
