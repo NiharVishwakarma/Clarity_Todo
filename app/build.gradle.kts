@@ -1,12 +1,13 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
-val signingProperties = java.util.Properties().apply {
-    rootProject.file("keystore.properties").takeIf { it.isFile }?.inputStream()?.use { load(it) }
-}
+val signingProperties = Properties()
+rootProject.file("keystore.properties").takeIf { it.isFile }?.inputStream()?.use(signingProperties::load)
 val signingStoreFile = System.getenv("ANDROID_KEYSTORE_PATH")
     ?: signingProperties.getProperty("storeFile")
 val signingStorePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
