@@ -1,4 +1,4 @@
-DARK TODO ANDROID APP - PRODUCT AND IMPLEMENTATION BLUEPRINT
+CLARITY ANDROID APP - PRODUCT AND IMPLEMENTATION BLUEPRINT
 ============================================================
 
 Document purpose
@@ -7,7 +7,7 @@ This blueprint describes the current app in this repository: its user-facing fea
 
 1. PRODUCT OVERVIEW
 -------------------
-Dark Todo is a native Kotlin Android task manager with a Compose app, persistent local task storage, an Android home-screen widget, deadline notifications, task activity history, and widget appearance controls. The app uses a dark visual theme and the bundled Nunito font family. Data is held on the device in SharedPreferences; no remote account or synchronization service is implemented.
+Clarity is a native Kotlin Android task manager with a Compose app, persistent local task storage, To-Do and Calendar home-screen widgets, a locked Vault widget, deadline notifications, task activity history, appearance controls, and an encrypted local password vault. The app uses a dark visual theme. Data is held on the device; task and history data use SharedPreferences, while vault data uses a separately encrypted file. No remote account or synchronization service is implemented.
 
 Platform/build baseline:
 - Android application ID: com.example.darktodo
@@ -20,7 +20,7 @@ Platform/build baseline:
 
 2. APP NAVIGATION AND TASKS
 ---------------------------
-The app has three top-level sections: Tasks, History, and Settings.
+The app provides Tasks, History, Calendar, Vault, and Settings screens. Settings also links to notification and exact-alarm permission information.
 
 Tasks screen:
 - Shows the number of incomplete tasks.
@@ -63,8 +63,8 @@ Countdown deadlines:
 4. HOME-SCREEN WIDGET
 ---------------------
 - Shows the incomplete task count and a scrollable collection of all tasks.
-- The count/header panel, refresh action, empty-state message, clear-completed control, and Add task action are part of the widget layout. Refresh explicitly recalculates the widget presentation; Add opens the app.
-- Tapping a task row or checkbox toggles completion through the widget receiver. The widget follows task group and manual order from the app.
+- The count/header panel, refresh action, empty-state message, and Add task action are part of the widget layout. There is no clear-completed control in the widget; clear completed tasks from the app. Refresh explicitly recalculates the widget presentation; Add opens the app.
+- Tapping a task row, title, or checkbox toggles completion through the widget receiver. The widget follows task group and manual order from the app.
 - Task title labels include countdown information for active reminders. Widget labels use the shared countdown formatter and show time remaining for both clock-time and duration reminders.
 - Completion styling reflects the selected colors and completed-task fade.
 - Widget size/options changes trigger a refresh. Widget data is reloaded through RemoteViewsService when changed.
@@ -80,7 +80,16 @@ Countdown deadlines:
 - Deleting an active task or clearing completed tasks records a deletion event; deleting history only rewrites the history collection.
 - History date presentation uses an English day-month-year label; event timestamps otherwise use device-local date/time conventions.
 
-6. SETTINGS AND VISUAL DESIGN
+6. PRIVATE VAULT
+----------------
+- The app includes a local password vault, accessible from its Vault screen or the locked Vault widget. The widget is only an entry point and never displays vault data.
+- A master password protects the vault. The user may configure strong biometric authentication as the primary unlock, with master-password fallback.
+- Entries include a title, username, password, and notes; the app supports adding, searching, editing, reordering, deleting, revealing/hiding passwords, and manually locking the vault.
+- The vault is encrypted using PBKDF2-HMAC-SHA256 key derivation and AES-GCM. The optional biometric path uses an Android Keystore key to wrap the master password.
+- The encrypted file is stored under `noBackupFilesDir`; it is excluded from device backup and is not synced. Losing app data/device storage can therefore mean permanent loss of vault contents.
+- The Vault screen uses Android's secure-window flag while active. No cloud recovery or export/restore feature is implemented.
+
+7. SETTINGS AND VISUAL DESIGN
 -----------------------------
 Widget/app task presentation settings include:
 - Incomplete task indicator color.
@@ -90,13 +99,15 @@ Widget/app task presentation settings include:
 - Task card color.
 - Task title color.
 - Completed-task fade percentage (0-100).
-- Nunito variable font weight (300-900).
-- Italic text toggle, backed by the bundled normal/italic Nunito fonts.
-- Task title size (12-24 sp).
+- Five Android system font families and optional imported `.ttf`, `.otf`, or `.ttc` files (Android 9+ for import).
+- Task title size (12-24 sp); Calendar also has separate date, weekday, and month-heading sizes.
+- Calendar widget colors, corner radius, row spacing, and task-status dot visibility/colors.
 - Reset to defaults action.
 - Colors are normalized and validated as six-digit hexadecimal values before saving.
 
-7. LOCAL DATA MODEL AND PERSISTENCE
+There are no bundled Nunito font binaries or Nunito weight/italic controls in the current resource tree. `licenses/Nunito-NOTICE.md` is a license notice only.
+
+8. LOCAL DATA MODEL AND PERSISTENCE
 -----------------------------------
 SharedPreferences file: todo_store
 - active_tasks_v1: JSON task array. Stores IDs, titles, completion, ordering by array position, reminder metadata, countdown clock recovery fields, and time-zone metadata.
@@ -107,7 +118,7 @@ Tasks are stored locally and retained across app restarts and device reboots. Ac
 
 Duration metadata includes wall-clock start/deadline, elapsed-realtime start/deadline, original duration, and boot count. If the boot count differs, the remaining duration is reconstructed from the saved wall-clock deadline and rebased onto elapsed realtime. Time reminders retain local date/time and a zone ID; blank zone selection means “follow device time zone.”
 
-8. REFRESH AND RECOVERY FLOWS
+9. REFRESH AND RECOVERY FLOWS
 -----------------------------
 - Task mutations update the widget and schedule/cancel the corresponding task alarm.
 - While the app is started, visible countdown state refreshes once per minute. On resume, task state is reloaded and reminders are restored.
@@ -116,7 +127,7 @@ Duration metadata includes wall-clock start/deadline, elapsed-realtime start/dea
 - The widget countdown scheduler sets one alarm for the next visible minute-label transition across active reminder tasks, then reconciles itself after widget refresh.
 - Android does not permit a manifest receiver for screen-on events. If the app is closed, countdown alarms and platform widget refresh are the available refresh paths.
 
-9. IMPLEMENTED BUG FIXES / RELIABILITY SAFEGUARDS
+10. IMPLEMENTED BUG FIXES / RELIABILITY SAFEGUARDS
 -------------------------------------------------
 The following are existing code paths and safeguards, not a claim that a newly discovered defect was reproduced during this documentation task:
 
@@ -128,11 +139,11 @@ The following are existing code paths and safeguards, not a claim that a newly d
 - Time-zone shifts and daylight-saving resolution: local date/time and zone are retained, then resolved through java.time on recovery; device-following reminders use the current device zone.
 - Reminder settings revoked or exact-alarm access unavailable: exact scheduling checks platform access and falls back to inexact alarms; notification calls handle denied permission/security exceptions without crashing.
 - Widget order/count mismatch: widget rows are sourced from the same persisted task order and incomplete count as the app; task toggles refresh the widget data collection.
-- Invalid customization input: color format is validated; fade, font weight, and font size are clamped to supported ranges.
+- Invalid customization input: color format is validated; completed-task fade and supported task/calendar text sizes are clamped to their documented ranges.
 - Accidental task deletion/history clearing: task deletion and clear-all-history have confirmation dialogs; individual event deletion is scoped to the selected event.
 - Notification reprocessing changing message text: quote selection is stored by event key and reuses the same text for repeat processing.
 
-10. PLATFORM LIMITS AND KNOWN OPERATIONAL CAVEATS
+11. PLATFORM LIMITS AND KNOWN OPERATIONAL CAVEATS
 -------------------------------------------------
 - Android can delay inexact alarms during Doze and battery restrictions. Force-stop can prevent background delivery until the app is launched again.
 - On Android 13+, notification permission may be denied; reminder notifications then cannot be shown.
@@ -140,18 +151,18 @@ The following are existing code paths and safeguards, not a claim that a newly d
 - Android widget periodic updates have a 30-minute minimum. Minute-level transitions depend on the app's own alarm/foreground refresh path and system delivery policies.
 - The screen-on refresh listener is intentionally Activity-scoped because a manifest screen-on receiver is unavailable.
 - Data is local only. There is no account, cloud backup/sync contract, multi-device conflict handling, or export/import feature in the current implementation.
-- No automated test run or device-level runtime verification was performed while producing this blueprint. Existing unit tests cover time-zone catalog behavior, task-time formatting, and history date formatting.
+- Existing JVM unit tests cover calendar date/grid/status behavior, countdown edit policy and formatting, history date formatting, time-zone catalog/search/DST behavior, and widget font-layout mappings. The repository has no Android instrumentation/UI tests; alarms, notifications, biometrics, and launcher rendering still need device/emulator validation.
 
-11. BUILD AND DISTRIBUTION
+12. BUILD AND DISTRIBUTION
 --------------------------
 GitHub Actions workflow: .github/workflows/android-apk.yml
 - Runs for pushes and pull requests to main and manual workflow dispatch.
 - Sets up Java 17, Android SDK platform/build tools 35, and Gradle 8.9.
 - Generates the Gradle wrapper on the runner, assembles the debug APK, copies it to dark_todo.apk, and uploads artifact dark-todo-debug-apk for 14 days.
 - Output is debug-signed and intended for direct installation/testing, not store release signing.
-- README installation path: download the artifact, extract/install dark_todo.apk, grant install-from-source permission if prompted, then add Dark Todo from Android's Widgets picker.
+- README installation path: download the artifact, extract/install dark_todo.apk, grant install-from-source permission if prompted, then add a Clarity widget from Android's Widgets picker.
 
-12. REPOSITORY MAP
+13. REPOSITORY MAP
 ------------------
 app/src/main/java/com/example/darktodo/MainActivity.kt: Compose navigation, task UI, history/settings views, dialogs, lifecycle refresh.
 app/src/main/java/com/example/darktodo/data/TaskStore.kt: task/history persistence and mutation operations.
@@ -163,7 +174,11 @@ app/src/main/java/com/example/darktodo/reminders/ReminderScheduler.kt: alarm, no
 app/src/main/java/com/example/darktodo/widget/TodoWidget.kt: AppWidget rendering and interaction receiver.
 app/src/main/java/com/example/darktodo/widget/TodoWidgetService.kt: scrollable task collection factory.
 app/src/main/java/com/example/darktodo/widget/WidgetRefreshScheduler.kt: next countdown label transition alarm.
-app/src/main/res: app/widget layouts, styles, widget backgrounds, launcher artwork, and Nunito fonts.
-app/src/test: unit tests for time-zone catalog, task-time formatting, and history date formatting.
+app/src/main/java/com/example/darktodo/data/LocalVaultStore.kt: encrypted local vault storage and biometric key wrapping.
+app/src/main/java/com/example/darktodo/data/LocalWidgetFonts.kt: imported font validation, storage, and widget bitmap rendering.
+app/src/main/java/com/example/darktodo/widget/CalendarWidget.kt: Calendar widget rendering, selection, and midnight refresh.
+app/src/main/java/com/example/darktodo/widget/VaultWidget.kt: locked Vault widget entry point.
+app/src/main/res: app/widget layouts, styles, widget backgrounds, and launcher artwork; no bundled Nunito font binaries are present.
+app/src/test: JVM tests for calendar dates, countdown policy/formatting, history dates, time zones, and widget layouts.
 
 END OF BLUEPRINT

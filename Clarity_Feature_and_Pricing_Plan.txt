@@ -5,12 +5,12 @@ PURPOSE AND STATUS
 ==================
 This document records the product ideas, implementation boundaries, free/paid proposal, regional price proposals, revenue estimates, and cautions discussed for Clarity.
 
-The new-purpose widgets and paid plans described below are proposals only. They have not been implemented or launched. Clarity's existing To-Do and Calendar widgets, widget settings, local font import, and recent Settings/reminder UI changes are existing groundwork; this document does not claim the new widgets exist.
+The new-purpose widgets and paid plans described below are proposals only. They have not been implemented or launched. Clarity's existing To-Do and Calendar widgets, locked Vault widget, encrypted local password vault, widget settings, local font import, and reminder UI are existing groundwork; the Vault is already implemented and is not a proposed feature. See `docs/PROJECT_MEMORY.md` for the current source-based implementation summary.
 
 
 1. PRODUCT DIRECTION
 ====================
-Clarity can grow from a To-Do and Calendar app into a collection of useful and fun Android home-screen widgets. Each widget should be optional and independently placeable from the Android widget picker.
+Clarity can grow from its existing To-Do, Calendar, and local password-vault foundation into a collection of useful and fun Android home-screen widgets. Each widget should be optional and independently placeable from the Android widget picker.
 
 Widgets are best for glanceable information and short, direct actions. Configuration, long text entry, secure authentication, browsing, and complex interactions should open a Clarity screen. Android widgets are hosted outside the app and have UI/interaction limits compared with full screens. Support for sizing and controls varies by Android version and launcher.
 
@@ -22,6 +22,8 @@ A. Current Clarity widget foundation
 ------------------------------------
 - To-Do widget: task list, task completion, reminders, widget appearance settings.
 - Calendar widget: month calendar and task indicators.
+- Locked Vault widget: opens the in-app authentication flow and never displays vault contents.
+- Local password vault: encrypted on-device entries, with master-password authentication and optional strong biometric unlock. Vault data is excluded from device backup and is not synchronized.
 - Local font import and separate font selection for To-Do and Calendar widgets.
 - Color, typography, spacing, and appearance settings for both widgets.
 - A responsive layout goal: calendar uses the full horizontal space on phones and behaves appropriately on tablets without stretching to full width unnecessarily.
@@ -59,8 +61,7 @@ D. Personal / discovery widgets
 
 E. Security and emergency widgets
 ---------------------------------
-- Private password notepad / vault, stored locally without sync as proposed.
-- Locked vault widget entry point. A tap should launch an app screen for fingerprint, device credential, or secret-password authentication.
+- Future vault work, if any, should focus on a reviewed threat model and clearly communicated recovery/export limitations; do not treat the already-shipped local vault or locked widget as a new feature proposal.
 - Emergency contacts widget with user-selected family/close contacts and call shortcuts.
 - Emergency services shortcuts for police, healthcare, fire, or other local services, with configured numbers appropriate to the user's region.
 
@@ -88,12 +89,12 @@ Needs an app setup screen or a handoff to the app:
 - Choose, crop, position, and preview a background image.
 - Add or edit longer task/note text and inspect full news stories.
 - Set up reminders, recurring task rules, backup, and restore.
-- Enter and view password-vault contents after authentication.
+- View and manage password-vault contents after authentication (the app already provides this flow; do not surface secrets in a widget).
 - Complex/scientific calculator history or richer games.
 
 Android/platform qualifications:
 - A DND widget is possible, but Android requires the user to grant notification-policy access. Newer Android target versions may only let an app activate its own DND rule rather than arbitrarily set the global phone mode. Confirm behavior against Clarity's target SDK and device versions.
-- Android's biometric prompt is hosted by an Activity/Fragment. The widget should open an app screen to authenticate; it should not expose the secret directly in an unauthenticated widget surface.
+- Android's biometric prompt is hosted by an Activity/Fragment. Clarity's locked Vault widget opens the app screen for authentication and does not expose secrets. Any changes must preserve this boundary.
 - ACTION_DIAL opens the dialer and asks the user to tap Call. Direct ACTION_CALL needs the CALL_PHONE dangerous permission and should be used only where justified. Emergency calling behavior and emergency numbers are controlled by Android/carrier/region; never represent Clarity as an emergency service.
 - Widgets have limited gestures and supported UI elements. Use taps and vertical scrolling; do not design around full-screen-app gestures or complex interactions.
 - News requires an appropriate source/API, internet, attribution/terms review, and a refresh strategy. Background refreshes must respect Android limits and battery use.
@@ -213,7 +214,7 @@ Important interpretation:
 5. Add recurring tasks, reminder presets/snooze, and backup/restore.
 6. Add DND only after checking policy access and target-SDK behavior on supported Android versions.
 7. Add emergency contact shortcuts using explicit user setup and a clear dialer handoff; localize any public-service numbers and test carefully.
-8. Add the offline password vault only with a clear threat model, secure storage/encryption, backup/recovery explanation, and app-screen authentication. Do not reveal secrets in widget previews, lock-screen surfaces, logs, or unauthenticated widget state.
+8. Review the existing offline password vault's threat model and ensure its encryption, backup/recovery limitations, and app-screen authentication remain clearly explained. Do not reveal secrets in widget previews, lock-screen surfaces, logs, or unauthenticated widget state.
 9. Add horoscope/news only after selecting legally usable sources, understanding attribution/content terms, building refresh controls, and calculating infrastructure costs.
 10. Validate demand and costs before turning on paid plans. Start with one Clarity Plus tier, a generous free tier, and an optional lifetime non-consumable purchase.
 

@@ -1,12 +1,18 @@
-# Dark Todo Widget
+# Clarity
 
-Native Kotlin Android app and home-screen widget. GitHub Actions builds an APK named `dark_todo.apk`, signed with a persistent app key.
+Native Kotlin Android task app with To-Do, Calendar, and locked Vault home-screen widgets. GitHub Actions builds an APK named `dark_todo.apk`, signed with a persistent app key.
+
+## Do I need development tools locally?
+
+No. GitHub Actions installs Temurin JDK 17, Gradle 8.9, and the Android SDK for each build. You can trigger the workflow from the repository's **Actions** tab and download its APK artifact without installing Java, Gradle, or Android Studio on your computer.
+
+If you do want to build the app locally, use JDK 17 and also install/configure Gradle 8.9 and Android SDK platform/build tools 35. The repository does not include the Gradle wrapper scripts or JAR.
 
 ## Build with GitHub Actions
 
 The workflow in `.github/workflows/android-apk.yml` runs on pushes and pull requests to `main`, and can also be started manually from the repository's **Actions** tab. It installs Java 17 and the Android SDK, generates the Gradle wrapper on the runner, and builds the APK.
 
-To download it, open a successful **Android APK Build** run in GitHub Actions and download the `dark-todo-debug-apk` artifact. Extract it and install `dark_todo.apk` on Android. If Android asks, allow installation from the browser or file manager used to open it. Then long-press the home screen, open **Widgets**, find **Dark Todo**, and place it.
+To download it, open a successful **Android APK Build** run in GitHub Actions and download the `dark-todo-debug-apk` artifact. Extract it and install `dark_todo.apk` on Android. If Android asks, allow installation from the browser or file manager used to open it. Then long-press the home screen, open **Widgets**, find **Clarity**, and place the To-Do, Calendar, or Vault widget.
 
 ### Persistent APK signing
 
@@ -41,4 +47,8 @@ Active tasks use the `active_tasks_v1` preference key. Activity records use `tas
 
 The To-Do and Calendar widget font selectors support importing local `.ttf`, `.otf`, and `.ttc` files on Android 9 and newer. The app copies selected files into its private storage and applies them to widget text; the font files are not uploaded or shared. Imported fonts stay available for either widget until app data is cleared or the app is uninstalled. Android 8 and older continue to use the built-in widget font options.
 
-The widget uses a scrollable collection to show the full task list while keeping its count panel, clear-completed control, and Add task action fixed. Widget task titles open the app, while the checkbox toggles completion. Use the up/down controls in the app to reorder tasks within the incomplete or completed group; the widget follows that order. Long-press any task in the app for Edit or Delete actions; deletion requires confirmation. Widget countdowns use the same formatter as the Tasks screen and include minutes. Android limits periodic widget refreshes to at least 30 minutes; the widget also refreshes on task changes, reminder milestones, and system updates. While the app is foregrounded, it refreshes displayed countdowns once per minute. Widget colors, completed-task fading, font weight, and italic task text can be adjusted in Settings. The app and widget use the bundled Nunito variable fonts for normal and italic styles. Font source: Google Fonts Nunito, licensed under SIL Open Font License 1.1 (see `licenses/Nunito-NOTICE.md`).
+The To-Do widget uses a scrollable collection to show the full task list while keeping its count panel, refresh action, and Add task action fixed. It does not have a clear-completed control; clear completed tasks from the app. Tapping a task row, title, or checkbox toggles completion. Use the up/down controls in the app to reorder tasks within the incomplete or completed group; the widget follows that order. Long-press any task in the app for Edit or Delete actions; deletion requires confirmation. Widget countdowns use the same formatter as the Tasks screen and include minutes. Android limits periodic widget refreshes to at least 30 minutes; the widget also refreshes on task changes, reminder milestones, and system updates. While the app is foregrounded, it refreshes displayed countdowns once per minute.
+
+To-Do and Calendar appearance settings provide five Android system font families and support importing local `.ttf`, `.otf`, and `.ttc` files on Android 9 and newer. The app also has a separate typography selector. Imported fonts are copied to private app storage; they are not uploaded or shared. The repository contains a Nunito license notice but does not currently bundle Nunito font files or provide Nunito weight/italic controls.
+
+The Vault widget is only a locked shortcut into the app. Vault credentials are not displayed in the widget. The vault is encrypted and stored locally outside device backup; there is no cloud sync or vault recovery service.
