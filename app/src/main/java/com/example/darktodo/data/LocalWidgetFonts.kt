@@ -87,6 +87,15 @@ object LocalWidgetFonts {
         }
     }
 
+    /** Resolve an imported font in-process for Compose previews and app typography. */
+    fun typeface(context: Context, fontId: String?): Typeface? {
+        if (fontId == null) return null
+        return synchronized(typefaceCache) {
+            typefaceCache[fontId] ?: runCatching { Typeface.createFromFile(File(root(context), fontId)) }
+                .getOrNull()?.also { typefaceCache[fontId] = it }
+        }
+    }
+
     /** Render imported-font text to a bitmap in this process; Typeface itself cannot cross into a launcher process. */
     fun renderText(
         context: Context,
@@ -98,10 +107,7 @@ object LocalWidgetFonts {
         align: Paint.Align = Paint.Align.LEFT
     ): Bitmap? {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P || fontId == null || text.isEmpty()) return null
-        val typeface = synchronized(typefaceCache) {
-            typefaceCache[fontId] ?: runCatching { Typeface.createFromFile(File(root(context), fontId)) }
-                .getOrNull()?.also { typefaceCache[fontId] = it }
-        } ?: return null
+        val typeface = typeface(context, fontId) ?: return null
         val density = context.resources.displayMetrics.density
         val scale = minOf(density, 2f)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.SUBPIXEL_TEXT_FLAG).apply {

@@ -1,6 +1,11 @@
 package com.example.darktodo
 
 import android.graphics.Color as AndroidColor
+import android.graphics.Typeface as AndroidTypeface
+import android.graphics.Paint as AndroidPaint
+import android.text.TextUtils
+import android.view.Gravity
+import android.widget.TextView
 import android.os.Bundle
 import android.os.Build
 import android.Manifest
@@ -64,6 +69,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
@@ -77,6 +83,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import com.example.darktodo.data.Task
@@ -90,6 +97,8 @@ import com.example.darktodo.data.TimeZoneOption
 import com.example.darktodo.data.WidgetPrefs
 import com.example.darktodo.data.WidgetFontFamily
 import com.example.darktodo.data.WidgetSettings
+import com.example.darktodo.data.AppFontSettings
+import com.example.darktodo.data.AppTypographySettings
 import com.example.darktodo.data.CalendarWidgetSettings
 import com.example.darktodo.data.CalendarDates
 import com.example.darktodo.data.CalendarTaskStatus
@@ -191,9 +200,10 @@ class MainActivity : ComponentActivity() {
     var route by remember { mutableStateOf(listOf<String>()) }
     var confirmClear by remember { mutableStateOf(false) }
     var dateFilter by remember { mutableStateOf(openTaskDate) }
+    var appFontSettings by remember { mutableStateOf(AppTypographySettings.load(context)) }
     var calendarSettings by remember { mutableStateOf(CalendarWidgetSettings.load(context)) }
     var importedWidgetFonts by remember { mutableStateOf(LocalWidgetFonts.list(context)) }
-    var fontImportTargetCalendar by remember { mutableStateOf<Boolean?>(null) }
+    var fontImportTarget by remember { mutableStateOf<String?>(null) }
     var fontImportMessage by remember { mutableStateOf<String?>(null) }
     var permissionRevision by remember { mutableIntStateOf(0) }
     @Suppress("UNUSED_VARIABLE") val permissionStatusRevision = permissionRevision
@@ -206,26 +216,30 @@ class MainActivity : ComponentActivity() {
     fun refresh() { tasks = TaskStore.tasks(context); events = TaskStore.history(context) }
     fun refreshSettings() {
         settings = WidgetSettings.load(context)
+        appFontSettings = AppTypographySettings.load(context)
         calendarSettings = CalendarWidgetSettings.load(context)
         importedWidgetFonts = LocalWidgetFonts.list(context)
     }
     val fontImportScope = rememberCoroutineScope()
     val fontFilePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        val targetCalendar = fontImportTargetCalendar
-        fontImportTargetCalendar = null
-        if (uri != null && targetCalendar != null) fontImportScope.launch {
+        val target = fontImportTarget
+        fontImportTarget = null
+        if (uri != null && target != null) fontImportScope.launch {
             val readPermission = Intent.FLAG_GRANT_READ_URI_PERMISSION
             runCatching { context.contentResolver.takePersistableUriPermission(uri, readPermission) }
             val result = withContext(Dispatchers.IO) { runCatching { LocalWidgetFonts.import(context, uri) } }
             runCatching { context.contentResolver.releasePersistableUriPermission(uri, readPermission) }
             result.fold(
                 onSuccess = { font ->
-                    if (targetCalendar) CalendarWidgetSettings.saveImportedFont(context, font.id)
-                    else WidgetSettings.saveImportedFont(context, font.id)
+                    when (target) {
+                        "app" -> AppTypographySettings.saveImportedFont(context, font.id)
+                        "calendar" -> CalendarWidgetSettings.saveImportedFont(context, font.id)
+                        "todo" -> WidgetSettings.saveImportedFont(context, font.id)
+                    }
                     refreshSettings()
-                    TodoWidget.updateAll(context)
-                    com.example.darktodo.widget.CalendarWidget.updateAll(context)
-                    fontImportMessage = "${font.name} is ready for the ${if (targetCalendar) "calendar" else "To-Do"} widget."
+                    if (target == "todo") TodoWidget.updateAll(context)
+                    if (target == "calendar") com.example.darktodo.widget.CalendarWidget.updateAll(context)
+                    fontImportMessage = "${font.name} is ready for ${when (target) { "app" -> "the app"; "calendar" -> "the Calendar widget"; else -> "the To-Do widget" }}."
                 },
                 onFailure = { error -> fontImportMessage = error.message ?: "Could not import that font file." }
             )
@@ -258,12 +272,10 @@ class MainActivity : ComponentActivity() {
     LaunchedEffect(openTaskDate) { if (openTaskDate != null) { dateFilter = runCatching { LocalDate.parse(openTaskDate).toString() }.getOrNull(); page = "To-Do"; todoPage = "Tasks" } }
 
     LaunchedEffect(settings) { TodoWidget.updateAll(context) }
-    // Widget font preferences belong to the home-screen widget; the Tasks UI stays on
-    // the Android system sans-serif typeface.
-    val taskUiFontFamily = FontFamily.SansSerif
+    val appUiFontFamily = remember(appFontSettings) { composeFontFamily(context, appFontSettings.family, appFontSettings.fontFileId) }
     val iconColor = colorFromHex(settings.incomplete)
     val caretColor = if (iconColor.isBlackOrGray()) Color.White else iconColor
-    ProvideTextStyle(TextStyle(fontFamily = FontFamily.SansSerif)) {
+    ProvideTextStyle(TextStyle(fontFamily = appUiFontFamily)) {
         Column(Modifier.fillMaxSize().background(Bg).windowInsetsPadding(WindowInsets.safeDrawing).padding(UiTokens.PageMargin)) {
             Row(Modifier.fillMaxWidth().padding(bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("Clarity", color = Ink, fontSize = 22.sp, fontWeight = FontWeight.Bold, maxLines = 1, modifier = Modifier.weight(1f))
@@ -291,7 +303,7 @@ class MainActivity : ComponentActivity() {
                     } else Text("${tasks.count { !it.completed }} incomplete", color = Accent, fontSize = 13.sp)
                     Spacer(Modifier.height(16.dp))
                     Row(Modifier.fillMaxWidth().background(Card, RoundedCornerShape(UiTokens.CardRadius)).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                        BasicTextField(value = title, onValueChange = { title = it }, modifier = Modifier.weight(1f), singleLine = true, cursorBrush = SolidColor(caretColor), textStyle = TextStyle(color = Ink, fontSize = 16.sp, fontFamily = taskUiFontFamily, fontStyle = FontStyle.Normal, fontWeight = FontWeight.Normal), decorationBox = { inner -> if (title.isEmpty()) Text("Add a task", color = Color.Gray); inner() })
+                        BasicTextField(value = title, onValueChange = { title = it }, modifier = Modifier.weight(1f), singleLine = true, cursorBrush = SolidColor(caretColor), textStyle = TextStyle(color = Ink, fontSize = 16.sp, fontFamily = appUiFontFamily, fontStyle = FontStyle.Normal, fontWeight = FontWeight.Normal), decorationBox = { inner -> if (title.isEmpty()) Text("Add a task", color = Color.Gray); inner() })
                         TextButton(onClick = { if (title.isNotBlank()) addReminder = true }) { Text("Add", color = Accent) }
                     }
                     TodoWidgetPreview(tasks, settings)
@@ -307,7 +319,7 @@ class MainActivity : ComponentActivity() {
                                 Text(if (task.completed) "\u25cf" else "\u25cb", modifier = Modifier.clickable { TaskStore.toggle(context, task.id); refresh() }, color = checkColor, fontSize = 22.sp)
                                 Spacer(Modifier.width(12.dp))
                                 Column(Modifier.weight(1f).clickable { editing = task }) {
-                                    Text(task.title, color = taskColor, textDecoration = if (task.completed) TextDecoration.LineThrough else TextDecoration.None, fontSize = 16.sp, fontFamily = taskUiFontFamily, fontStyle = FontStyle.Normal, fontWeight = FontWeight.Normal)
+                                    Text(task.title, color = taskColor, textDecoration = if (task.completed) TextDecoration.LineThrough else TextDecoration.None, fontSize = 16.sp, fontFamily = appUiFontFamily, fontStyle = FontStyle.Normal, fontWeight = FontWeight.Normal)
                                     TaskTimeFormatter.label(context, task, wallNow = timeTick)?.let { Text(it, color = if (it == "OVERDUE") Accent else Color.LightGray, fontSize = 11.sp) }
                                 }
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -344,6 +356,11 @@ class MainActivity : ComponentActivity() {
                 }
                 page == "Settings" -> GlobalSettingsScreen(
                     onOpenPermissions = { page = "Permissions" },
+                    appFontSettings = appFontSettings,
+                    importedFonts = importedWidgetFonts,
+                    onAppFontFamily = { AppTypographySettings.saveFamily(context, it); refreshSettings() },
+                    onAppImportedFont = { font -> AppTypographySettings.saveImportedFont(context, font.id); refreshSettings() },
+                    onImportAppFont = { fontImportTarget = "app"; fontFilePicker.launch(arrayOf("*/*")) },
                     remindersEnabled = tasks.any { !it.completed && it.reminderType != "none" },
                     notificationGranted = Build.VERSION.SDK_INT < 33 || ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED,
                     notificationsEnabled = androidx.core.app.NotificationManagerCompat.from(context).areNotificationsEnabled(),
@@ -369,7 +386,7 @@ class MainActivity : ComponentActivity() {
                     fontImportMessage = fontImportMessage,
                     onDismissFontImportMessage = { fontImportMessage = null },
                     onImportFont = { targetCalendar ->
-                        fontImportTargetCalendar = targetCalendar
+                        fontImportTarget = if (targetCalendar) "calendar" else "todo"
                         fontFilePicker.launch(arrayOf("*/*"))
                     },
                     onColor = { key, value -> WidgetSettings.saveColor(context, key, value); refreshSettings(); TodoWidget.updateAll(context) },
@@ -393,6 +410,7 @@ class MainActivity : ComponentActivity() {
         }
     }
     LaunchedEffect(tasks) { TodoWidget.updateAll(context) }
+    ProvideTextStyle(TextStyle(fontFamily = appUiFontFamily)) {
     editing?.let { task ->
         var value by remember(task.id) { mutableStateOf(task.title) }
         var kind by remember(task.id) { mutableStateOf(if (task.completed) "none" else task.reminderType) }
@@ -436,41 +454,56 @@ class MainActivity : ComponentActivity() {
             dismissButton = { TextButton(onClick = { confirmDeleteTask = null }) { Text("Cancel", color = Ink) } })
     }
     if (confirmClear) AlertDialog(onDismissRequest = { confirmClear = false }, containerColor = Card, title = { Text("Clear all history?", color = Ink) }, text = { Text("Active tasks and their completion status will not change.", color = Ink) }, confirmButton = { TextButton(onClick = { TaskStore.clearHistory(context); confirmClear = false; refresh() }) { Text("Delete history", color = Accent) } }, dismissButton = { TextButton(onClick = { confirmClear = false }) { Text("Cancel") } })
+    }
 }
 
 @Composable private fun TodoWidgetPreview(tasks: List<Task>, settings: WidgetPrefs) {
+    val context = LocalContext.current
+    val previewTypeface = remember(settings.fontFamily, settings.fontFileId) { widgetTypeface(context, settings.fontFamily, settings.fontFileId) }
+    val previewFontFamily = remember(previewTypeface) { FontFamily(previewTypeface) }
     val openCount = tasks.count { !it.completed }
     val shown = tasks.take(3)
-    Surface(color = colorFromHex(settings.widgetBackground), shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("To-Do widget preview", color = UiTokens.Muted, fontSize = 11.sp, modifier = Modifier.weight(1f))
-                Box(Modifier.background(colorFromHex(settings.countPanel), RoundedCornerShape(8.dp)).padding(horizontal = 9.dp, vertical = 4.dp)) {
-                    Text("$openCount open", color = Ink, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+    ProvideTextStyle(TextStyle(fontFamily = previewFontFamily)) {
+        Surface(color = colorFromHex(settings.widgetBackground), shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("To-Do widget preview", color = UiTokens.Muted, fontSize = 11.sp, modifier = Modifier.weight(1f))
+                    Box(Modifier.background(colorFromHex(settings.countPanel), RoundedCornerShape(8.dp)).padding(horizontal = 9.dp, vertical = 4.dp)) {
+                        Text("$openCount open", color = Ink, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                    }
                 }
-            }
-            if (shown.isEmpty()) Text("Your tasks will appear here", color = UiTokens.Muted, fontSize = 13.sp)
-            else shown.forEach { task ->
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(if (task.completed) "●" else "○", color = colorFromHex(if (task.completed) settings.complete else settings.incomplete), fontSize = 14.sp)
-                    Text(
-                        task.title,
-                        color = colorFromHex(settings.taskTitle),
-                        fontSize = settings.taskTitleSizeSp.sp,
-                        fontFamily = when (settings.fontFamily) {
-                            WidgetFontFamily.SERIF -> FontFamily.Serif
-                            WidgetFontFamily.MONOSPACE -> FontFamily.Monospace
-                            else -> FontFamily.SansSerif
-                        },
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f).graphicsLayer(alpha = if (task.completed) 1f - settings.fadePercent / 100f else 1f)
-                    )
+                if (shown.isEmpty()) Text("Your tasks will appear here", color = UiTokens.Muted, fontSize = 13.sp)
+                else shown.forEach { task ->
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(if (task.completed) "●" else "○", color = colorFromHex(if (task.completed) settings.complete else settings.incomplete), fontSize = 17.sp)
+                        WidgetPreviewTaskText(task, settings, previewTypeface, Modifier.weight(1f))
+                    }
                 }
             }
         }
     }
 }
+
+@Composable private fun WidgetPreviewTaskText(task: Task, settings: WidgetPrefs, typeface: AndroidTypeface, modifier: Modifier = Modifier) {
+    val opacity = if (task.completed) (100 - settings.fadePercent).coerceIn(0, 100) / 100f else 1f
+    AndroidView(
+        factory = { context -> TextView(context).apply { isSingleLine = true; maxLines = 1; ellipsize = TextUtils.TruncateAt.END; gravity = Gravity.CENTER_VERTICAL } },
+        modifier = modifier,
+        update = { view ->
+            view.text = task.title
+            view.typeface = typeface
+            view.textSize = settings.taskTitleSizeSp * (13f / 16f)
+            view.setTextColor(colorFromHex(settings.taskTitle).copy(alpha = opacity).toArgb())
+            view.paintFlags = if (task.completed) view.paintFlags or AndroidPaint.STRIKE_THRU_TEXT_FLAG else view.paintFlags and AndroidPaint.STRIKE_THRU_TEXT_FLAG.inv()
+        }
+    )
+}
+
+private fun widgetTypeface(context: Context, family: WidgetFontFamily, fontFileId: String?): AndroidTypeface =
+    LocalWidgetFonts.typeface(context, fontFileId) ?: AndroidTypeface.create(family.key, AndroidTypeface.NORMAL)
+
+private fun composeFontFamily(context: Context, family: WidgetFontFamily, fontFileId: String?): FontFamily =
+    FontFamily(widgetTypeface(context, family, fontFileId))
 
 @Composable private fun CalendarHomeScreen(
     tasks: List<Task>,
@@ -533,6 +566,11 @@ class MainActivity : ComponentActivity() {
 
 @Composable private fun GlobalSettingsScreen(
     onOpenPermissions: () -> Unit,
+    appFontSettings: AppFontSettings,
+    importedFonts: List<ImportedWidgetFont>,
+    onAppFontFamily: (WidgetFontFamily) -> Unit,
+    onAppImportedFont: (ImportedWidgetFont) -> Unit,
+    onImportAppFont: () -> Unit,
     remindersEnabled: Boolean,
     notificationGranted: Boolean,
     notificationsEnabled: Boolean,
@@ -551,13 +589,16 @@ class MainActivity : ComponentActivity() {
         }
         Text("APP PREFERENCES", color = UiTokens.Subdued, fontSize = UiTokens.DetailSp.sp, modifier = Modifier.padding(top = 8.dp))
         CollapsibleSettingsSection("Appearance", "Dark theme", appearanceExpanded, { appearanceExpanded = it }) {
-            SettingsPanel { SettingsInfoRow("App theme", "Dark") }
+            SettingsPanel { SettingsDescription("App theme", "Clarity currently uses its dark appearance") }
         }
-        CollapsibleSettingsSection("Typography", "System sans-serif", typographyExpanded, { typographyExpanded = it }) {
-            SettingsPanel { SettingsInfoRow("App font", "System sans-serif") }
+        CollapsibleSettingsSection("Typography", selectedFontLabel(appFontSettings.family, appFontSettings.fontFileId, importedFonts), typographyExpanded, { typographyExpanded = it }) {
+            SettingsPanel {
+                FontFamilyRow("App font", appFontSettings.family, appFontSettings.fontFileId, importedFonts, onAppFontFamily, onAppImportedFont)
+                LocalFontImportRow(importedFonts.size, onImportAppFont)
+            }
         }
         CollapsibleSettingsSection("Widget preferences", "Automatic refresh enabled", widgetExpanded, { widgetExpanded = it }) {
-            SettingsPanel { SettingsInfoRow("Widget updates", "Changes refresh the matching widget automatically") }
+            SettingsPanel { SettingsDescription("Widget updates", "Changes refresh the matching widget automatically") }
         }
         Text("SYSTEM", color = UiTokens.Subdued, fontSize = UiTokens.DetailSp.sp, modifier = Modifier.padding(top = 8.dp))
         Column(verticalArrangement = Arrangement.spacedBy(UiTokens.ControlGap)) {
@@ -631,8 +672,15 @@ class MainActivity : ComponentActivity() {
 
 @Composable private fun SettingsInfoRow(label: String, value: String) {
     Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(label, color = Ink, fontSize = UiTokens.LabelSp.sp, modifier = Modifier.weight(1f))
-        Text(value, color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Text(label, color = Ink, fontSize = UiTokens.LabelSp.sp, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(value, color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+@Composable private fun SettingsDescription(title: String, description: String) {
+    Column(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(title, color = Ink, fontSize = UiTokens.LabelSp.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(description, color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp, modifier = Modifier.fillMaxWidth())
     }
 }
 
@@ -1137,21 +1185,23 @@ private fun selectedFontLabel(
     onSelectImported: (ImportedWidgetFont) -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val selectedFontFamily = remember(selected, selectedFontId) { composeFontFamily(context, selected, selectedFontId) }
     Row(Modifier.fillMaxWidth().heightIn(min = UiTokens.ControlHeight), verticalAlignment = Alignment.CenterVertically) {
         Text(label, color = Ink, fontSize = UiTokens.LabelSp.sp, modifier = Modifier.weight(1f))
         Box {
             TextButton(onClick = { expanded = true }, contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)) {
                 Text(
                     importedFonts.firstOrNull { it.id == selectedFontId }?.name ?: selected.label,
-                    color = UiTokens.Secondary, fontSize = UiTokens.LabelSp.sp, maxLines = 1, overflow = TextOverflow.Ellipsis
+                    color = UiTokens.Secondary, fontSize = UiTokens.LabelSp.sp, fontFamily = selectedFontFamily, maxLines = 1, overflow = TextOverflow.Ellipsis
                 )
             }
             DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                 WidgetFontFamily.entries.forEach { family ->
-                    DropdownMenuItem(text = { Text(family.label) }, onClick = { onSelect(family); expanded = false })
+                    DropdownMenuItem(text = { Text(family.label, fontFamily = composeFontFamily(context, family, null)) }, onClick = { onSelect(family); expanded = false })
                 }
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) importedFonts.forEach { font ->
-                    DropdownMenuItem(text = { Text(font.name, maxLines = 1, overflow = TextOverflow.Ellipsis) }, onClick = { onSelectImported(font); expanded = false })
+                    DropdownMenuItem(text = { Text(font.name, fontFamily = composeFontFamily(context, selected, font.id), maxLines = 1, overflow = TextOverflow.Ellipsis) }, onClick = { onSelectImported(font); expanded = false })
                 }
             }
         }
