@@ -89,6 +89,14 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.zIndex
 import com.example.darktodo.data.Task
 import com.example.darktodo.data.TaskEvent
 import com.example.darktodo.data.TaskStore
@@ -545,6 +553,9 @@ private sealed class VaultSensitiveAction(open val entryId: String) {
     var showSensitivePasswordPrompt by remember { mutableStateOf(false) }
     var sensitivePassword by remember { mutableStateOf("") }
     var activeSensitivePrompt by remember { mutableStateOf<BiometricPrompt?>(null) }
+    var draggingId by remember { mutableStateOf<String?>(null) }
+    var dragOffset by remember { mutableStateOf(0f) }
+    val haptics = LocalHapticFeedback.current
     var addExpanded by remember { mutableStateOf(false) }
     var editingId by remember { mutableStateOf<String?>(null) }
     var searchQuery by remember { mutableStateOf("") }
@@ -569,6 +580,42 @@ private sealed class VaultSensitiveAction(open val entryId: String) {
             message = ""
         } catch (error: Exception) { message = error.message ?: "Could not save the vault." }
         finally { passwordChars.fill('\u0000') }
+    }
+    // Reordering happens in memory; the encrypted vault is written once per drop because each save is slow (PBKDF2).
+    fun persistOrder() {
+        val list = entries ?: return
+        val password = masterPassword
+        scope.launch {
+            val chars = password.toCharArray()
+            try {
+                withContext(Dispatchers.Default) { LocalVaultStore.save(context, chars, list) }
+            } catch (error: Exception) {
+                message = error.message ?: "Could not save the vault."
+            } finally { chars.fill('\u0000') }
+        }
+    }
+    fun moveEntry(id: String, delta: Int) {
+        val list = entries?.toMutableList() ?: return
+        val from = list.indexOfFirst { it.id == id }
+        val to = from + delta
+        if (from < 0 || to !in list.indices) return
+        list.add(to, list.removeAt(from))
+        entries = list
+        persistOrder()
+    }
+    fun dragMoved(id: String) {
+        val list = entries ?: return
+        val ids = list.map { it.id }.toSet()
+        val info = listState.layoutInfo.visibleItemsInfo
+        val current = info.firstOrNull { it.key == id } ?: return
+        val center = current.offset + current.size / 2f + dragOffset
+        val target = info.firstOrNull { it.key != id && it.key is String && ids.contains(it.key as String) && center > it.offset && center < it.offset + it.size } ?: return
+        val from = list.indexOfFirst { it.id == id }
+        val to = list.indexOfFirst { it.id == target.key }
+        if (from < 0 || to < 0) return
+        val newOffset = if (target.offset > current.offset) target.offset + target.size - current.size else target.offset
+        dragOffset += current.offset - newOffset
+        entries = list.toMutableList().apply { add(to, removeAt(from)) }
     }
     fun failSensitiveAction(expectedAction: VaultSensitiveAction? = null) {
         if (expectedAction != null && pendingSensitiveAction !== expectedAction) return
@@ -874,7 +921,58 @@ private sealed class VaultSensitiveAction(open val entryId: String) {
                 if (visibleEntries.isEmpty()) item(key = "vault_empty") { Text(if (opened.isEmpty()) "No passwords saved yet." else "No matching passwords.", color = UiTokens.Muted) }
                 itemsIndexed(visibleEntries, key = { _, entry -> entry.id }) { _, entry ->
                     val originalIndex = opened.indexOfFirst { it.id == entry.id }
-                    Surface(color = UiTokens.Surface, shape = RoundedCornerShape(UiTokens.CardRadius)) {
+                    val dragging = draggingId == entry.id
+                    val reorderLabel = "Reorder ${entry.title}. Long press and drag to move."
+                    Surface(
+                        color = UiTokens.Surface,
+                        shape = RoundedCornerShape(UiTokens.CardRadius),
+                        shadowElevation = if (dragging) 8.dp else 0.dp,
+                        modifier = Modifier
+                            .zIndex(if (dragging) 1f else 0f)
+                            .graphicsLayer { translationY = if (dragging) dragOffset else 0f }
+                            .semantics {
+                                contentDescription = reorderLabel
+                                customActions = listOf(
+                                    CustomAccessibilityAction("Move up") { moveEntry(entry.id, -1); originalIndex > 0 },
+                                    CustomAccessibilityAction("Move down") { moveEntry(entry.id, 1); originalIndex < opened.lastIndex }
+                                )
+                            }
+                            .pointerInput(entry.id, searchQuery.isBlank()) {
+                                detectDragGesturesAfterLongPress(
+                                    onDragStart = {
+                                        if (searchQuery.isNotBlank()) {
+                                            message = "Clear the search to reorder passwords."
+                                        } else {
+                                            draggingId = entry.id
+                                            dragOffset = 0f
+                                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        }
+                                    },
+                                    onDrag = { change, amount ->
+                                        if (draggingId == entry.id) {
+                                            change.consume()
+                                            dragOffset += amount.y
+                                            dragMoved(entry.id)
+                                            val layout = listState.layoutInfo
+                                            val item = layout.visibleItemsInfo.firstOrNull { it.key == entry.id }
+                                            if (item != null) {
+                                                val top = item.offset + dragOffset
+                                                val bottom = top + item.size
+                                                val edge = 48f
+                                                val delta = when {
+                                                    top < layout.viewportStartOffset + edge -> -24f
+                                                    bottom > layout.viewportEndOffset - edge -> 24f
+                                                    else -> 0f
+                                                }
+                                                if (delta != 0f) scope.launch { dragOffset += listState.scrollBy(delta) }
+                                            }
+                                        }
+                                    },
+                                    onDragEnd = { if (draggingId == entry.id) { draggingId = null; dragOffset = 0f; persistOrder() } },
+                                    onDragCancel = { if (draggingId == entry.id) { draggingId = null; dragOffset = 0f; persistOrder() } }
+                                )
+                            }
+                    ) {
                         Column(
                             Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 7.dp),
                             verticalArrangement = Arrangement.spacedBy(2.dp)
@@ -901,10 +999,6 @@ private sealed class VaultSensitiveAction(open val entryId: String) {
                                     onClick = { beginSensitiveAction(VaultSensitiveAction.Delete(entry.id)) },
                                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
                                 ) { Text("Delete", color = Accent) }
-                            }
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                TextButton(onClick = { if (originalIndex > 0) saveEntries(opened.toMutableList().apply { add(originalIndex - 1, removeAt(originalIndex)) }) }, enabled = originalIndex > 0) { Text("Move up", color = if (originalIndex > 0) Accent else UiTokens.Subdued) }
-                                TextButton(onClick = { if (originalIndex < opened.lastIndex) saveEntries(opened.toMutableList().apply { add(originalIndex + 1, removeAt(originalIndex)) }) }, enabled = originalIndex < opened.lastIndex) { Text("Move down", color = if (originalIndex < opened.lastIndex) Accent else UiTokens.Subdued) }
                             }
                         }
                     }
