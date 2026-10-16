@@ -3,7 +3,6 @@ package com.example.darktodo
 import android.graphics.Color as AndroidColor
 import android.graphics.Typeface as AndroidTypeface
 import android.graphics.Paint as AndroidPaint
-import android.app.Activity
 import android.text.TextUtils
 import android.view.Gravity
 import android.widget.TextView
@@ -18,7 +17,6 @@ import android.content.IntentFilter
 import androidx.core.content.ContextCompat
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -36,6 +34,8 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -111,6 +111,9 @@ import com.example.darktodo.data.LocalVaultStore
 import com.example.darktodo.data.VaultEntry
 import com.example.darktodo.ui.ColorPickerDialog
 import com.example.darktodo.widget.TodoWidget
+import androidx.biometric.BiometricManager
+import androidx.biometric.BiometricPrompt
+import androidx.fragment.app.FragmentActivity
 import java.time.Instant
 import java.time.ZoneId
 import java.time.LocalDateTime
@@ -155,7 +158,7 @@ private val Bg = UiTokens.Background
 private val Card = UiTokens.Surface
 private val Accent = UiTokens.Accent
 private val Ink = UiTokens.Ink
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
     companion object {
         const val ACTION_CREATE_TASK = "com.example.darktodo.action.CREATE_TASK"
         const val ACTION_OPEN_VAULT = "com.example.darktodo.action.OPEN_VAULT"
@@ -515,7 +518,7 @@ private fun composeFontFamily(context: Context, family: WidgetFontFamily, fontFi
 
 @Composable private fun VaultScreen() {
     val context = LocalContext.current
-    val activity = context as? Activity
+    val activity = context as? FragmentActivity
     var hasVault by remember { mutableStateOf(LocalVaultStore.exists(context)) }
     var entries by remember { mutableStateOf<List<VaultEntry>?>(null) }
     var masterPassword by remember { mutableStateOf("") }
@@ -525,7 +528,17 @@ private fun composeFontFamily(context: Context, family: WidgetFontFamily, fontFi
     var secret by remember { mutableStateOf("") }
     var notes by remember { mutableStateOf("") }
     var revealedId by remember { mutableStateOf<String?>(null) }
-    var message by remember { mutableStateOf("") }
+    var authMode by remember { mutableStateOf(LocalVaultStore.primaryAuth(context)) }
+    val biometricStatus = remember(authMode) { if (authMode == LocalVaultStore.AUTH_BIOMETRIC) LocalVaultStore.canAuthenticateBiometric(context) else BiometricManager.BIOMETRIC_SUCCESS }
+    var message by remember { mutableStateOf(if (authMode == LocalVaultStore.AUTH_BIOMETRIC && biometricStatus != BiometricManager.BIOMETRIC_SUCCESS) biometricUnavailableMessage(biometricStatus) else "") }
+    var authMenu by remember { mutableStateOf(false) }
+    var passwordFallback by remember { mutableStateOf(authMode != LocalVaultStore.AUTH_BIOMETRIC || biometricStatus != BiometricManager.BIOMETRIC_SUCCESS) }
+    var biometricPromptActive by remember { mutableStateOf(false) }
+    var addExpanded by remember { mutableStateOf(false) }
+    var editingId by remember { mutableStateOf<String?>(null) }
+    var searchQuery by remember { mutableStateOf("") }
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
 
     DisposableEffect(activity) {
         activity?.window?.setFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE, android.view.WindowManager.LayoutParams.FLAG_SECURE)
@@ -533,7 +546,7 @@ private fun composeFontFamily(context: Context, family: WidgetFontFamily, fontFi
     }
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_STOP) { entries = null; masterPassword = ""; secret = ""; revealedId = null } }
+        val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_STOP) { entries = null; masterPassword = ""; confirmation = ""; secret = ""; title = ""; username = ""; notes = ""; editingId = null; revealedId = null; authMode = LocalVaultStore.primaryAuth(context); val status = LocalVaultStore.canAuthenticateBiometric(context); passwordFallback = authMode != LocalVaultStore.AUTH_BIOMETRIC || status != BiometricManager.BIOMETRIC_SUCCESS; message = if (authMode == LocalVaultStore.AUTH_BIOMETRIC && status != BiometricManager.BIOMETRIC_SUCCESS) biometricUnavailableMessage(status) else "" } }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
@@ -546,72 +559,181 @@ private fun composeFontFamily(context: Context, family: WidgetFontFamily, fontFi
         } catch (error: Exception) { message = error.message ?: "Could not save the vault." }
         finally { passwordChars.fill('\u0000') }
     }
+    fun showBiometricPrompt(cipher: javax.crypto.Cipher, encryptedPassword: ByteArray? = null, enrollingPassword: String? = null) {
+        val host = activity ?: run { message = "Biometric unlock is unavailable here."; return }
+        if (biometricPromptActive) return
+        biometricPromptActive = true
+        val prompt = BiometricPrompt(host, ContextCompat.getMainExecutor(host), object : BiometricPrompt.AuthenticationCallback() {
+            override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                biometricPromptActive = false
+                val authenticatedCipher = result.cryptoObject?.cipher
+                if (authenticatedCipher == null) { message = "Biometric authentication did not unlock the vault."; return }
+                runCatching {
+                    if (enrollingPassword != null) {
+                        LocalVaultStore.saveBiometricWrapper(context, authenticatedCipher, enrollingPassword)
+                        authMode = LocalVaultStore.AUTH_BIOMETRIC
+                        passwordFallback = false
+                        message = "Fingerprint unlock is now your primary option."
+                    } else {
+                        val clear = authenticatedCipher.doFinal(encryptedPassword ?: error("Fingerprint key is unavailable."))
+                        val password = String(clear, Charsets.UTF_8)
+                        clear.fill(0)
+                        val chars = password.toCharArray()
+                        val unlocked = try { LocalVaultStore.unlock(context, chars) } finally { chars.fill('\u0000') }
+                        if (unlocked == null) error("The fingerprint key could not unlock this vault. Use the master password.")
+                        masterPassword = password
+                        entries = unlocked
+                        message = ""
+                    }
+                }.onFailure { message = it.message ?: "Biometric unlock failed. Use the master password." }
+            }
+            override fun onAuthenticationFailed() {
+                message = "Fingerprint not recognized. Try again or use your master password."
+            }
+            override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                biometricPromptActive = false
+                message = if (errorCode == BiometricPrompt.ERROR_USER_CANCELED || errorCode == BiometricPrompt.ERROR_NEGATIVE_BUTTON) "Fingerprint unlock cancelled. The vault remains locked." else "$errString Use your master password if needed."
+            }
+        })
+        val promptInfo = BiometricPrompt.PromptInfo.Builder()
+            .setTitle(if (enrollingPassword != null) "Enable fingerprint unlock" else "Unlock Clarity Vault")
+            .setSubtitle(if (enrollingPassword != null) "Confirm to protect vault access" else "Authenticate to open your vault")
+            .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
+            .setNegativeButtonText("Cancel")
+            .build()
+        runCatching { prompt.authenticate(promptInfo, BiometricPrompt.CryptoObject(cipher)) }
+            .onFailure { biometricPromptActive = false; message = "Could not start fingerprint authentication. Use your master password." }
+    }
+    fun beginBiometricEnrollment() {
+        val status = LocalVaultStore.canAuthenticateBiometric(context)
+        if (status != BiometricManager.BIOMETRIC_SUCCESS) {
+            message = biometricUnavailableMessage(status)
+            return
+        }
+        runCatching { LocalVaultStore.prepareBiometricEnrollment() }
+            .onSuccess { showBiometricPrompt(it, enrollingPassword = masterPassword) }
+            .onFailure { message = "Could not prepare fingerprint unlock. Keep using your master password." }
+    }
+    fun beginBiometricUnlock() {
+        val status = LocalVaultStore.canAuthenticateBiometric(context)
+        if (status != BiometricManager.BIOMETRIC_SUCCESS) {
+            passwordFallback = true
+            message = biometricUnavailableMessage(status)
+            return
+        }
+        runCatching { LocalVaultStore.prepareBiometricUnlock() }
+            .onSuccess { (cipher, encrypted) -> showBiometricPrompt(cipher, encryptedPassword = encrypted) }
+            .onFailure {
+                passwordFallback = true
+                message = "Fingerprint unlock is unavailable or needs setup. Unlock with your master password."
+            }
+    }
 
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text("Private Vault", color = Ink, fontSize = UiTokens.PageTitleSp.sp, fontWeight = FontWeight.Bold)
         Text("Your passwords stay encrypted on this device. Vault data is excluded from device backup and sync.", color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp)
         val opened = entries
         if (opened == null) {
             SettingsPanel {
-                Text(if (hasVault) "Unlock your vault" else "Create your vault", color = Ink, fontSize = UiTokens.SectionTitleSp.sp, fontWeight = FontWeight.SemiBold)
-                VaultInput("Master password", masterPassword, { masterPassword = it }, secret = true)
-                if (!hasVault) VaultInput("Confirm password", confirmation, { confirmation = it }, secret = true)
+                Text(if (!hasVault) "Create your vault" else if (authMode == LocalVaultStore.AUTH_BIOMETRIC && !passwordFallback) "Unlock with fingerprint" else "Unlock your vault", color = Ink, fontSize = UiTokens.SectionTitleSp.sp, fontWeight = FontWeight.SemiBold)
+                if (hasVault && authMode == LocalVaultStore.AUTH_BIOMETRIC && !passwordFallback) {
+                    Text("Your selected primary unlock is fingerprint.", color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp)
+                    TextButton(onClick = { beginBiometricUnlock() }, enabled = !biometricPromptActive) { Text(if (biometricPromptActive) "Waiting for fingerprint…" else "Unlock with fingerprint", color = Accent) }
+                    TextButton(onClick = { passwordFallback = true; message = "Enter your master password to unlock." }) { Text("Use master password", color = UiTokens.Muted) }
+                } else {
+                    VaultInput("Master password", masterPassword, { masterPassword = it }, secret = true)
+                    if (!hasVault) VaultInput("Confirm password", confirmation, { confirmation = it }, secret = true)
+                    TextButton(onClick = {
+                        val passwordChars = masterPassword.toCharArray()
+                        try {
+                            if (hasVault) {
+                                val result = LocalVaultStore.unlock(context, passwordChars)
+                                if (result == null) message = "That password could not unlock the vault."
+                                else { entries = result; message = "" }
+                            } else if (masterPassword != confirmation) message = "Passwords do not match."
+                            else {
+                                LocalVaultStore.create(context, passwordChars)
+                                hasVault = true
+                                entries = emptyList()
+                                authMode = LocalVaultStore.AUTH_PASSWORD
+                                message = ""
+                            }
+                        } catch (error: Exception) { message = error.message ?: "Could not open the vault." }
+                        finally { passwordChars.fill('\u0000') }
+                    }, enabled = !biometricPromptActive) { Text(if (hasVault) "Unlock" else "Create encrypted vault", color = Accent) }
+                }
                 if (message.isNotEmpty()) Text(message, color = Accent, fontSize = UiTokens.DetailSp.sp)
-                TextButton(onClick = {
-                    val passwordChars = masterPassword.toCharArray()
-                    try {
-                        if (hasVault) {
-                            val result = LocalVaultStore.unlock(context, passwordChars)
-                            if (result == null) message = "That password could not unlock the vault."
-                            else { entries = result; message = "" }
-                        } else if (masterPassword != confirmation) message = "Passwords do not match."
-                        else {
-                            LocalVaultStore.create(context, passwordChars)
-                            hasVault = true
-                            entries = emptyList()
-                            message = ""
-                        }
-                    } catch (error: Exception) { message = error.message ?: "Could not open the vault." }
-                    finally { passwordChars.fill('\u0000') }
-                }) { Text(if (hasVault) "Unlock" else "Create encrypted vault", color = Accent) }
             }
         } else {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("${opened.size} saved ${if (opened.size == 1) "item" else "items"}", color = Ink, modifier = Modifier.weight(1f))
-                TextButton(onClick = { entries = null; masterPassword = ""; secret = ""; title = ""; username = ""; notes = ""; revealedId = null }) { Text("Lock", color = Accent) }
-            }
-            SettingsPanel {
-                Text("Add a password", color = Ink, fontWeight = FontWeight.SemiBold)
-                VaultInput("Title", title, { title = it })
-                VaultInput("Username or email", username, { username = it })
-                VaultInput("Password", secret, { secret = it }, secret = true)
-                VaultInput("Notes", notes, { notes = it })
-                TextButton(onClick = {
-                    if (title.isBlank() || secret.isEmpty()) message = "Enter a title and password."
-                    else {
-                        val updated = opened + VaultEntry(java.util.UUID.randomUUID().toString(), title.trim(), username.trim(), secret, notes.trim())
-                        saveEntries(updated)
-                        if (entries == updated) { title = ""; username = ""; secret = ""; notes = "" }
+                Box {
+                    TextButton(onClick = { authMenu = true }) { Text("Primary unlock: ${if (authMode == LocalVaultStore.AUTH_BIOMETRIC) "Fingerprint" else "Master password"}  ▾", color = Accent) }
+                    DropdownMenu(expanded = authMenu, onDismissRequest = { authMenu = false }) {
+                        DropdownMenuItem(text = { Text("Master password") }, onClick = { LocalVaultStore.usePasswordAuthentication(context); authMode = LocalVaultStore.AUTH_PASSWORD; passwordFallback = true; authMenu = false; message = "Master password is the primary unlock." })
+                        DropdownMenuItem(text = { Text("Fingerprint") }, onClick = { authMenu = false; beginBiometricEnrollment() })
                     }
-                }) { Text("Save securely", color = Accent) }
-                if (message.isNotEmpty()) Text(message, color = Accent, fontSize = UiTokens.DetailSp.sp)
+                }
+                Spacer(Modifier.weight(1f))
+                Text("${opened.size} saved", color = Ink)
+                TextButton(onClick = { entries = null; masterPassword = ""; secret = ""; title = ""; username = ""; notes = ""; editingId = null; revealedId = null; passwordFallback = authMode != LocalVaultStore.AUTH_BIOMETRIC }) { Text("Lock", color = Accent) }
             }
-            if (opened.isEmpty()) Text("No passwords saved yet.", color = UiTokens.Muted)
-            opened.forEach { entry ->
-                SettingsPanel {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text(entry.title, color = Ink, fontWeight = FontWeight.SemiBold)
-                            if (entry.username.isNotEmpty()) Text(entry.username, color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp)
-                            Text(if (revealedId == entry.id) entry.password else "••••••••", color = Ink)
-                            if (entry.notes.isNotEmpty()) Text(entry.notes, color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp)
+            if (message.isNotEmpty()) Text(message, color = Accent, fontSize = UiTokens.DetailSp.sp)
+            Surface(onClick = { addExpanded = !addExpanded }, color = UiTokens.SurfaceRaised, shape = RoundedCornerShape(UiTokens.RowRadius), modifier = Modifier.fillMaxWidth().semantics { contentDescription = if (addExpanded) "Collapse add a password form" else "Expand add a password form" }) {
+                Row(Modifier.heightIn(min = UiTokens.ControlHeight).padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(if (editingId == null) "Add a password" else "Edit password", color = Ink, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                    Text(if (addExpanded) "⌃" else "⌄", color = Accent, fontSize = 20.sp)
+                }
+            }
+            LazyColumn(Modifier.weight(1f), state = listState, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                item(key = "password_form") {
+                    AnimatedVisibility(visible = addExpanded, enter = expandVertically(animationSpec = tween(180)) + fadeIn(animationSpec = tween(140)), exit = shrinkVertically(animationSpec = tween(150)) + fadeOut(animationSpec = tween(120))) {
+                        SettingsPanel {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                VaultInput("Title", title, { title = it })
+                                VaultInput("Username or email", username, { username = it })
+                                VaultInput("Password", secret, { secret = it }, secret = true)
+                                VaultInput("Notes", notes, { notes = it })
+                                TextButton(onClick = {
+                                    if (title.isBlank() || secret.isEmpty()) message = "Enter a title and password."
+                                    else {
+                                        val replacement = VaultEntry(editingId ?: java.util.UUID.randomUUID().toString(), title.trim(), username.trim(), secret, notes.trim())
+                                        val updated = if (editingId == null) opened + replacement else opened.map { if (it.id == editingId) replacement else it }
+                                        saveEntries(updated)
+                                        if (entries == updated) { title = ""; username = ""; secret = ""; notes = ""; editingId = null; addExpanded = false }
+                                    }
+                                }) { Text(if (editingId == null) "Save securely" else "Save changes", color = Accent) }
+                                if (editingId != null) TextButton(onClick = { editingId = null; title = ""; username = ""; secret = ""; notes = "" }) { Text("Cancel edit", color = UiTokens.Muted) }
+                            }
                         }
-                        Column {
-                            TextButton(onClick = { revealedId = if (revealedId == entry.id) null else entry.id }) { Text(if (revealedId == entry.id) "Hide" else "Show", color = Accent) }
-                            TextButton(onClick = {
-                                val updated = opened.filterNot { it.id == entry.id }
-                                saveEntries(updated)
-                            }) { Text("Delete", color = Accent) }
+                    }
+                }
+                item(key = "vault_search") { VaultInput("Search titles, usernames, and notes", searchQuery, { searchQuery = it }) }
+                val visibleEntries = opened.filter { entry ->
+                    searchQuery.isBlank() || listOf(entry.title, entry.username, entry.notes).any { it.contains(searchQuery, ignoreCase = true) }
+                }
+                if (visibleEntries.isEmpty()) item(key = "vault_empty") { Text(if (opened.isEmpty()) "No passwords saved yet." else "No matching passwords.", color = UiTokens.Muted) }
+                itemsIndexed(visibleEntries, key = { _, entry -> entry.id }) { _, entry ->
+                    val originalIndex = opened.indexOfFirst { it.id == entry.id }
+                    SettingsPanel {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text(entry.title, color = Ink, fontWeight = FontWeight.SemiBold)
+                                if (entry.username.isNotEmpty()) Text(entry.username, color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp)
+                                Text(if (revealedId == entry.id) entry.password else "••••••••", color = Ink)
+                                if (entry.notes.isNotEmpty()) Text(entry.notes, color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp)
+                            }
+                            Column {
+                                TextButton(onClick = { revealedId = if (revealedId == entry.id) null else entry.id }) { Text(if (revealedId == entry.id) "Hide" else "Show", color = Accent) }
+                                TextButton(onClick = {
+                                    editingId = entry.id; title = entry.title; username = entry.username; secret = entry.password; notes = entry.notes; addExpanded = true
+                                    scope.launch { listState.animateScrollToItem(0) }
+                                }) { Text("Edit", color = Accent) }
+                                TextButton(onClick = { saveEntries(opened.filterNot { it.id == entry.id }) }) { Text("Delete", color = Accent) }
+                            }
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            TextButton(onClick = { if (originalIndex > 0) saveEntries(opened.toMutableList().apply { add(originalIndex - 1, removeAt(originalIndex)) }) }, enabled = originalIndex > 0) { Text("Move up", color = if (originalIndex > 0) Accent else UiTokens.Subdued) }
+                            TextButton(onClick = { if (originalIndex < opened.lastIndex) saveEntries(opened.toMutableList().apply { add(originalIndex + 1, removeAt(originalIndex)) }) }, enabled = originalIndex < opened.lastIndex) { Text("Move down", color = if (originalIndex < opened.lastIndex) Accent else UiTokens.Subdued) }
                         }
                     }
                 }
@@ -634,6 +756,13 @@ private fun composeFontFamily(context: Context, family: WidgetFontFamily, fontFi
             decorationBox = { inner -> if (value.isEmpty()) Text(label, color = UiTokens.Subdued); inner() }
         )
     }
+}
+
+private fun biometricUnavailableMessage(status: Int): String = when (status) {
+    BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE -> "This device has no supported biometric sensor. Use the master password."
+    BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED -> "Enroll a fingerprint in Android Settings, or use the master password."
+    BiometricManager.BIOMETRIC_ERROR_HW_UNAVAILABLE -> "The biometric sensor is temporarily unavailable. Use the master password."
+    else -> "Fingerprint unlock is not available on this device. Use the master password."
 }
 
 @Composable private fun CalendarHomeScreen(

@@ -1,6 +1,7 @@
 package com.example.darktodo.data
 
 import android.content.Context
+import android.os.Build
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -11,6 +12,9 @@ import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.PBEKeySpec
 import javax.crypto.spec.SecretKeySpec
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
+import androidx.biometric.BiometricManager
 
 data class VaultEntry(val id: String, val title: String, val username: String, val password: String, val notes: String)
 
@@ -20,7 +24,72 @@ object LocalVaultStore {
     private const val SALT_SIZE = 16
     private const val IV_SIZE = 12
     private const val MAGIC = 0x434C5654 // CLVT
+    private const val AUTH_PREFS = "vault_auth"
+    private const val AUTH_MODE = "primary"
+    const val AUTH_PASSWORD = "password"
+    const val AUTH_BIOMETRIC = "biometric"
+    private const val BIOMETRIC_ALIAS = "clarity_vault_biometric_key"
+    private const val BIOMETRIC_FILE = "clarity-vault-biometric.bin"
     private fun file(context: Context) = File(context.noBackupFilesDir, "clarity-vault.bin")
+    private fun biometricFile(context: Context) = File(context.noBackupFilesDir, BIOMETRIC_FILE)
+
+    fun primaryAuth(context: Context): String = context.getSharedPreferences(AUTH_PREFS, Context.MODE_PRIVATE)
+        .getString(AUTH_MODE, AUTH_PASSWORD) ?: AUTH_PASSWORD
+
+    fun canAuthenticateBiometric(context: Context): Int = BiometricManager.from(context)
+        .canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG)
+
+    fun prepareBiometricEnrollment(): Cipher {
+        val key = getOrCreateBiometricKey()
+        return Cipher.getInstance("AES/GCM/NoPadding").apply { init(Cipher.ENCRYPT_MODE, key) }
+    }
+
+    fun prepareBiometricUnlock(context: Context): Pair<Cipher, ByteArray> {
+        val wrapper = biometricFile(context).readBytes()
+        require(wrapper.size > 12) { "Fingerprint unlock is not configured." }
+        val iv = wrapper.copyOfRange(0, 12)
+        val encrypted = wrapper.copyOfRange(12, wrapper.size)
+        val key = keyStore().getKey(BIOMETRIC_ALIAS, null) ?: error("Fingerprint key is unavailable.")
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(128, iv))
+        return cipher to encrypted
+    }
+
+    fun saveBiometricWrapper(context: Context, cipher: Cipher, masterPassword: String) {
+        val clear = masterPassword.toByteArray(Charsets.UTF_8)
+        val encrypted = try { cipher.doFinal(clear) } finally { clear.fill(0) }
+        biometricFile(context).writeBytes(cipher.iv + encrypted)
+        context.getSharedPreferences(AUTH_PREFS, Context.MODE_PRIVATE).edit().putString(AUTH_MODE, AUTH_BIOMETRIC).apply()
+    }
+
+    fun usePasswordAuthentication(context: Context) {
+        biometricFile(context).delete()
+        keyStore().deleteEntry(BIOMETRIC_ALIAS)
+        context.getSharedPreferences(AUTH_PREFS, Context.MODE_PRIVATE).edit().putString(AUTH_MODE, AUTH_PASSWORD).apply()
+    }
+
+    private fun getOrCreateBiometricKey(): java.security.Key {
+        val store = keyStore()
+        runCatching { store.getKey(BIOMETRIC_ALIAS, null) }.getOrNull()?.let { return it }
+        runCatching { store.deleteEntry(BIOMETRIC_ALIAS) }
+        val builder = KeyGenParameterSpec.Builder(
+            BIOMETRIC_ALIAS,
+            KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
+        ).setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+            .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+            .setUserAuthenticationRequired(true)
+            .setInvalidatedByBiometricEnrollment(true)
+        if (Build.VERSION.SDK_INT >= 30) {
+            builder.setUserAuthenticationParameters(0, KeyProperties.AUTH_BIOMETRIC_STRONG)
+        } else {
+            builder.setUserAuthenticationValidityDurationSeconds(-1)
+        }
+        val generator = javax.crypto.KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
+        generator.init(builder.build())
+        return generator.generateKey()
+    }
+
+    private fun keyStore() = java.security.KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
 
     fun exists(context: Context) = file(context).exists()
 
