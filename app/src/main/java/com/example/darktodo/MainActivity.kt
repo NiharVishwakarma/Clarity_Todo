@@ -621,7 +621,7 @@ private fun composeFontFamily(context: Context, family: WidgetFontFamily, fontFi
             message = biometricUnavailableMessage(status)
             return
         }
-        runCatching { LocalVaultStore.prepareBiometricUnlock() }
+        runCatching { LocalVaultStore.prepareBiometricUnlock(context) }
             .onSuccess { (cipher, encrypted) -> showBiometricPrompt(cipher, encryptedPassword = encrypted) }
             .onFailure {
                 passwordFallback = true
