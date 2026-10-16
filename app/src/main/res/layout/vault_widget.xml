@@ -3,34 +3,39 @@
     android:id="@+id/vault_widget_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
+    android:orientation="horizontal"
     android:gravity="center"
     android:paddingStart="12dp"
-    android:paddingTop="4dp"
+    android:paddingTop="10dp"
     android:paddingEnd="12dp"
-    android:paddingBottom="4dp"
+    android:paddingBottom="10dp"
     android:background="@drawable/widget_outer_background"
     android:clickable="true"
     android:contentDescription="Open locked Clarity Vault">
     <ImageView
-        android:layout_width="24dp"
-        android:layout_height="24dp"
-        android:src="@drawable/ic_vault_lock"
-        android:layout_marginBottom="1dp"
-        android:contentDescription="" />
-    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="match_parent"
+        android:adjustViewBounds="true"
+        android:scaleType="fitCenter"
+        android:src="@drawable/ic_vault_door"
+        android:importantForAccessibility="no" />
+    <LinearLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Clarity Vault"
-        android:textColor="#FFF4F3F5"
-        android:textSize="16sp"
-        android:includeFontPadding="true"
-        android:textStyle="bold" />
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Tap to unlock"
-        android:textColor="#FFAAA8B0"
-        android:textSize="12sp"
-        android:includeFontPadding="true" />
+        android:layout_marginStart="12dp"
+        android:orientation="vertical">
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Clarity Vault"
+            android:textColor="#FFF4F3F5"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Vault locked · Tap to unlock"
+            android:textColor="#FFAAA8B0"
+            android:textSize="12sp" />
+    </LinearLayout>
 </LinearLayout>
