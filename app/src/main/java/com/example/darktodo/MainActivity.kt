@@ -209,6 +209,7 @@ class MainActivity : FragmentActivity() {
     var settings by remember { mutableStateOf(WidgetSettings.load(context)) }
     var page by remember { mutableStateOf(if (openVault) "Vault" else "Calendar") }
     var todoPage by remember { mutableStateOf("Tasks") }
+    var wallpaperTarget by remember { mutableStateOf(com.example.darktodo.data.WidgetBackgrounds.TODO) }
     var title by remember { mutableStateOf("") }
     var timeTick by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var editing by remember { mutableStateOf<Task?>(null) }
@@ -383,9 +384,17 @@ class MainActivity : FragmentActivity() {
                     remindersEnabled = tasks.any { !it.completed && it.reminderType != "none" },
                     notificationGranted = Build.VERSION.SDK_INT < 33 || ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED,
                     notificationsEnabled = androidx.core.app.NotificationManagerCompat.from(context).areNotificationsEnabled(),
-                    channelImportance = if (Build.VERSION.SDK_INT >= 26) context.getSystemService(android.app.NotificationManager::class.java).getNotificationChannel("task_reminders")?.importance else null
+                    channelImportance = if (Build.VERSION.SDK_INT >= 26) context.getSystemService(android.app.NotificationManager::class.java).getNotificationChannel("task_reminders")?.importance else null,
+                    onOpenWallpaper = { wallpaperTarget = it; page = "WidgetBackground" },
+                    onResetBackgrounds = {
+                        com.example.darktodo.data.WidgetBackgrounds.clear(context, com.example.darktodo.data.WidgetBackgrounds.TODO)
+                        com.example.darktodo.data.WidgetBackgrounds.clear(context, com.example.darktodo.data.WidgetBackgrounds.CALENDAR)
+                        TodoWidget.updateAll(context)
+                        com.example.darktodo.widget.CalendarWidget.updateAll(context)
+                        permissionRevision++
+                    }
                 )
-                page == "Permissions" -> PermissionsScreen(
+                page == "WidgetBackground" -> WidgetBackgroundEditor(wallpaperTarget) { page = "Settings" } -> PermissionsScreen(
                     remindersEnabled = tasks.any { !it.completed && it.reminderType != "none" },
                     notificationGranted = Build.VERSION.SDK_INT < 33 || ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED,
                     notificationsEnabled = androidx.core.app.NotificationManagerCompat.from(context).areNotificationsEnabled(),
@@ -1149,9 +1158,13 @@ private fun biometricUnavailableMessage(status: Int): String = when (status) {
     remindersEnabled: Boolean,
     notificationGranted: Boolean,
     notificationsEnabled: Boolean,
-    channelImportance: Int?
+    channelImportance: Int?,
+    onOpenWallpaper: (String) -> Unit,
+    onResetBackgrounds: () -> Unit
 ) {
     var typographyExpanded by remember { mutableStateOf(false) }
+    var confirmResetBackgrounds by remember { mutableStateOf(false) }
+    val backgroundContext = androidx.compose.ui.platform.LocalContext.current
     val channelEnabled = channelImportance != android.app.NotificationManager.IMPORTANCE_NONE
     val notificationsOkay = notificationGranted && notificationsEnabled && channelEnabled
     val permissionNeeded = remindersEnabled && !notificationsOkay
@@ -1167,6 +1180,30 @@ private fun biometricUnavailableMessage(status: Int): String = when (status) {
                 LocalFontImportRow(importedFonts.size, onImportAppFont)
             }
         }
+        Text("WIDGET CUSTOMIZATION", color = UiTokens.Subdued, fontSize = UiTokens.DetailSp.sp, modifier = Modifier.padding(top = 8.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(UiTokens.ControlGap)) {
+            listOf(
+                Triple(com.example.darktodo.data.WidgetBackgrounds.TODO, "To-Do widget wallpaper", "To-Do"),
+                Triple(com.example.darktodo.data.WidgetBackgrounds.CALENDAR, "Calendar widget wallpaper", "Calendar")
+            ).forEach { (key, label, _) ->
+                val status = if (com.example.darktodo.data.WidgetBackgrounds.has(backgroundContext, key)) "${com.example.darktodo.data.WidgetBackgrounds.fade(backgroundContext, key)}% fade" else "Not set"
+                Surface(onClick = { onOpenWallpaper(key) }, color = UiTokens.SurfaceRaised, shape = RoundedCornerShape(UiTokens.RowRadius), modifier = Modifier.fillMaxWidth()) {
+                    Row(Modifier.fillMaxWidth().heightIn(min = UiTokens.ControlHeight).padding(horizontal = 14.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text(label, color = Ink, fontSize = UiTokens.LabelSp.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+                        Text(status, color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp)
+                        Text("›", color = UiTokens.Muted, fontSize = 22.sp)
+                    }
+                }
+            }
+            ResetAction("Reset widget backgrounds") { confirmResetBackgrounds = true }
+        }
+        if (confirmResetBackgrounds) AlertDialog(
+            onDismissRequest = { confirmResetBackgrounds = false }, containerColor = Card,
+            title = { Text("Reset widget backgrounds?", color = Ink) },
+            text = { Text("Both widgets return to their plain background colors.", color = Ink) },
+            confirmButton = { TextButton(onClick = { confirmResetBackgrounds = false; onResetBackgrounds() }) { Text("Reset", color = Accent) } },
+            dismissButton = { TextButton(onClick = { confirmResetBackgrounds = false }) { Text("Cancel") } }
+        )
         Text("SYSTEM", color = UiTokens.Subdued, fontSize = UiTokens.DetailSp.sp, modifier = Modifier.padding(top = 8.dp))
         Column(verticalArrangement = Arrangement.spacedBy(UiTokens.ControlGap)) {
             Surface(onClick = onOpenPermissions, color = UiTokens.SurfaceRaised, shape = RoundedCornerShape(UiTokens.RowRadius), modifier = Modifier.fillMaxWidth()) {

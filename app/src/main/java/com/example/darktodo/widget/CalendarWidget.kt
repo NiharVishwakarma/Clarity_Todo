@@ -22,6 +22,7 @@ import com.example.darktodo.data.CalendarWidgetPrefs
 import com.example.darktodo.data.CalendarWidgetSettings
 import com.example.darktodo.data.LocalWidgetFonts
 import com.example.darktodo.data.TaskStore
+import com.example.darktodo.data.WidgetBackgrounds
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
@@ -89,7 +90,11 @@ object CalendarWidget {
             ?: currentDate.also { state.edit().putString(KEY_SELECTED + widgetId, it.toString()).apply() }
         views.setImageViewResource(R.id.calendar_background, radiusDrawable(prefs.cornerRadius))
         views.setInt(R.id.calendar_background, "setColorFilter", color(prefs.background))
-        setText(context, views, if (importedFont) R.id.calendar_heading_image else R.id.calendar_heading,
+        WidgetBackgrounds.render(context, WidgetBackgrounds.CALENDAR, widgetWidthDp,
+            options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 250).coerceAtLeast(1), prefs.cornerRadius.toFloat())?.let {
+            views.setImageViewBitmap(R.id.calendar_background, it)
+            views.setInt(R.id.calendar_background, "setColorFilter", Color.TRANSPARENT)
+        }               setText(context, views, if (importedFont) R.id.calendar_heading_image else R.id.calendar_heading,
             month.format(DateTimeFormatter.ofPattern("LLLL yyyy", locale)), prefs.fontFileId, prefs.headingSize.toFloat(), color(prefs.heading), (widgetWidthDp - 112).coerceAtLeast(50).toFloat())
         if (!importedFont) {
             views.setTextViewTextSize(R.id.calendar_heading, 2, prefs.headingSize.toFloat())

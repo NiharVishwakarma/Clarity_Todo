@@ -73,3 +73,10 @@ This log begins with the repository snapshot available when these project notes 
 - Removed the placeholder "Appearance" and "Widget preferences" sections from global Settings; Typography and Permissions remain.
 - Not yet implemented from the consolidated upgrade request: cloud backup/restore (Google Drive appDataFolder), restore/start-fresh onboarding, automatic sync, Vault Security settings (change master password, auto-lock, security audit), and widget wallpaper/fade controls. Planned order: wallpaper and fade controls, then backup and restore. Design constraint: the vault file lives in `noBackupFilesDir` and the biometric key is Keystore-bound, so after a restore biometrics must be re-enabled after one master-password unlock.
 - Not compiled or device-tested.
+
+### 2026-10-17 — Upgrade phase 2: widget wallpapers and fade controls
+
+- Added `WidgetBackgrounds` (storage, fade, rounded/faded bitmap rendering, generated bundled backgrounds) and the `WidgetBackgroundEditor` Compose screen (gallery / device wallpaper / bundled source, pinch-zoom, drag, rotate, fit, live fade preview, intensity presets and 0-100% slider, save/remove).
+- Global Settings gained a "Widget customization" section: To-Do wallpaper, Calendar wallpaper, and a confirmed reset of both.
+- `TodoWidget` and `CalendarWidget` render the wallpaper into their background ImageViews (tint filter cleared); the To-Do task card is semi-transparent and its rows transparent while a wallpaper is set. The To-Do list adapter URI now includes the wallpaper state.
+- Reading the device wallpaper may be denied by Android on newer versions; the editor then tells the user to pick it from the gallery. Not compiled or device-tested; verify in CI and on a device.

@@ -21,6 +21,7 @@ import com.example.darktodo.data.TaskTimeFormatter
 import com.example.darktodo.data.WidgetPrefs
 import com.example.darktodo.data.WidgetSettings
 import com.example.darktodo.data.LocalWidgetFonts
+import com.example.darktodo.data.WidgetBackgrounds
 
 /** Renders the home-screen widget with platform RemoteViews and XML TextViews. */
 object TodoWidget {
@@ -38,16 +39,18 @@ object TodoWidget {
         ids.forEach { id ->
             try {
                 if (tasks == null || settings == null) error("Widget state is unavailable")
-                val views = render(context, tasks.count { !it.completed }, settings)
-                val widgetWidthDp = manager.getAppWidgetOptions(id)
-                    .getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 320).coerceAtLeast(1)
+                val options = manager.getAppWidgetOptions(id)
+                val widgetWidthDp = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 320).coerceAtLeast(1)
+                val widgetHeightDp = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 180).coerceAtLeast(1)
+                val views = render(context, tasks.count { !it.completed }, settings, widgetWidthDp, widgetHeightDp)
+                val wallpaper = WidgetBackgrounds.has(context, WidgetBackgrounds.TODO)
                 // Include the selected family so launcher-cached list rows are invalidated
                 // when a system font is changed.
                 views.setRemoteAdapter(
                     R.id.widget_task_rows,
                     Intent(context, TodoWidgetService::class.java)
                         .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id)
-                        .setData(android.net.Uri.parse("clarity://todo/widget/$id/$widgetWidthDp/${settings.fontFamily.key}/${settings.fontFileId ?: "system"}"))
+                        .setData(android.net.Uri.parse("clarity://todo/widget/$id/$widgetWidthDp/${settings.fontFamily.key}/${settings.fontFileId ?: "system"}/${if (wallpaper) "bg" else "plain"}"))
                 )
                 views.setEmptyView(R.id.widget_task_rows, R.id.widget_empty)
                 val clickTemplate = PendingIntent.getActivity(
@@ -85,7 +88,7 @@ object TodoWidget {
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
     )
 
-    private fun render(context: Context, incompleteCount: Int, settings: WidgetPrefs): RemoteViews {
+    private fun render(context: Context, incompleteCount: Int, settings: WidgetPrefs, widthDp: Int, heightDp: Int): RemoteViews {
         val importedFont = settings.fontFileId != null
         val views = RemoteViews(context.packageName, WidgetFontLayouts.todo(settings.fontFamily, importedFont))
         val titleColor = parseColor(settings.taskTitle)
@@ -95,6 +98,12 @@ object TodoWidget {
         views.setInt(R.id.widget_root_background, "setColorFilter", parseColor(settings.widgetBackground))
         views.setInt(R.id.widget_count_panel_background, "setColorFilter", parseColor(settings.countPanel))
         views.setInt(R.id.widget_task_card_background, "setColorFilter", cardColor)
+        WidgetBackgrounds.render(context, WidgetBackgrounds.TODO, widthDp, heightDp, 12f)?.let { wallpaper ->
+            views.setImageViewBitmap(R.id.widget_root_background, wallpaper)
+            views.setInt(R.id.widget_root_background, "setColorFilter", Color.TRANSPARENT)
+            // Let the wallpaper show through the task list while keeping text readable.
+            views.setInt(R.id.widget_task_card_background, "setImageAlpha", 150)
+        }
         setText(context, views, R.id.widget_count, incompleteCount.toString(), settings.fontFileId, 22f, Color.WHITE)
         setText(context, views, R.id.widget_count_label, "Tasks", settings.fontFileId, 11f, Color.WHITE)
         setText(context, views, R.id.widget_refresh, "\u21BB", settings.fontFileId, 18f, incompleteColor, align = Paint.Align.CENTER)
@@ -157,7 +166,8 @@ object TodoWidget {
             row.setTextViewTextSize(R.id.widget_task_title, TypedValue.COMPLEX_UNIT_SP, rowTitleSize)
             row.setInt(R.id.widget_task_title, "setTextColor", renderedTitleColor)
         }
-        row.setInt(R.id.widget_task_row, "setBackgroundColor", withAlpha(cardColor, opacity))
+        row.setInt(R.id.widget_task_row, "setBackgroundColor",
+            if (WidgetBackgrounds.has(context, WidgetBackgrounds.TODO)) Color.TRANSPARENT else withAlpha(cardColor, opacity))
         val toggleIntent = Intent()
             .putExtra(EXTRA_COLLECTION_ACTION, ACTION_TOGGLE_TASK)
             .putExtra(EXTRA_TASK_ID, task.id)
