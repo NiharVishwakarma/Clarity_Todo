@@ -32,6 +32,20 @@ class CalendarDatesTest {
         assertEquals(CalendarTaskStatus.COMPLETE, CalendarDates.status(tasks.take(1), day))
     }
 
+    @Test fun statusDotMatchesCompletionRatios() {
+        val day = LocalDate.of(2026, 10, 17)
+        fun tasks(done: Int, open: Int) = List(done) { Task("d$it", "done", true, taskDate = day.toString()) } +
+            List(open) { Task("o$it", "open", false, taskDate = day.toString()) }
+        assertEquals(CalendarTaskStatus.COMPLETE, CalendarDates.status(tasks(1, 0), day))
+        assertEquals(CalendarTaskStatus.COMPLETE, CalendarDates.status(tasks(5, 0), day))
+        assertEquals(CalendarTaskStatus.OPEN, CalendarDates.status(tasks(0, 1), day))
+        assertEquals(CalendarTaskStatus.OPEN, CalendarDates.status(tasks(0, 5), day))
+        assertEquals(CalendarTaskStatus.MIXED, CalendarDates.status(tasks(1, 1), day))
+        assertEquals(CalendarTaskStatus.MIXED, CalendarDates.status(tasks(3, 2), day))
+        assertEquals(CalendarTaskStatus.MIXED, CalendarDates.status(tasks(7, 3), day))
+        assertEquals(CalendarTaskStatus.NONE, CalendarDates.status(emptyList(), day))
+    }
+
     @Test fun newTaskDefaultsToCurrentLocalDate() {
         assertEquals(LocalDate.now().toString(), Task("new", "new task", false).taskDate)
     }

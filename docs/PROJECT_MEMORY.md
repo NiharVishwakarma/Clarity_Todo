@@ -22,7 +22,7 @@ The Android application is branded **Clarity** in its UI and widget labels; Grad
 
 | Widget | Provider / implementation | Behavior and refresh |
 |---|---|---|
-| To-Do | [`TodoWidget.kt`](../app/src/main/java/com/example/darktodo/widget/TodoWidget.kt), [`TodoWidgetService.kt`](../app/src/main/java/com/example/darktodo/widget/TodoWidgetService.kt), [`todo_widget_info.xml`](../app/src/main/res/xml/todo_widget_info.xml) | Shows open-task count and a scrollable collection of all tasks, completion controls, refresh, and add action. Rows use the persisted app order and shared deadline labels. Supports horizontal and vertical resizing. Declares a 30-minute platform update period; task changes and alarm paths also refresh it. |
+| To-Do | [`TodoWidget.kt`](../app/src/main/java/com/example/darktodo/widget/TodoWidget.kt), [`TodoWidgetService.kt`](../app/src/main/java/com/example/darktodo/widget/TodoWidgetService.kt), [`todo_widget_info.xml`](../app/src/main/res/xml/todo_widget_info.xml) | Shows open-task count and a scrollable collection of all tasks, completion controls, refresh, and add action. Rows wrap titles to two lines (ellipsis only after that, no marquee). Tapping the check circle or a title that fits toggles completion; tapping a title longer than two lines opens a dialog with the full title (via the non-exported `TaskActionActivity`, the widget's click template). Supports horizontal and vertical resizing. Declares a 30-minute platform update period; task changes and alarm paths also refresh it. |
 | Calendar | [`CalendarWidget.kt`](../app/src/main/java/com/example/darktodo/widget/CalendarWidget.kt), [`CalendarDates.kt`](../app/src/main/java/com/example/darktodo/data/CalendarDates.kt), [`calendar_widget_info.xml`](../app/src/main/res/xml/calendar_widget_info.xml) | Month grid with month navigation, date selection, and status dots for no/open/mixed/complete tasks. Selecting a date opens the app filtered to that date. A midnight alarm refreshes the selected-today state. Its provider has no periodic update interval. |
 | Vault | [`VaultWidget.kt`](../app/src/main/java/com/example/darktodo/widget/VaultWidget.kt), [`vault_widget_info.xml`](../app/src/main/res/xml/vault_widget_info.xml) | Locked shortcut that opens the in-app vault screen. It does not show secrets and has no periodic update interval. |
 
@@ -106,7 +106,7 @@ From [`app/build.gradle.kts`](../app/build.gradle.kts):
 - Gradle distribution is `8.9` from `gradle/wrapper/gradle-wrapper.properties`.
 - There is no WorkManager dependency, Room/database library, billing library, networking library, or DI framework in the current dependency list.
 
-The manifest registers one exported launcher Activity; three exported widget providers; internal Calendar-midnight, reminder, and widget-refresh receivers; an exported reminder-recovery receiver for system broadcasts; and the non-exported `TodoWidgetService` protected by `BIND_REMOTEVIEWS`. Declared permissions are `POST_NOTIFICATIONS`, `RECEIVE_BOOT_COMPLETED`, and `SCHEDULE_EXACT_ALARM`.
+The manifest registers one exported launcher Activity; three exported widget providers; internal Calendar-midnight, reminder, and widget-refresh receivers; an exported reminder-recovery receiver for system broadcasts; and the non-exported `TodoWidgetService` protected by `BIND_REMOTEVIEWS`, and the non-exported translucent `TaskActionActivity`. Declared permissions are `POST_NOTIFICATIONS`, `RECEIVE_BOOT_COMPLETED`, and `SCHEDULE_EXACT_ALARM`.
 
 ## Build and CI/CD process
 

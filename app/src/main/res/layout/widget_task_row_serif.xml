@@ -22,7 +22,7 @@
         android:layout_weight="1"
         android:ellipsize="end"
         android:fontFamily="serif"
-        android:maxLines="1"
+        android:maxLines="2"
         android:paddingStart="7dp"
         android:text="Example task"
         android:textColor="#F5F5F5"

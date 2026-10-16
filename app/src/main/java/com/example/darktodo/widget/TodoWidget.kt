@@ -50,10 +50,11 @@ object TodoWidget {
                         .setData(android.net.Uri.parse("clarity://todo/widget/$id/$widgetWidthDp/${settings.fontFamily.key}/${settings.fontFileId ?: "system"}"))
                 )
                 views.setEmptyView(R.id.widget_task_rows, R.id.widget_empty)
-                val clickTemplate = PendingIntent.getBroadcast(
+                val clickTemplate = PendingIntent.getActivity(
                     context,
                     id,
-                    Intent(context, TodoWidgetReceiver::class.java).setAction(ACTION_COLLECTION_CLICK),
+                    Intent(context, TaskActionActivity::class.java).setAction(ACTION_COLLECTION_CLICK)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION),
                     PendingIntent.FLAG_UPDATE_CURRENT or (if (Build.VERSION.SDK_INT >= 31) PendingIntent.FLAG_MUTABLE else 0)
                 )
                 views.setPendingIntentTemplate(R.id.widget_task_rows, clickTemplate)
@@ -150,7 +151,8 @@ object TodoWidget {
         val label = if (!task.completed && task.reminderType != "none") "${task.title} | ${TaskTimeFormatter.widgetLabel(context, task)}" else task.title
         val rowTitleSize = settings.taskTitleSizeSp * (13f / 16f)
         val renderedTitleColor = withAlpha(titleColor, opacity)
-        setText(context, row, R.id.widget_task_title, label, settings.fontFileId, rowTitleSize, renderedTitleColor, (widgetWidthDp - 104).coerceAtLeast(60).toFloat())
+        val titleWidthDp = (widgetWidthDp - 104).coerceAtLeast(60).toFloat()
+        setText(context, row, R.id.widget_task_title, label, settings.fontFileId, rowTitleSize, renderedTitleColor, titleWidthDp, maxLines = 2)
         if (!importedFont) {
             row.setTextViewTextSize(R.id.widget_task_title, TypedValue.COMPLEX_UNIT_SP, rowTitleSize)
             row.setInt(R.id.widget_task_title, "setTextColor", renderedTitleColor)
@@ -161,8 +163,27 @@ object TodoWidget {
             .putExtra(EXTRA_TASK_ID, task.id)
         row.setOnClickFillInIntent(R.id.widget_task_row, toggleIntent)
         row.setOnClickFillInIntent(R.id.widget_task_check, toggleIntent)
-        row.setOnClickFillInIntent(R.id.widget_task_title, toggleIntent)
+        // Only titles that overflow two lines open the full-title dialog; others keep toggling.
+        val titleIntent = if (exceedsTwoLines(context, label, settings.fontFileId, settings.fontFamily.key, rowTitleSize, titleWidthDp)) {
+            Intent()
+                .putExtra(EXTRA_COLLECTION_ACTION, ACTION_SHOW_TITLE)
+                .putExtra(EXTRA_TASK_ID, task.id)
+                .putExtra(EXTRA_TASK_TITLE, label)
+        } else toggleIntent
+        row.setOnClickFillInIntent(R.id.widget_task_title, titleIntent)
         return row
+    }
+
+    private fun exceedsTwoLines(context: Context, text: String, fontFileId: String?, familyKey: String, sizeSp: Float, widthDp: Float): Boolean {
+        val metrics = context.resources.displayMetrics
+        val paint = android.text.TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+            textSize = sizeSp * metrics.scaledDensity
+            typeface = (fontFileId?.let { LocalWidgetFonts.typeface(context, it) })
+                ?: runCatching { android.graphics.Typeface.create(familyKey, android.graphics.Typeface.NORMAL) }.getOrNull()
+                ?: android.graphics.Typeface.DEFAULT
+        }
+        val widthPx = (widthDp * metrics.density).toInt().coerceAtLeast(1)
+        return android.text.StaticLayout.Builder.obtain(text, 0, text.length, paint, widthPx).build().lineCount > 2
     }
 
     private fun setText(
@@ -174,9 +195,10 @@ object TodoWidget {
         sizeSp: Float,
         color: Int,
         maxWidthDp: Float = 600f,
-        align: Paint.Align = Paint.Align.LEFT
+        align: Paint.Align = Paint.Align.LEFT,
+        maxLines: Int = 1
     ) {
-        val bitmap = LocalWidgetFonts.renderText(context, text, fontFileId, sizeSp, color, maxWidthDp, align)
+        val bitmap = LocalWidgetFonts.renderText(context, text, fontFileId, sizeSp, color, maxWidthDp, align, maxLines)
         if (bitmap == null) views.setTextViewText(viewId, text) else {
             views.setImageViewBitmap(viewId, bitmap)
             views.setContentDescription(viewId, text)
@@ -197,6 +219,8 @@ object TodoWidget {
     const val ACTION_COLLECTION_CLICK = "com.example.darktodo.widget.COLLECTION_CLICK"
     const val EXTRA_COLLECTION_ACTION = "collection_action"
     const val EXTRA_TASK_ID = "task_id"
+    const val EXTRA_TASK_TITLE = "task_title"
+    const val ACTION_SHOW_TITLE = "com.example.darktodo.widget.SHOW_TITLE"
     private const val TAG = "TodoWidget"
 }
 

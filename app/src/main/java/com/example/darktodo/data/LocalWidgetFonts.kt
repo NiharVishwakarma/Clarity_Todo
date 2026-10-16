@@ -104,7 +104,8 @@ object LocalWidgetFonts {
         sizeSp: Float,
         color: Int,
         maxWidthDp: Float = 600f,
-        align: Paint.Align = Paint.Align.LEFT
+        align: Paint.Align = Paint.Align.LEFT,
+        maxLines: Int = 1
     ): Bitmap? {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P || fontId == null || text.isEmpty()) return null
         val typeface = typeface(context, fontId) ?: return null
@@ -119,6 +120,24 @@ object LocalWidgetFonts {
         val maxWidthPx = (maxWidthDp * scale).toInt().coerceAtLeast(1)
         val padding = (2f * scale).toInt().coerceAtLeast(1)
         val contentMaxWidthPx = (maxWidthPx - padding * 2).coerceAtLeast(1)
+        if (maxLines > 1) {
+            // Word-wrapped layout; only the last permitted line is ellipsized.
+            val layout = android.text.StaticLayout.Builder
+                .obtain(text, 0, text.length, android.text.TextPaint(paint), contentMaxWidthPx)
+                .setMaxLines(maxLines)
+                .setEllipsize(TextUtils.TruncateAt.END)
+                .setIncludePad(false)
+                .build()
+            val widest = (0 until layout.lineCount).maxOf { ceil(layout.getLineWidth(it)).toInt() }
+            val wrappedWidth = (widest + padding * 2).coerceIn(1, maxWidthPx)
+            val wrappedBitmap = Bitmap.createBitmap(wrappedWidth, layout.height + padding * 2, Bitmap.Config.ARGB_8888)
+            wrappedBitmap.density = (context.resources.displayMetrics.densityDpi * scale / density).toInt()
+            Canvas(wrappedBitmap).apply {
+                translate(padding.toFloat(), padding.toFloat())
+                layout.draw(this)
+            }
+            return wrappedBitmap
+        }
         val measured = TextUtils.ellipsize(text, android.text.TextPaint(paint), contentMaxWidthPx.toFloat(), TextUtils.TruncateAt.END).toString()
         val metrics = paint.fontMetrics
         val width = (ceil(paint.measureText(measured)).toInt() + padding * 2).coerceAtLeast(1).coerceAtMost(maxWidthPx)

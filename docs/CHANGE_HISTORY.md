@@ -48,3 +48,15 @@ This log begins with the repository snapshot available when these project notes 
 - Reordering now happens in memory and the vault is encrypted and saved once when the card is dropped, off the main thread; previously every click re-ran the 210,000-iteration key derivation, which made moves feel slow.
 - Dragging is disabled while a search filter is active. Screen readers get "Move up"/"Move down" custom actions on each card.
 - Updated [PROJECT_MEMORY.md](./PROJECT_MEMORY.md). Not yet compiled or tested on a device; verify through GitHub Actions and manual drag testing.
+
+### 2026-10-17 — To-Do widget long-title wrapping
+
+- Task titles in all seven row layouts now wrap to two lines (ellipsis only afterwards); imported-font rows render a word-wrapped two-line bitmap via `LocalWidgetFonts.renderText(maxLines)`. No marquee; colors and fonts unchanged.
+- Widget row clicks now go through a new translucent `TaskActionActivity` (click template changed from a broadcast to an activity to avoid background-start limits). It toggles tasks as before, and for titles longer than two lines shows a dialog with the full title.
+- Updated [PROJECT_MEMORY.md](./PROJECT_MEMORY.md). The optional fade-out effect was not implemented (RemoteViews cannot do it). Not compiled or device-tested; verify via GitHub Actions.
+
+### 2026-10-17 — Calendar status-dot investigation
+
+- Reviewed `CalendarDates.status`, `CalendarWidget` dot rendering, `TaskStore` refresh paths, and date derivation. The rules (none / all complete = green / none complete = red / otherwise orange) were already implemented correctly, filtered by each task's stored `taskDate` (local date, no time-zone conversion), and every `TaskStore` save refreshes the Calendar widget; no production code change was needed.
+- The To-Do widget lists tasks of every date, while a calendar dot counts only tasks whose `taskDate` equals that day. The screenshot (green dot on the 16th, red on the 17th) is consistent with the completed task being dated the 16th; edit its date to the 17th to get orange.
+- Added `CalendarDatesTest.statusDotMatchesCompletionRatios` covering the 1/1, 5/5, 0/1, 0/5, 1/2, 3/5, 7/10, and empty cases. Not run locally; CI runs it.
