@@ -129,6 +129,7 @@ The debug APK is produced under `app/build/outputs/apk/debug/`. If persistent si
 
 Push and manual builds require all four signing secrets documented in README. Fork pull requests can build without those secrets and use the default debug signing key; those builds are not update-compatible with the persistent-key APK. This workflow builds a debug APK for testing/direct installation, not a Play Store release.
 
+Drive backup setup (verified on a device 2026-10-17): the four `ANDROID_KEYSTORE_*` secrets hold a persistent keystore kept outside the repo (back it up; never commit it). Google Cloud project has Drive API enabled, an External consent screen in Testing mode with the `drive.appdata` scope and test users, and an Android OAuth client bound to `com.example.darktodo` plus the keystore SHA-1. Connecting and automatic backup were confirmed working. In Testing mode, sign-in may expire after about 7 days and only listed test users can connect. Restore on a fresh install is not yet confirmed on a device.
 ## Current features
 
 - **Tasks:** Add, edit, complete/reopen, delete with confirmation, clear completed, and reorder tasks within incomplete/completed groups. Tasks have a date and optional reminder; list can be filtered by calendar date. Completion/order is reflected in the To-Do widget.

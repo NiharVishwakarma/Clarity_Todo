@@ -49,32 +49,32 @@ This log begins with the repository snapshot available when these project notes 
 - Dragging is disabled while a search filter is active. Screen readers get "Move up"/"Move down" custom actions on each card.
 - Updated [PROJECT_MEMORY.md](./PROJECT_MEMORY.md). Not yet compiled or tested on a device; verify through GitHub Actions and manual drag testing.
 
-### 2026-10-17 — To-Do widget long-title wrapping
+### 2026-10-17 ï¿½ To-Do widget long-title wrapping
 
 - Task titles in all seven row layouts now wrap to two lines (ellipsis only afterwards); imported-font rows render a word-wrapped two-line bitmap via `LocalWidgetFonts.renderText(maxLines)`. No marquee; colors and fonts unchanged.
 - Widget row clicks now go through a new translucent `TaskActionActivity` (click template changed from a broadcast to an activity to avoid background-start limits). It toggles tasks as before, and for titles longer than two lines shows a dialog with the full title.
 - Updated [PROJECT_MEMORY.md](./PROJECT_MEMORY.md). The optional fade-out effect was not implemented (RemoteViews cannot do it). Not compiled or device-tested; verify via GitHub Actions.
 
-### 2026-10-17 — Calendar status-dot investigation
+### 2026-10-17 ï¿½ Calendar status-dot investigation
 
 - Reviewed `CalendarDates.status`, `CalendarWidget` dot rendering, `TaskStore` refresh paths, and date derivation. The rules (none / all complete = green / none complete = red / otherwise orange) were already implemented correctly, filtered by each task's stored `taskDate` (local date, no time-zone conversion), and every `TaskStore` save refreshes the Calendar widget; no production code change was needed.
 - The To-Do widget lists tasks of every date, while a calendar dot counts only tasks whose `taskDate` equals that day. The screenshot (green dot on the 16th, red on the 17th) is consistent with the completed task being dated the 16th; edit its date to the 17th to get orange.
 - Added `CalendarDatesTest.statusDotMatchesCompletionRatios` covering the 1/1, 5/5, 0/1, 0/5, 1/2, 3/5, 7/10, and empty cases. Not run locally; CI runs it.
 
-### 2026-10-17 — Dedicated Vault widget icon
+### 2026-10-17 ï¿½ Dedicated Vault widget icon
 
-- Added a new vector icon `ic_vault_door` (black circular vault door, metallic rim, bolts, red glowing locking ring, wheel spokes and keyhole hub, subtle glass highlight) and used it in the Vault widget instead of the small padlock; it fills roughly 60-70% of a 1-row widget's height, beside "Clarity Vault" / "Vault locked · Tap to unlock".
+- Added a new vector icon `ic_vault_door` (black circular vault door, metallic rim, bolts, red glowing locking ring, wheel spokes and keyhole hub, subtle glass highlight) and used it in the Vault widget instead of the small padlock; it fills roughly 60-70% of a 1-row widget's height, beside "Clarity Vault" / "Vault locked ï¿½ Tap to unlock".
 - Added `previewImage` (`vault_widget_preview`) and `previewLayout` to `vault_widget_info.xml` so the widget picker no longer falls back to the launcher icon.
 - `ic_vault_lock` is no longer used by the widget. Not compiled or visually verified on a device; check the icon proportions after the CI build.
 
-### 2026-10-17 — Upgrade phase 1: Vault widget width and Settings cleanup
+### 2026-10-17 ï¿½ Upgrade phase 1: Vault widget width and Settings cleanup
 
 - Vault widget provider now requests the same 4-cell width as the To-Do widget (`minWidth` 300dp, `minResizeWidth` 250dp, `minHeight` 80dp).
 - Removed the placeholder "Appearance" and "Widget preferences" sections from global Settings; Typography and Permissions remain.
 - Not yet implemented from the consolidated upgrade request: cloud backup/restore (Google Drive appDataFolder), restore/start-fresh onboarding, automatic sync, Vault Security settings (change master password, auto-lock, security audit), and widget wallpaper/fade controls. Planned order: wallpaper and fade controls, then backup and restore. Design constraint: the vault file lives in `noBackupFilesDir` and the biometric key is Keystore-bound, so after a restore biometrics must be re-enabled after one master-password unlock.
 - Not compiled or device-tested.
 
-### 2026-10-17 — Upgrade phase 2: widget wallpapers and fade controls
+### 2026-10-17 ï¿½ Upgrade phase 2: widget wallpapers and fade controls
 
 - Added `WidgetBackgrounds` (storage, fade, rounded/faded bitmap rendering, generated bundled backgrounds) and the `WidgetBackgroundEditor` Compose screen (gallery / device wallpaper / bundled source, pinch-zoom, drag, rotate, fit, live fade preview, intensity presets and 0-100% slider, save/remove).
 - Global Settings gained a "Widget customization" section: To-Do wallpaper, Calendar wallpaper, and a confirmed reset of both.
@@ -100,3 +100,7 @@ This log begins with the repository snapshot available when these project notes 
 ## 2026-10-17 - CI compile fixes
 
 - First CI build failed in :app:compileDebugKotlin. Fixed a missing line break in CalendarWidget.kt that merged the wallpaper block with the heading setText call, and added the missing androidx.compose.ui.graphics.nativeCanvas import in WidgetBackgroundEditor.kt.
+
+## 2026-10-17 - Drive backup verified on device
+
+- Documented the persistent keystore, GitHub secrets and Google OAuth setup (no client ID recorded). Connect Google account and automatic backup were confirmed on a device; restore is still untested.
