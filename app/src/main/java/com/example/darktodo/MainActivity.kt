@@ -629,6 +629,7 @@ private fun composeFontFamily(context: Context, family: WidgetFontFamily, fontFi
             singleLine = secret || label != "Notes",
             visualTransformation = if (secret) PasswordVisualTransformation() else VisualTransformation.None,
             textStyle = TextStyle(color = Ink, fontSize = UiTokens.LabelSp.sp),
+            cursorBrush = SolidColor(Accent),
             modifier = Modifier.fillMaxWidth().background(UiTokens.SurfaceRaised, RoundedCornerShape(UiTokens.RowRadius)).padding(12.dp),
             decorationBox = { inner -> if (value.isEmpty()) Text(label, color = UiTokens.Subdued); inner() }
         )
