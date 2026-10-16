@@ -519,8 +519,8 @@ private fun composeFontFamily(context: Context, family: WidgetFontFamily, fontFi
             Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(month.format(DateTimeFormatter.ofPattern("LLLL yyyy", java.util.Locale.getDefault())), color = colorFromHex(settings.heading), fontSize = settings.headingSize.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                    IconAction("Previous month", "back") { month = month.minusMonths(1) }
-                    IconAction("Next month", "next") { month = month.plusMonths(1) }
+                    IconAction("Previous month", "chevron_left", { month = month.minusMonths(1) }, colorFromHex(settings.navigationArrows))
+                    IconAction("Next month", "chevron_right", { month = month.plusMonths(1) }, colorFromHex(settings.navigationArrows))
                 }
                 Row(Modifier.fillMaxWidth()) {
                     weekdays.forEach { day -> Box(Modifier.weight(1f).height(32.dp), contentAlignment = Alignment.Center) { Text(day.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.getDefault()).take(2), color = colorFromHex(settings.weekday), fontSize = settings.weekdaySize.sp) } }
@@ -1021,9 +1021,9 @@ private data class ColorPickTarget(val key: String, val label: String, val value
     }
 }
 
-@Composable private fun IconAction(label: String, icon: String, onClick: () -> Unit) {
+@Composable private fun IconAction(label: String, icon: String, onClick: () -> Unit, iconColor: Color = Accent) {
     Surface(onClick = onClick, color = Color.Transparent, shape = RoundedCornerShape(12.dp), modifier = Modifier.size(44.dp).semantics { contentDescription = label }) {
-        Box(Modifier.fillMaxSize().padding(10.dp), contentAlignment = Alignment.Center) { ClarityIcon(icon, Accent, Modifier.fillMaxSize()) }
+        Box(Modifier.fillMaxSize().padding(10.dp), contentAlignment = Alignment.Center) { ClarityIcon(icon, iconColor, Modifier.fillMaxSize()) }
     }
 }
 
@@ -1055,13 +1055,13 @@ private data class ColorPickTarget(val key: String, val label: String, val value
                 drawLine(color, androidx.compose.ui.geometry.Offset(w * .31f, h * .52f), androidx.compose.ui.geometry.Offset(w * .45f, h * .66f), stroke, StrokeCap.Round)
                 drawLine(color, androidx.compose.ui.geometry.Offset(w * .45f, h * .66f), androidx.compose.ui.geometry.Offset(w * .71f, h * .36f), stroke, StrokeCap.Round)
             }
-            "back", "next" -> {
-                val direction = if (name == "back") -1f else 1f
-                val startX = if (direction < 0) w * .70f else w * .30f
-                val endX = if (direction < 0) w * .30f else w * .70f
-                drawLine(color, androidx.compose.ui.geometry.Offset(startX, h * .5f), androidx.compose.ui.geometry.Offset(endX, h * .5f), stroke, StrokeCap.Round)
-                drawLine(color, androidx.compose.ui.geometry.Offset(endX, h * .5f), androidx.compose.ui.geometry.Offset(endX + direction * w * .22f, h * .28f), stroke, StrokeCap.Round)
-                drawLine(color, androidx.compose.ui.geometry.Offset(endX, h * .5f), androidx.compose.ui.geometry.Offset(endX + direction * w * .22f, h * .72f), stroke, StrokeCap.Round)
+            "chevron_left", "chevron_right" -> {
+                val direction = if (name == "chevron_left") -1f else 1f
+                val centerX = w * .5f
+                val innerX = centerX - direction * w * .16f
+                val outerX = centerX + direction * w * .16f
+                drawLine(color, androidx.compose.ui.geometry.Offset(innerX, h * .25f), androidx.compose.ui.geometry.Offset(outerX, h * .5f), stroke, StrokeCap.Round)
+                drawLine(color, androidx.compose.ui.geometry.Offset(outerX, h * .5f), androidx.compose.ui.geometry.Offset(innerX, h * .75f), stroke, StrokeCap.Round)
             }
             else -> {
                 listOf(.24f, .50f, .76f).forEachIndexed { index, y ->
