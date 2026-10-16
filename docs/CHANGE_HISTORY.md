@@ -80,3 +80,11 @@ This log begins with the repository snapshot available when these project notes 
 - Global Settings gained a "Widget customization" section: To-Do wallpaper, Calendar wallpaper, and a confirmed reset of both.
 - `TodoWidget` and `CalendarWidget` render the wallpaper into their background ImageViews (tint filter cleared); the To-Do task card is semi-transparent and its rows transparent while a wallpaper is set. The To-Do list adapter URI now includes the wallpaper state.
 - Reading the device wallpaper may be denied by Android on newer versions; the editor then tells the user to pick it from the gallery. Not compiled or device-tested; verify in CI and on a device.
+
+## 2026-10-17 - Vault Security settings (Phase 3)
+
+- Added Settings > Vault Security (VaultSecurityScreen.kt): change master password, biometric status/turn-off, auto-lock timer, security audit.
+- LocalVaultStore: changeMasterPassword, autoLockSeconds/setAutoLockSeconds. New VaultAudit.kt with VaultAuditTest.
+- VaultScreen: idle auto-lock timer (pointer activity based).
+- Fixed a malformed page-routing branch in MainActivity.kt left by the wallpaper phase (WidgetBackground/Permissions).
+- Not yet compiled; CI is the first build.

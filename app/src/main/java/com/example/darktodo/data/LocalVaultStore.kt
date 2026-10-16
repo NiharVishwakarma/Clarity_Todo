@@ -93,6 +93,32 @@ object LocalVaultStore {
 
     fun exists(context: Context) = file(context).exists()
 
+    const val DEFAULT_AUTO_LOCK_SECONDS = 300
+    private const val AUTO_LOCK_KEY = "auto_lock_seconds"
+
+    /** Idle time before an open vault locks itself; 0 means only lock when the app is left. */
+    fun autoLockSeconds(context: Context): Int = context.getSharedPreferences(AUTH_PREFS, Context.MODE_PRIVATE)
+        .getInt(AUTO_LOCK_KEY, DEFAULT_AUTO_LOCK_SECONDS).coerceAtLeast(0)
+
+    fun setAutoLockSeconds(context: Context, seconds: Int) {
+        context.getSharedPreferences(AUTH_PREFS, Context.MODE_PRIVATE).edit().putInt(AUTO_LOCK_KEY, seconds.coerceAtLeast(0)).apply()
+    }
+
+    /**
+     * Re-encrypts the vault under a new master password and fresh salt. The biometric wrapper holds
+     * the old password, so it is removed. Returns an error message, or null on success.
+     */
+    fun changeMasterPassword(context: Context, current: CharArray, replacement: CharArray): String? {
+        if (replacement.size < 8) return "Use at least 8 characters for the new password."
+        val entries = unlock(context, current) ?: return "The current password is incorrect."
+        val salt = ByteArray(SALT_SIZE).also { SecureRandom().nextBytes(it) }
+        return try {
+            write(context, key(replacement, salt), salt, entries)
+            if (primaryAuth(context) == AUTH_BIOMETRIC) usePasswordAuthentication(context)
+            null
+        } catch (error: Exception) { error.message ?: "Could not change the master password." }
+    }
+
     fun create(context: Context, masterPassword: CharArray, entries: List<VaultEntry> = emptyList()) {
         require(masterPassword.size >= 8) { "Use at least 8 characters for the vault password." }
         require(!exists(context)) { "The vault already exists." }

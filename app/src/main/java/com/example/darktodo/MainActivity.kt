@@ -386,6 +386,7 @@ class MainActivity : FragmentActivity() {
                     notificationsEnabled = androidx.core.app.NotificationManagerCompat.from(context).areNotificationsEnabled(),
                     channelImportance = if (Build.VERSION.SDK_INT >= 26) context.getSystemService(android.app.NotificationManager::class.java).getNotificationChannel("task_reminders")?.importance else null,
                     onOpenWallpaper = { wallpaperTarget = it; page = "WidgetBackground" },
+                    onOpenVaultSecurity = { page = "VaultSecurity" },
                     onResetBackgrounds = {
                         com.example.darktodo.data.WidgetBackgrounds.clear(context, com.example.darktodo.data.WidgetBackgrounds.TODO)
                         com.example.darktodo.data.WidgetBackgrounds.clear(context, com.example.darktodo.data.WidgetBackgrounds.CALENDAR)
@@ -394,7 +395,9 @@ class MainActivity : FragmentActivity() {
                         permissionRevision++
                     }
                 )
-                page == "WidgetBackground" -> WidgetBackgroundEditor(wallpaperTarget) { page = "Settings" } -> PermissionsScreen(
+                page == "WidgetBackground" -> WidgetBackgroundEditor(wallpaperTarget) { page = "Settings" }
+                page == "VaultSecurity" -> VaultSecurityScreen { page = "Settings" }
+                page == "Permissions" -> PermissionsScreen(
                     remindersEnabled = tasks.any { !it.completed && it.reminderType != "none" },
                     notificationGranted = Build.VERSION.SDK_INT < 33 || ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED,
                     notificationsEnabled = androidx.core.app.NotificationManagerCompat.from(context).areNotificationsEnabled(),
@@ -574,6 +577,21 @@ private sealed class VaultSensitiveAction(open val entryId: String) {
     DisposableEffect(activity) {
         activity?.window?.setFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE, android.view.WindowManager.LayoutParams.FLAG_SECURE)
         onDispose { activity?.window?.clearFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE) }
+    }
+    val lastActivity = remember { longArrayOf(System.currentTimeMillis()) }
+    val autoLockMillis = remember(entries != null) { LocalVaultStore.autoLockSeconds(context) * 1000L }
+    LaunchedEffect(entries != null, autoLockMillis) {
+        if (entries == null || autoLockMillis <= 0L) return@LaunchedEffect
+        lastActivity[0] = System.currentTimeMillis()
+        while (true) {
+            delay(1000)
+            if (pendingSensitiveAction == null && !biometricPromptActive && System.currentTimeMillis() - lastActivity[0] >= autoLockMillis) {
+                entries = null; masterPassword = ""; secret = ""; title = ""; username = ""; notes = ""; editingId = null; revealedId = null
+                passwordFallback = authMode != LocalVaultStore.AUTH_BIOMETRIC
+                message = "Vault locked after inactivity."
+                break
+            }
+        }
     }
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
@@ -845,7 +863,9 @@ private sealed class VaultSensitiveAction(open val entryId: String) {
             }
     }
 
-    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(Modifier.fillMaxSize().pointerInput(Unit) {
+        awaitPointerEventScope { while (true) { awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial); lastActivity[0] = System.currentTimeMillis() } }
+    }, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text("Private Vault", color = Ink, fontSize = UiTokens.PageTitleSp.sp, fontWeight = FontWeight.Bold)
         Text("Your passwords stay encrypted on this device. Vault data is excluded from device backup and sync.", color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp)
         val opened = entries
@@ -1160,6 +1180,7 @@ private fun biometricUnavailableMessage(status: Int): String = when (status) {
     notificationsEnabled: Boolean,
     channelImportance: Int?,
     onOpenWallpaper: (String) -> Unit,
+    onOpenVaultSecurity: () -> Unit,
     onResetBackgrounds: () -> Unit
 ) {
     var typographyExpanded by remember { mutableStateOf(false) }
@@ -1178,6 +1199,16 @@ private fun biometricUnavailableMessage(status: Int): String = when (status) {
             SettingsPanel {
                 FontFamilyRow("App font", appFontSettings.family, appFontSettings.fontFileId, importedFonts, onAppFontFamily, onAppImportedFont)
                 LocalFontImportRow(importedFonts.size, onImportAppFont)
+            }
+        }
+        Text("VAULT SECURITY", color = UiTokens.Subdued, fontSize = UiTokens.DetailSp.sp, modifier = Modifier.padding(top = 8.dp))
+        Surface(onClick = onOpenVaultSecurity, color = UiTokens.SurfaceRaised, shape = RoundedCornerShape(UiTokens.RowRadius), modifier = Modifier.fillMaxWidth()) {
+            Row(Modifier.fillMaxWidth().heightIn(min = UiTokens.ControlHeight).padding(horizontal = 14.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(Modifier.weight(1f)) {
+                    Text("Vault Security", color = Ink, fontSize = UiTokens.LabelSp.sp, fontWeight = FontWeight.Medium)
+                    Text("Master password, biometrics, auto lock, audit", color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp)
+                }
+                Text("›", color = UiTokens.Muted, fontSize = 22.sp)
             }
         }
         Text("WIDGET CUSTOMIZATION", color = UiTokens.Subdued, fontSize = UiTokens.DetailSp.sp, modifier = Modifier.padding(top = 8.dp))
