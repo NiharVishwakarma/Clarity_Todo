@@ -1,0 +1,266 @@
+CLARITY - FEATURE, WIDGET, AND PRICING PLAN
+Prepared: 16 October 2026
+
+PURPOSE AND STATUS
+==================
+This document records the product ideas, implementation boundaries, free/paid proposal, regional price proposals, revenue estimates, and cautions discussed for Clarity.
+
+The new-purpose widgets and paid plans described below are proposals only. They have not been implemented or launched. Clarity's existing To-Do and Calendar widgets, widget settings, local font import, and recent Settings/reminder UI changes are existing groundwork; this document does not claim the new widgets exist.
+
+
+1. PRODUCT DIRECTION
+====================
+Clarity can grow from a To-Do and Calendar app into a collection of useful and fun Android home-screen widgets. Each widget should be optional and independently placeable from the Android widget picker.
+
+Widgets are best for glanceable information and short, direct actions. Configuration, long text entry, secure authentication, browsing, and complex interactions should open a Clarity screen. Android widgets are hosted outside the app and have UI/interaction limits compared with full screens. Support for sizing and controls varies by Android version and launcher.
+
+
+2. WIDGET AND FUNCTIONALITY IDEAS DISCUSSED
+===========================================
+
+A. Current Clarity widget foundation
+------------------------------------
+- To-Do widget: task list, task completion, reminders, widget appearance settings.
+- Calendar widget: month calendar and task indicators.
+- Local font import and separate font selection for To-Do and Calendar widgets.
+- Color, typography, spacing, and appearance settings for both widgets.
+- A responsive layout goal: calendar uses the full horizontal space on phones and behaves appropriately on tablets without stretching to full width unnecessarily.
+
+B. Productivity widgets
+-----------------------
+- Today / Upcoming widget: overdue tasks, today's tasks, and tasks due over the next few days.
+- Agenda widget: compact scrollable list of upcoming calendar entries and tasks.
+- Quick-add widget: create a task from the home screen.
+- Task-list filter widgets: let each widget show a selected list, date range, category, or priority.
+- Recurring tasks: daily, weekly, monthly, or custom recurrence.
+- Reminder presets and snooze / remind-me-later action.
+- More widget size/layout choices for small, medium, and large placements; adapt when resized.
+- Calendar sync and event import.
+- Task organization: categories, priorities, tags, and subtasks.
+- Backup and restore across devices.
+- Widget picker previews that reflect widget settings.
+
+C. Quick tools and controls
+---------------------------
+- DND / Do Not Disturb widget button with visible current state.
+- Calculator widget with tappable basic arithmetic; scientific functions and long calculation history belong in the app.
+- Luck / casual game widgets:
+  * Coin toss.
+  * Number guessing.
+  * Rock-paper-scissors.
+  * Tic-tac-toe (a small board may fit; richer game experience belongs in the app).
+
+D. Personal / discovery widgets
+-------------------------------
+- Daily horoscope widget, with birthday/sign and preferred horoscope tradition selected in the app.
+- Rotating quote widget (including reflective/deep quotes) with a tap to show another.
+- Random fun-fact widget with a tap to get another fact.
+- Topic-based recent news widget with headlines and links to stories.
+
+E. Security and emergency widgets
+---------------------------------
+- Private password notepad / vault, stored locally without sync as proposed.
+- Locked vault widget entry point. A tap should launch an app screen for fingerprint, device credential, or secret-password authentication.
+- Emergency contacts widget with user-selected family/close contacts and call shortcuts.
+- Emergency services shortcuts for police, healthcare, fire, or other local services, with configured numbers appropriate to the user's region.
+
+F. Visual personalization across widgets
+-----------------------------------------
+- Let the user select a local image/photo as a widget background.
+- Automatically choose a readable black or white text color based on the background.
+- Allow manual text-color override even when automatic contrast is on.
+- Offer background dim/overlay or position/crop settings as part of photo setup.
+
+
+3. WHAT CAN WORK ON THE WIDGET VS. IN THE APP
+=============================================
+
+Mostly widget-first (simple display/action):
+- Show tasks, agenda, calendar, quotes, facts, news headlines, horoscope text, calculator buttons, coin toss, number guess, or a locked-vault tile.
+- Mark a task complete from the widget where supported.
+- Open the dialer with a selected phone number ready to call.
+- Display a selected image as a background and render readable text on top.
+- Launch a supported DND control after the needed access is granted.
+
+Needs an app setup screen or a handoff to the app:
+- Select which tasks/lists/dates/topics to show.
+- Configure a birthday, horoscope type, emergency number, contact, or news source.
+- Choose, crop, position, and preview a background image.
+- Add or edit longer task/note text and inspect full news stories.
+- Set up reminders, recurring task rules, backup, and restore.
+- Enter and view password-vault contents after authentication.
+- Complex/scientific calculator history or richer games.
+
+Android/platform qualifications:
+- A DND widget is possible, but Android requires the user to grant notification-policy access. Newer Android target versions may only let an app activate its own DND rule rather than arbitrarily set the global phone mode. Confirm behavior against Clarity's target SDK and device versions.
+- Android's biometric prompt is hosted by an Activity/Fragment. The widget should open an app screen to authenticate; it should not expose the secret directly in an unauthenticated widget surface.
+- ACTION_DIAL opens the dialer and asks the user to tap Call. Direct ACTION_CALL needs the CALL_PHONE dangerous permission and should be used only where justified. Emergency calling behavior and emergency numbers are controlled by Android/carrier/region; never represent Clarity as an emergency service.
+- Widgets have limited gestures and supported UI elements. Use taps and vertical scrolling; do not design around full-screen-app gestures or complex interactions.
+- News requires an appropriate source/API, internet, attribution/terms review, and a refresh strategy. Background refreshes must respect Android limits and battery use.
+- Widget updates should happen after relevant app/widget actions and at sensible periodic intervals, not every minute while the app is idle.
+
+
+4. RECOMMENDED FREE / PAID STRUCTURE
+====================================
+
+Free tier proposal:
+- Keep the existing To-Do and Calendar widgets and core task/reminder functionality free.
+- Keep basic widget colors and local font import available free so current users retain useful customization.
+- Include a useful but bounded selection of utility/personal widgets (for example quote/fact and basic quick tools) to demonstrate Clarity's value.
+- Keep users' task data and their own vault secrets accessible; never lock existing personal data when a subscription ends.
+
+Clarity Plus subscription proposal:
+- Unlock additional widget types and more widget instances/layout choices.
+- Photo backgrounds and advanced widget customization (with manual text color and automatic contrast controls).
+- Advanced productivity options, filters, additional visual themes, and richer widget layouts.
+- Topic-based news and other features with ongoing data/API costs may be Plus-only, quota-limited, or offered as a separate ongoing service.
+
+Lifetime purchase proposal:
+- Offer a one-time, non-consumable purchase (not technically a subscription) for durable app features.
+- Suggested India launch price: INR 1,499 introductory offer; recommended normal price INR 1,999. Consider INR 2,499 after the product has a mature feature set and demonstrated value.
+- At INR 1,999, a simplified estimate after 18% GST and 15% Play fee is approximately INR 1,440 received before income tax. That is about 2.9 years of estimated proceeds from the proposed INR 699 annual subscription.
+- Include durable/offline/local benefits such as additional widgets, photo backgrounds, and customization in lifetime access.
+- Do not promise unlimited future third-party news/API/AI usage for a single one-time fee. Keep recurring-cost features under a subscription, add-on, or reasonable usage quota.
+- State clearly what “lifetime” means (the purchased Clarity app/features, not the user's lifetime or guaranteed availability of third-party services). Restore the non-consumable purchase through Google Play for the user's account.
+
+
+5. PROPOSED SUBSCRIPTION PRICES BY MARKET
+=========================================
+These are initial consumer price hypotheses for Clarity Plus, not validated willingness-to-pay results. Weekly is optional and costs more per month than the annual plan. Annual should be the primary offer. Local Play prices, taxes, market response, and payment availability must be checked before launch.
+
+Market                 Weekly       Monthly       Yearly
+India                  INR 29       INR 99        INR 699
+United States          USD 1.99     USD 4.99      USD 29.99
+United Kingdom         GBP 1.49     GBP 3.99      GBP 24.99
+Eurozone               EUR 1.49     EUR 3.99      EUR 24.99
+Russia*                RUB 99       RUB 249       RUB 1,490
+Mainland China*        CNY 6        CNY 15        CNY 98
+United Arab Emirates   AED 5.99     AED 14.99     AED 99.99
+Saudi Arabia           SAR 5.99     SAR 14.99     SAR 99.99
+Qatar                  QAR 5.99     QAR 14.99     QAR 99.99
+Kuwait                 KWD 0.49     KWD 1.49      KWD 9.99
+Bahrain                BHD 0.49     BHD 1.49      BHD 9.99
+Oman                   OMR 0.49     OMR 1.49      OMR 9.99
+Israel                 ILS 5.90     ILS 14.90     ILS 99
+Türkiye                TRY 29.99    TRY 79.99     TRY 499.99
+Egypt                  EGP 24.99    EGP 69.99     EGP 449.99
+
+Regional notes:
+- “Eurozone” is not all of Europe. Set local pricing for European countries that use other currencies and check each country's tax rate.
+- US sales tax varies by state/locality; the listed price may have tax added at checkout depending on the market and billing configuration.
+- Prices for Türkiye and Egypt should be reviewed regularly due to exchange-rate/inflation changes.
+- Russia's prices are illustrative only: Google Play billing is paused for users in Russia, so these are not currently purchasable through Play there.
+- Mainland China needs a separate distribution and payment plan outside the regular Google Play channel; the CNY prices are not ready-to-publish Play prices.
+- Google Play may auto-convert regional prices using its exchange rates and local pricing conventions. Inspect and manually set prices in Play Console where appropriate.
+
+
+6. ROUGH REVENUE ESTIMATES DISCUSSED
+====================================
+
+A. India: transactions to produce INR 300,000 after assumed GST and Play fee
+Assumptions used in the earlier calculation: India list prices include 18% GST; Google Play fee is 15%; the fee is applied to the pre-GST price. These are cumulative paid transactions for the relevant plan, not necessarily unique people. They exclude income tax and other business costs.
+
+Plan       Price/charge   Approx proceeds/charge   Charges for INR 300,000
+Weekly     INR 29         INR 20.89                14,362
+Monthly    INR 99         INR 71.31                4,207
+Yearly     INR 699        INR 503.52               596
+
+B. Other markets: rough transactions to produce INR 300,000
+These counts reused the prior local price suggestions, 15% assumed Google Play fee, approximate FX rates from 14 October 2026, and tax-inclusive standard VAT assumptions where listed. They are planning approximations, not tax/accounting advice. Counts are rounded up. They exclude personal/corporate income tax and operating costs.
+
+Market                 Weekly sales   Monthly sales   Yearly sales   Tax model used
+United States*         1,865          744             124            No universal rate deducted; local sales tax varies
+United Kingdom         2,272          849             136            20% VAT
+Eurozone**             2,619-2,843    978-1,062       157-170        17%-27% country VAT range
+United Arab Emirates   2,388          955             144            5% VAT
+Saudi Arabia           2,671          1,068           160            15% VAT
+Qatar                  2,255          901             136            0% VAT (no VAT currently applied)
+Kuwait                 2,363          778             116            0% VAT (not implemented)
+Bahrain                3,132          1,030           154            10% VAT
+Oman                   3,058          1,006           150            5% VAT
+Israel                 2,301          912             138            18% VAT
+Türkiye                7,332          2,749           440            20% VAT
+Egypt                  8,982          3,207           499            14% VAT
+
+* US results exclude local sales tax because it varies and can be added differently at checkout. Actual transaction proceeds depend on Play's tax handling and location.
+** EU standard VAT rates differ by country. The range is a sensitivity estimate, not one Eurozone rate.
+
+Russia and mainland China do not have a meaningful Google Play sales count under this model: Russia Play billing is paused and mainland China needs a different distribution/payment provider. Alternative stores would have their own fees, taxes, and local compliance requirements.
+
+Important interpretation:
+- These are sales/charges during a billing interval. For example, “4,207 monthly sales” means about 4,207 paid monthly transactions to make the estimated total; maintaining a monthly revenue goal requires recurring renewals and accounting for churn.
+- An annual plan sale is collected up front for a year of access; it is not equivalent to monthly recurring cash flow.
+- “After GST/VAT and Google Play fee” is not “after all taxes.” Income tax depends on developer/entity status, other income, deductible costs, and applicable law.
+- India-based developers must determine GST obligations and may have withholding/TCS entries. Withholding is not automatically the final income tax bill; consult a qualified tax professional before setting a business target.
+- FX rates move. The earlier INR conversions used mid-market rates around 14 October 2026. Google payout conversion and fees may differ.
+- Google Play service-fee schedules have begun changing by region and install status. The 15% estimates are assumptions; verify the actual service/billing fee applicable to Clarity's Play Console setup before relying on a forecast.
+
+
+7. FONT LICENSE AND USER CONTENT NOTES
+======================================
+- Users importing a locally stored font for their own widget appearance generally need to have obtained the file lawfully and comply with that font's license.
+- Do not bundle or redistribute third-party fonts without checking the applicable font license.
+- Fonts have different licenses and formats; verify support in the importer and renderer. Local use is distinct from the app distributing font files to others.
+- Apply the same user-rights principle to photos: the user selects their own image; Clarity should not imply ownership or grant rights to images.
+
+
+8. SUGGESTED BUILD / LAUNCH ORDER
+================================
+1. Keep existing To-Do and Calendar behavior stable and ensure responsive phone/tablet layouts.
+2. Add shared photo-background and readable-text/contrast settings for existing widgets.
+3. Add easy, low-risk utility widgets: quote, fun fact, calculator, coin toss, and quick-add.
+4. Add Today/Upcoming and Agenda widgets with sensible filters and direct task completion.
+5. Add recurring tasks, reminder presets/snooze, and backup/restore.
+6. Add DND only after checking policy access and target-SDK behavior on supported Android versions.
+7. Add emergency contact shortcuts using explicit user setup and a clear dialer handoff; localize any public-service numbers and test carefully.
+8. Add the offline password vault only with a clear threat model, secure storage/encryption, backup/recovery explanation, and app-screen authentication. Do not reveal secrets in widget previews, lock-screen surfaces, logs, or unauthenticated widget state.
+9. Add horoscope/news only after selecting legally usable sources, understanding attribution/content terms, building refresh controls, and calculating infrastructure costs.
+10. Validate demand and costs before turning on paid plans. Start with one Clarity Plus tier, a generous free tier, and an optional lifetime non-consumable purchase.
+
+
+9. SOURCES REFERENCED DURING DISCUSSION
+======================================
+Android widget overview / design and limitations:
+https://developer.android.com/develop/ui/views/appwidgets/overview
+
+Android DND notification policy API:
+https://developer.android.com/reference/android/app/NotificationManager.html
+
+Android call intents (ACTION_DIAL / ACTION_CALL):
+https://developer.android.com/guide/components/intents-common
+
+Android biometric prompt:
+https://developer.android.com/identity/sign-in/biometric-auth
+
+Google Play one-time products / non-consumable purchases:
+https://developer.android.com/google/play/billing/one-time-products
+
+Google Play service fees:
+https://support.google.com/googleplay/android-developer/answer/112622
+
+Google Play local prices and currencies:
+https://support.google.com/googleplay/android-developer/answer/1169947
+
+Google Play tax and VAT handling:
+https://support.google.com/googleplay/android-developer/answer/138000
+
+India developer tax guidance from Google:
+https://support.google.com/paymentscenter/answer/15152449
+
+India GST Council reference for online subscriptions:
+https://www.gstcouncil.gov.in/node/4685
+
+EU VAT rates:
+https://europa.eu/youreurope/business/finance-and-tax/vat/vat-rules-rates/indexamp_en.htm
+
+UK VAT rate:
+https://www.gov.uk/tax-on-shopping
+
+Google Play Russia billing status:
+https://support.google.com/googleplay/android-developer/answer/11950272
+
+Competitor pricing references used for context:
+TickTick Premium: https://ticktick.com/upgrade
+Todoist pricing update: https://www.todoist.com/help/articles/todoist-pro-pricing-update-in-2025-bxBvHZuJZ
+
+END OF PLAN
