@@ -66,3 +66,10 @@ This log begins with the repository snapshot available when these project notes 
 - Added a new vector icon `ic_vault_door` (black circular vault door, metallic rim, bolts, red glowing locking ring, wheel spokes and keyhole hub, subtle glass highlight) and used it in the Vault widget instead of the small padlock; it fills roughly 60-70% of a 1-row widget's height, beside "Clarity Vault" / "Vault locked · Tap to unlock".
 - Added `previewImage` (`vault_widget_preview`) and `previewLayout` to `vault_widget_info.xml` so the widget picker no longer falls back to the launcher icon.
 - `ic_vault_lock` is no longer used by the widget. Not compiled or visually verified on a device; check the icon proportions after the CI build.
+
+### 2026-10-17 — Upgrade phase 1: Vault widget width and Settings cleanup
+
+- Vault widget provider now requests the same 4-cell width as the To-Do widget (`minWidth` 300dp, `minResizeWidth` 250dp, `minHeight` 80dp).
+- Removed the placeholder "Appearance" and "Widget preferences" sections from global Settings; Typography and Permissions remain.
+- Not yet implemented from the consolidated upgrade request: cloud backup/restore (Google Drive appDataFolder), restore/start-fresh onboarding, automatic sync, Vault Security settings (change master password, auto-lock, security audit), and widget wallpaper/fade controls. Planned order: wallpaper and fade controls, then backup and restore. Design constraint: the vault file lives in `noBackupFilesDir` and the biometric key is Keystore-bound, so after a restore biometrics must be re-enabled after one master-password unlock.
+- Not compiled or device-tested.

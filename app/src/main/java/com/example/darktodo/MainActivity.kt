@@ -1151,9 +1151,7 @@ private fun biometricUnavailableMessage(status: Int): String = when (status) {
     notificationsEnabled: Boolean,
     channelImportance: Int?
 ) {
-    var appearanceExpanded by remember { mutableStateOf(false) }
     var typographyExpanded by remember { mutableStateOf(false) }
-    var widgetExpanded by remember { mutableStateOf(false) }
     val channelEnabled = channelImportance != android.app.NotificationManager.IMPORTANCE_NONE
     val notificationsOkay = notificationGranted && notificationsEnabled && channelEnabled
     val permissionNeeded = remindersEnabled && !notificationsOkay
@@ -1163,17 +1161,11 @@ private fun biometricUnavailableMessage(status: Int): String = when (status) {
             Text("App preferences", color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp)
         }
         Text("APP PREFERENCES", color = UiTokens.Subdued, fontSize = UiTokens.DetailSp.sp, modifier = Modifier.padding(top = 8.dp))
-        CollapsibleSettingsSection("Appearance", "Dark theme", appearanceExpanded, { appearanceExpanded = it }) {
-            SettingsPanel { SettingsDescription("App theme", "Clarity currently uses its dark appearance") }
-        }
         CollapsibleSettingsSection("Typography", selectedFontLabel(appFontSettings.family, appFontSettings.fontFileId, importedFonts), typographyExpanded, { typographyExpanded = it }) {
             SettingsPanel {
                 FontFamilyRow("App font", appFontSettings.family, appFontSettings.fontFileId, importedFonts, onAppFontFamily, onAppImportedFont)
                 LocalFontImportRow(importedFonts.size, onImportAppFont)
             }
-        }
-        CollapsibleSettingsSection("Widget preferences", "Automatic refresh enabled", widgetExpanded, { widgetExpanded = it }) {
-            SettingsPanel { SettingsDescription("Widget updates", "Changes refresh the matching widget automatically") }
         }
         Text("SYSTEM", color = UiTokens.Subdued, fontSize = UiTokens.DetailSp.sp, modifier = Modifier.padding(top = 8.dp))
         Column(verticalArrangement = Arrangement.spacedBy(UiTokens.ControlGap)) {
