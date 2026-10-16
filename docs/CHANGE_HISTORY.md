@@ -96,3 +96,7 @@ This log begins with the repository snapshot available when these project notes 
 - Auto backup after changes (WorkManager, network required, 20 s debounce); stays off after Start Fresh so the cloud copy is not overwritten.
 - Vault intro text updated (no longer says excluded from backup). Added BackupCodecTest. Not compiled yet.
 - Required setup (Google Cloud Console): create a project, enable Google Drive API, configure the OAuth consent screen (add yourself as a test user), create an OAuth client ID of type Android with package com.example.darktodo and the SHA-1 of the signing key. Use a persistent keystore (ANDROID_KEYSTORE_* secrets) so the SHA-1 stays stable. No client ID is placed in code.
+
+## 2026-10-17 - CI compile fixes
+
+- First CI build failed in :app:compileDebugKotlin. Fixed a missing line break in CalendarWidget.kt that merged the wallpaper block with the heading setText call, and added the missing androidx.compose.ui.graphics.nativeCanvas import in WidgetBackgroundEditor.kt.

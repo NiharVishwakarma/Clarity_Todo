@@ -94,7 +94,8 @@ object CalendarWidget {
             options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 250).coerceAtLeast(1), prefs.cornerRadius.toFloat())?.let {
             views.setImageViewBitmap(R.id.calendar_background, it)
             views.setInt(R.id.calendar_background, "setColorFilter", Color.TRANSPARENT)
-        }               setText(context, views, if (importedFont) R.id.calendar_heading_image else R.id.calendar_heading,
+        }
+        setText(context, views, if (importedFont) R.id.calendar_heading_image else R.id.calendar_heading,
             month.format(DateTimeFormatter.ofPattern("LLLL yyyy", locale)), prefs.fontFileId, prefs.headingSize.toFloat(), color(prefs.heading), (widgetWidthDp - 112).coerceAtLeast(50).toFloat())
         if (!importedFont) {
             views.setTextViewTextSize(R.id.calendar_heading, 2, prefs.headingSize.toFloat())
