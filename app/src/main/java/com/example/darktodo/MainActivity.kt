@@ -21,6 +21,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -63,6 +64,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
@@ -74,6 +77,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import com.example.darktodo.data.Task
 import com.example.darktodo.data.TaskEvent
 import com.example.darktodo.data.TaskStore
@@ -86,6 +91,8 @@ import com.example.darktodo.data.WidgetPrefs
 import com.example.darktodo.data.WidgetFontFamily
 import com.example.darktodo.data.WidgetSettings
 import com.example.darktodo.data.CalendarWidgetSettings
+import com.example.darktodo.data.CalendarDates
+import com.example.darktodo.data.CalendarTaskStatus
 import com.example.darktodo.data.ImportedWidgetFont
 import com.example.darktodo.data.LocalWidgetFonts
 import com.example.darktodo.ui.ColorPickerDialog
@@ -124,6 +131,11 @@ private object UiTokens {
     const val LabelSp = 14f
     const val DetailSp = 12f
 }
+private data class WidgetDestination(val label: String, val route: String, val icon: String)
+private val widgetDestinations = listOf(
+    WidgetDestination("Calendar", "Calendar", "calendar"),
+    WidgetDestination("To-Do", "To-Do", "todo")
+)
 private val Bg = UiTokens.Background
 private val Card = UiTokens.Surface
 private val Accent = UiTokens.Accent
@@ -168,7 +180,8 @@ class MainActivity : ComponentActivity() {
     var tasks by remember { mutableStateOf(TaskStore.tasks(context)) }
     var events by remember { mutableStateOf(TaskStore.history(context)) }
     var settings by remember { mutableStateOf(WidgetSettings.load(context)) }
-    var page by remember { mutableStateOf("Tasks") }
+    var page by remember { mutableStateOf("Calendar") }
+    var todoPage by remember { mutableStateOf("Tasks") }
     var title by remember { mutableStateOf("") }
     var timeTick by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var editing by remember { mutableStateOf<Task?>(null) }
@@ -183,9 +196,13 @@ class MainActivity : ComponentActivity() {
     var fontImportTargetCalendar by remember { mutableStateOf<Boolean?>(null) }
     var fontImportMessage by remember { mutableStateOf<String?>(null) }
     var permissionRevision by remember { mutableIntStateOf(0) }
-    var showPermissionDialog by remember { mutableStateOf(!context.getSharedPreferences("todo_store", Context.MODE_PRIVATE).getBoolean("reminder_setup_complete_v1", false)) }
     @Suppress("UNUSED_VARIABLE") val permissionStatusRevision = permissionRevision
     val notificationPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { permissionRevision++ }
+    fun requestReminderNotificationPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
     fun refresh() { tasks = TaskStore.tasks(context); events = TaskStore.history(context) }
     fun refreshSettings() {
         settings = WidgetSettings.load(context)
@@ -236,9 +253,9 @@ class MainActivity : ComponentActivity() {
     }
     // A notification task ID is a one-shot navigation request. Do not key this on task data:
     // doing so re-opened the same edit dialog after any save changed the task list.
-    LaunchedEffect(openTaskId) { if (openTaskId != null) editing = tasks.firstOrNull { it.id == openTaskId } }
-    LaunchedEffect(startCreateTask) { if (startCreateTask) { editing = null; title = ""; addReminder = true } }
-    LaunchedEffect(openTaskDate) { if (openTaskDate != null) { dateFilter = runCatching { LocalDate.parse(openTaskDate).toString() }.getOrNull(); page = "Tasks" } }
+    LaunchedEffect(openTaskId) { if (openTaskId != null) { page = "To-Do"; todoPage = "Tasks"; editing = tasks.firstOrNull { it.id == openTaskId } } }
+    LaunchedEffect(startCreateTask) { if (startCreateTask) { page = "To-Do"; todoPage = "Tasks"; editing = null; title = ""; addReminder = true } }
+    LaunchedEffect(openTaskDate) { if (openTaskDate != null) { dateFilter = runCatching { LocalDate.parse(openTaskDate).toString() }.getOrNull(); page = "To-Do"; todoPage = "Tasks" } }
 
     LaunchedEffect(settings) { TodoWidget.updateAll(context) }
     // Widget font preferences belong to the home-screen widget; the Tasks UI stays on
@@ -248,16 +265,26 @@ class MainActivity : ComponentActivity() {
     val caretColor = if (iconColor.isBlackOrGray()) Color.White else iconColor
     ProvideTextStyle(TextStyle(fontFamily = FontFamily.SansSerif)) {
         Column(Modifier.fillMaxSize().background(Bg).windowInsetsPadding(WindowInsets.safeDrawing).padding(UiTokens.PageMargin)) {
-            Row(Modifier.fillMaxWidth().padding(bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("Clarity", color = Ink, fontSize = 20.sp, fontWeight = FontWeight.Bold, maxLines = 1, modifier = Modifier.weight(1f))
-                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(UiTokens.CompactGap), verticalAlignment = Alignment.CenterVertically) {
-                    NavigationItem("Tasks", page == "Tasks") { page = "Tasks"; refresh() }
-                    NavigationItem("History", page == "History") { page = "History"; route = emptyList(); refresh() }
-                    NavigationItem("Settings", page == "Settings") { page = "Settings"; refreshSettings() }
+            Row(Modifier.fillMaxWidth().padding(bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("Clarity", color = Ink, fontSize = 22.sp, fontWeight = FontWeight.Bold, maxLines = 1, modifier = Modifier.weight(1f))
+                IconAction("Open app settings", "settings") { page = "Settings"; refreshSettings() }
+            }
+            Row(Modifier.fillMaxWidth().padding(bottom = 14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                widgetDestinations.forEach { destination ->
+                    val selected = page == destination.route || (destination.route == "To-Do" && page == "TodoSettings") || (destination.route == "Calendar" && page == "CalendarSettings")
+                    IconNavigationItem(destination.label, destination.icon, selected, Modifier.weight(1f)) {
+                        page = destination.route
+                        if (destination.route == "To-Do") refresh()
+                    }
                 }
             }
-            when (page) {
-                "Tasks" -> {
+            when {
+                page == "To-Do" && todoPage == "Tasks" -> {
+                    Row(Modifier.fillMaxWidth().padding(bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text("Tasks", color = Ink, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                        NavigationItem("History", todoPage == "History") { todoPage = "History"; route = emptyList(); refresh() }
+                        IconAction("To-Do widget settings", "settings") { page = "TodoSettings"; refreshSettings() }
+                    }
                     if (dateFilter != null) Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Text("Tasks for $dateFilter", color = Accent, fontSize = 13.sp, modifier = Modifier.weight(1f))
                         TextButton(onClick = { dateFilter = null }) { Text("Show all", color = Ink) }
@@ -267,6 +294,7 @@ class MainActivity : ComponentActivity() {
                         BasicTextField(value = title, onValueChange = { title = it }, modifier = Modifier.weight(1f), singleLine = true, cursorBrush = SolidColor(caretColor), textStyle = TextStyle(color = Ink, fontSize = 16.sp, fontFamily = taskUiFontFamily, fontStyle = FontStyle.Normal, fontWeight = FontWeight.Normal), decorationBox = { inner -> if (title.isEmpty()) Text("Add a task", color = Color.Gray); inner() })
                         TextButton(onClick = { if (title.isNotBlank()) addReminder = true }) { Text("Add", color = Accent) }
                     }
+                    TodoWidgetPreview(tasks, settings)
                     Spacer(Modifier.height(12.dp))
                     val visibleTasks = tasks.filter { dateFilter == null || it.taskDate == dateFilter }
                     LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -294,11 +322,47 @@ class MainActivity : ComponentActivity() {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         if (dateFilter == null) TextButton(onClick = { TaskStore.clearCompleted(context); refresh() }) { Text("Clear completed", color = Accent) }
                         else Spacer(Modifier.width(1.dp))
-                        TextButton(onClick = { showPermissionDialog = true; permissionRevision++ }) { Text("Permissions", color = Accent) }
                     }
                 }
-                "History" -> HistoryScreen(events, route, onRoute = { route = it }, onDelete = { TaskStore.deleteEvent(context, it); refresh() }, onClear = { scope -> TaskStore.deleteEvents(context, scope); refresh() }, onClearAll = { confirmClear = true })
-                else -> SettingsScreen(
+                page == "To-Do" -> {
+                    Row(Modifier.fillMaxWidth().padding(bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text("History", color = Ink, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                        NavigationItem("Tasks", todoPage == "Tasks") { todoPage = "Tasks"; refresh() }
+                        IconAction("To-Do widget settings", "settings") { page = "TodoSettings"; refreshSettings() }
+                    }
+                    HistoryScreen(events, route, onRoute = { route = it }, onDelete = { TaskStore.deleteEvent(context, it); refresh() }, onClear = { scope -> TaskStore.deleteEvents(context, scope); refresh() }, onClearAll = { confirmClear = true })
+                }
+                page == "Calendar" -> {
+                    Row(Modifier.fillMaxWidth().padding(bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Calendar", color = Ink, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                            Text("Your month at a glance", color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp)
+                        }
+                        IconAction("Calendar widget settings", "settings") { page = "CalendarSettings"; refreshSettings() }
+                    }
+                    CalendarHomeScreen(tasks, calendarSettings, onDate = { selectedDate -> dateFilter = selectedDate.toString(); todoPage = "Tasks"; page = "To-Do" })
+                }
+                page == "Settings" -> GlobalSettingsScreen(
+                    onOpenPermissions = { page = "Permissions" },
+                    remindersEnabled = tasks.any { !it.completed && it.reminderType != "none" },
+                    notificationGranted = Build.VERSION.SDK_INT < 33 || ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED,
+                    notificationsEnabled = androidx.core.app.NotificationManagerCompat.from(context).areNotificationsEnabled(),
+                    channelImportance = if (Build.VERSION.SDK_INT >= 26) context.getSystemService(android.app.NotificationManager::class.java).getNotificationChannel("task_reminders")?.importance else null
+                )
+                page == "Permissions" -> PermissionsScreen(
+                    remindersEnabled = tasks.any { !it.completed && it.reminderType != "none" },
+                    notificationGranted = Build.VERSION.SDK_INT < 33 || ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED,
+                    notificationsEnabled = androidx.core.app.NotificationManagerCompat.from(context).areNotificationsEnabled(),
+                    channelImportance = if (Build.VERSION.SDK_INT >= 26) context.getSystemService(android.app.NotificationManager::class.java).getNotificationChannel("task_reminders")?.importance else null,
+                    exactAlarmsEnabled = com.example.darktodo.reminders.ReminderScheduler.canScheduleExactly(context),
+                    onBack = { page = "Settings" },
+                    onRequestNotifications = { if (Build.VERSION.SDK_INT >= 33) notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) else permissionRevision++ },
+                    onNotificationSettings = { context.startActivity(Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)) },
+                    onExactAlarmSettings = { runCatching { context.startActivity(Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, android.net.Uri.parse("package:${context.packageName}"))) } }
+                )
+                page == "TodoSettings" || page == "CalendarSettings" -> SettingsScreen(
+                    screen = page,
+                    onBack = { page = if (page == "TodoSettings") "To-Do" else "Calendar" },
                     settings = settings,
                     calendarSettings = calendarSettings,
                     importedFonts = importedWidgetFonts,
@@ -317,9 +381,6 @@ class MainActivity : ComponentActivity() {
                     onTaskTitleSize = { WidgetSettings.saveTaskTitleSize(context, it); refreshSettings(); TodoWidget.updateAll(context) },
                     onReset = {
                         WidgetSettings.reset(context)
-                        context.getSharedPreferences("todo_store", Context.MODE_PRIVATE).edit().remove("reminder_setup_complete_v1").apply()
-                        showPermissionDialog = true
-                        permissionRevision++
                         refreshSettings()
                         TodoWidget.updateAll(context)
                     },
@@ -332,20 +393,6 @@ class MainActivity : ComponentActivity() {
         }
     }
     LaunchedEffect(tasks) { TodoWidget.updateAll(context) }
-    if (showPermissionDialog) PermissionsDialog(
-        notificationGranted = Build.VERSION.SDK_INT < 33 || ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED,
-        notificationsEnabled = androidx.core.app.NotificationManagerCompat.from(context).areNotificationsEnabled(),
-        channelImportance = if (Build.VERSION.SDK_INT >= 26) context.getSystemService(android.app.NotificationManager::class.java).getNotificationChannel("task_reminders")?.importance else null,
-        exactAlarmsEnabled = com.example.darktodo.reminders.ReminderScheduler.canScheduleExactly(context),
-        onRequestNotifications = { if (Build.VERSION.SDK_INT >= 33) notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) else permissionRevision++ },
-        onNotificationSettings = { context.startActivity(Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)) },
-        onExactAlarmSettings = { runCatching { context.startActivity(Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, android.net.Uri.parse("package:${context.packageName}"))) } },
-        onDismiss = {
-            context.getSharedPreferences("todo_store", Context.MODE_PRIVATE).edit().putBoolean("reminder_setup_complete_v1", true).apply()
-            showPermissionDialog = false
-        },
-        onDone = { context.getSharedPreferences("todo_store", Context.MODE_PRIVATE).edit().putBoolean("reminder_setup_complete_v1", true).apply(); showPermissionDialog = false }
-    )
     editing?.let { task ->
         var value by remember(task.id) { mutableStateOf(task.title) }
         var kind by remember(task.id) { mutableStateOf(if (task.completed) "none" else task.reminderType) }
@@ -363,6 +410,7 @@ class MainActivity : ComponentActivity() {
             if (value.isBlank()) error = "Enter a task name" else if (reminderEdited && badZone) error = "Enter a valid IANA time zone, such as Europe/London" else if (reminderEdited && kind == "time" && at <= System.currentTimeMillis()) error = "Choose a future time" else if ((reminderEdited || renewExpiredCountdown) && kind == "duration" && at <= System.currentTimeMillis()) error = "Enter a duration greater than zero" else {
                 // Saving an expired countdown renews it from the duration shown in the dialog,
                 // even when the user leaves the hours/minutes fields untouched.
+                if (reminderEdited && kind != "none") requestReminderNotificationPermissionIfNeeded()
                 if (CountdownEditPolicy.shouldConfigure(reminderEdited, renewExpiredCountdown)) TaskStore.configure(context, task.id, value, kind, at, timeZone.trim(), taskDate)
                 else TaskStore.updateTitleAndDate(context, task.id, value, taskDate)
                 editing = null; refresh()
@@ -374,7 +422,7 @@ class MainActivity : ComponentActivity() {
         ReminderDialog(title, { title = it }, kind, { kind = it }, deadline, { deadline = it }, hours, { hours = it }, minutes, { minutes = it }, timeZone, { timeZone = it }, taskDate, { taskDate = it }, error, { error = it }, { addReminder = false }, {
             val at = when (kind) { "time" -> deadline; "duration" -> System.currentTimeMillis() + ((hours.toLongOrNull() ?: 0L) * 60 + (minutes.toLongOrNull() ?: 0L)) * 60_000L; else -> 0L }
             val badZone = kind == "time" && timeZone.isNotBlank() && runCatching { ZoneId.of(timeZone.trim()) }.isFailure
-            if (title.isBlank()) error = "Enter a task name" else if (badZone) error = "Enter a valid IANA time zone, such as Europe/London" else if (kind == "time" && at <= System.currentTimeMillis()) error = "Choose a future time" else if (kind == "duration" && at <= System.currentTimeMillis()) error = "Enter a duration greater than zero" else { TaskStore.addConfigured(context, title, kind, at, timeZone.trim(), taskDate); title = ""; addReminder = false; refresh() }
+            if (title.isBlank()) error = "Enter a task name" else if (badZone) error = "Enter a valid IANA time zone, such as Europe/London" else if (kind == "time" && at <= System.currentTimeMillis()) error = "Choose a future time" else if (kind == "duration" && at <= System.currentTimeMillis()) error = "Enter a duration greater than zero" else { if (kind != "none") requestReminderNotificationPermissionIfNeeded(); TaskStore.addConfigured(context, title, kind, at, timeZone.trim(), taskDate); title = ""; addReminder = false; refresh() }
         }, false)
     }
     actionTask?.let { task ->
@@ -388,6 +436,204 @@ class MainActivity : ComponentActivity() {
             dismissButton = { TextButton(onClick = { confirmDeleteTask = null }) { Text("Cancel", color = Ink) } })
     }
     if (confirmClear) AlertDialog(onDismissRequest = { confirmClear = false }, containerColor = Card, title = { Text("Clear all history?", color = Ink) }, text = { Text("Active tasks and their completion status will not change.", color = Ink) }, confirmButton = { TextButton(onClick = { TaskStore.clearHistory(context); confirmClear = false; refresh() }) { Text("Delete history", color = Accent) } }, dismissButton = { TextButton(onClick = { confirmClear = false }) { Text("Cancel") } })
+}
+
+@Composable private fun TodoWidgetPreview(tasks: List<Task>, settings: WidgetPrefs) {
+    val openCount = tasks.count { !it.completed }
+    val shown = tasks.take(3)
+    Surface(color = colorFromHex(settings.widgetBackground), shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("To-Do widget preview", color = UiTokens.Muted, fontSize = 11.sp, modifier = Modifier.weight(1f))
+                Box(Modifier.background(colorFromHex(settings.countPanel), RoundedCornerShape(8.dp)).padding(horizontal = 9.dp, vertical = 4.dp)) {
+                    Text("$openCount open", color = Ink, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                }
+            }
+            if (shown.isEmpty()) Text("Your tasks will appear here", color = UiTokens.Muted, fontSize = 13.sp)
+            else shown.forEach { task ->
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(if (task.completed) "●" else "○", color = colorFromHex(if (task.completed) settings.complete else settings.incomplete), fontSize = 14.sp)
+                    Text(
+                        task.title,
+                        color = colorFromHex(settings.taskTitle),
+                        fontSize = settings.taskTitleSizeSp.sp,
+                        fontFamily = when (settings.fontFamily) {
+                            WidgetFontFamily.SERIF -> FontFamily.Serif
+                            WidgetFontFamily.MONOSPACE -> FontFamily.Monospace
+                            else -> FontFamily.SansSerif
+                        },
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f).graphicsLayer(alpha = if (task.completed) 1f - settings.fadePercent / 100f else 1f)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable private fun CalendarHomeScreen(
+    tasks: List<Task>,
+    settings: com.example.darktodo.data.CalendarWidgetPrefs,
+    onDate: (LocalDate) -> Unit
+) {
+    var month by remember { mutableStateOf(java.time.YearMonth.now()) }
+    var selected by remember(month) { mutableStateOf(LocalDate.now().takeIf { it.month == month.month && it.year == month.year } ?: month.atDay(1)) }
+    val cells = remember(month) { CalendarDates.monthCells(month, java.util.Locale.getDefault()).chunked(7) }
+    val weekdays = remember { CalendarDates.weekdays(java.util.Locale.getDefault()) }
+    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Surface(color = colorFromHex(settings.background), shape = RoundedCornerShape(settings.cornerRadius.dp), modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(month.format(DateTimeFormatter.ofPattern("LLLL yyyy", java.util.Locale.getDefault())), color = colorFromHex(settings.heading), fontSize = settings.headingSize.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                    IconAction("Previous month", "back") { month = month.minusMonths(1) }
+                    IconAction("Next month", "next") { month = month.plusMonths(1) }
+                }
+                Row(Modifier.fillMaxWidth()) {
+                    weekdays.forEach { day -> Box(Modifier.weight(1f).height(32.dp), contentAlignment = Alignment.Center) { Text(day.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.getDefault()).take(2), color = colorFromHex(settings.weekday), fontSize = settings.weekdaySize.sp) } }
+                }
+                cells.forEach { week ->
+                    Row(Modifier.fillMaxWidth()) {
+                        week.forEach { date ->
+                            Box(Modifier.weight(1f).height(44.dp), contentAlignment = Alignment.Center) {
+                                if (date != null) {
+                                    val status = CalendarDates.status(tasks, date)
+                                    Column(
+                                        Modifier.size(38.dp).clip(RoundedCornerShape(50)).background(if (date == selected) colorFromHex(settings.selectedBackground) else Color.Transparent).clickable { selected = date }.padding(2.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.Center
+                                    ) {
+                                        Text(date.dayOfMonth.toString(), color = colorFromHex(if (date == selected) settings.selectedText else settings.date), fontSize = settings.dateSize.sp, maxLines = 1)
+                                        if (settings.showDots && status != CalendarTaskStatus.NONE) Box(Modifier.size(4.dp).background(colorFromHex(when (status) {
+                                            CalendarTaskStatus.COMPLETE -> settings.completeDot
+                                            CalendarTaskStatus.MIXED -> settings.mixedDot
+                                            CalendarTaskStatus.OPEN -> settings.openDot
+                                            CalendarTaskStatus.NONE -> settings.openDot
+                                        }), RoundedCornerShape(50)))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Surface(color = UiTokens.Surface, shape = RoundedCornerShape(UiTokens.CardRadius), modifier = Modifier.fillMaxWidth().clickable { onDate(selected) }) {
+            Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(selected.format(DateTimeFormatter.ofPattern("EEEE, d MMMM", java.util.Locale.getDefault())), color = Ink, fontWeight = FontWeight.SemiBold)
+                    val dayTasks = tasks.filter { it.taskDate == selected.toString() }
+                    Text(if (dayTasks.isEmpty()) "No tasks scheduled" else "${dayTasks.count { !it.completed }} open · ${dayTasks.count { it.completed }} completed", color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp)
+                }
+                Text("View tasks  ›", color = Accent, fontSize = UiTokens.LabelSp.sp)
+            }
+        }
+    }
+}
+
+@Composable private fun GlobalSettingsScreen(
+    onOpenPermissions: () -> Unit,
+    remindersEnabled: Boolean,
+    notificationGranted: Boolean,
+    notificationsEnabled: Boolean,
+    channelImportance: Int?
+) {
+    var appearanceExpanded by remember { mutableStateOf(false) }
+    var typographyExpanded by remember { mutableStateOf(false) }
+    var widgetExpanded by remember { mutableStateOf(false) }
+    val channelEnabled = channelImportance != android.app.NotificationManager.IMPORTANCE_NONE
+    val notificationsOkay = notificationGranted && notificationsEnabled && channelEnabled
+    val permissionNeeded = remindersEnabled && !notificationsOkay
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(UiTokens.ControlGap)) {
+        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text("Settings", color = Ink, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            Text("App preferences", color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp)
+        }
+        Text("APP PREFERENCES", color = UiTokens.Subdued, fontSize = UiTokens.DetailSp.sp, modifier = Modifier.padding(top = 8.dp))
+        CollapsibleSettingsSection("Appearance", "Dark theme", appearanceExpanded, { appearanceExpanded = it }) {
+            SettingsPanel { SettingsInfoRow("App theme", "Dark") }
+        }
+        CollapsibleSettingsSection("Typography", "System sans-serif", typographyExpanded, { typographyExpanded = it }) {
+            SettingsPanel { SettingsInfoRow("App font", "System sans-serif") }
+        }
+        CollapsibleSettingsSection("Widget preferences", "Automatic refresh enabled", widgetExpanded, { widgetExpanded = it }) {
+            SettingsPanel { SettingsInfoRow("Widget updates", "Changes refresh the matching widget automatically") }
+        }
+        Text("SYSTEM", color = UiTokens.Subdued, fontSize = UiTokens.DetailSp.sp, modifier = Modifier.padding(top = 8.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(UiTokens.ControlGap)) {
+            Surface(onClick = onOpenPermissions, color = UiTokens.SurfaceRaised, shape = RoundedCornerShape(UiTokens.RowRadius), modifier = Modifier.fillMaxWidth()) {
+                Row(Modifier.fillMaxWidth().heightIn(min = UiTokens.ControlHeight).padding(horizontal = 14.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Permissions", color = Ink, fontSize = UiTokens.LabelSp.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+                    if (permissionNeeded) Text("●", color = Accent, fontSize = 12.sp, modifier = Modifier.semantics { contentDescription = "Required reminder permission is missing" })
+                    Text("›", color = UiTokens.Muted, fontSize = 22.sp)
+                }
+            }
+        }
+    }
+}
+
+@Composable private fun PermissionsScreen(
+    remindersEnabled: Boolean,
+    notificationGranted: Boolean,
+    notificationsEnabled: Boolean,
+    channelImportance: Int?,
+    exactAlarmsEnabled: Boolean,
+    onBack: () -> Unit,
+    onRequestNotifications: () -> Unit,
+    onNotificationSettings: () -> Unit,
+    onExactAlarmSettings: () -> Unit
+) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(UiTokens.ControlGap)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Permissions", color = Ink, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                Text("Access used by Clarity features", color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp)
+            }
+            TextButton(onClick = onBack) { Text("Done", color = Accent) }
+        }
+        PermissionDetails(remindersEnabled, notificationGranted, notificationsEnabled, channelImportance, exactAlarmsEnabled, onRequestNotifications, onNotificationSettings, onExactAlarmSettings)
+    }
+}
+
+@Composable private fun PermissionDetails(
+    remindersEnabled: Boolean,
+    notificationGranted: Boolean,
+    notificationsEnabled: Boolean,
+    channelImportance: Int?,
+    exactAlarmsEnabled: Boolean,
+    onRequestNotifications: () -> Unit,
+    onNotificationSettings: () -> Unit,
+    onExactAlarmSettings: () -> Unit
+) {
+    val channelEnabled = channelImportance != android.app.NotificationManager.IMPORTANCE_NONE
+    Column(verticalArrangement = Arrangement.spacedBy(UiTokens.ControlGap)) {
+        SettingsPanel {
+            Text("Task notifications", color = Ink, fontWeight = FontWeight.SemiBold)
+            Text("Used to deliver reminders for tasks with a reminder set. ${if (remindersEnabled) "Reminders are currently in use." else "No active task reminders currently need this permission."}", color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp)
+            SettingsInfoRow("Notification permission", if (Build.VERSION.SDK_INT < 33) "Not required on this Android version" else if (notificationGranted) "Allowed" else "Not granted")
+            SettingsInfoRow("App notifications", if (notificationsEnabled) "On" else "Off")
+            if (Build.VERSION.SDK_INT >= 26) SettingsInfoRow("Reminder channel", when (channelImportance) {
+                android.app.NotificationManager.IMPORTANCE_NONE -> "Blocked"
+                null -> "Created when the first reminder is scheduled"
+                else -> "On"
+            })
+            if (Build.VERSION.SDK_INT >= 33 && !notificationGranted) TextButton(onClick = onRequestNotifications) { Text("Allow notifications", color = Accent) }
+            if (!notificationsEnabled || !channelEnabled) TextButton(onClick = onNotificationSettings) { Text("Open notification settings", color = Accent) }
+        }
+        if (Build.VERSION.SDK_INT >= 31) SettingsPanel {
+            Text("Alarms & reminders", color = Ink, fontWeight = FontWeight.SemiBold)
+            Text("Exact-alarm access can improve reminder timing. Clarity can still schedule reminders without it, though Android may deliver them later.", color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp)
+            SettingsInfoRow("Exact alarms", if (exactAlarmsEnabled) "Allowed" else "Not allowed (optional)")
+            if (!exactAlarmsEnabled) TextButton(onClick = onExactAlarmSettings) { Text("Open alarm access settings", color = Accent) }
+        }
+    }
+}
+
+@Composable private fun SettingsInfoRow(label: String, value: String) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, color = Ink, fontSize = UiTokens.LabelSp.sp, modifier = Modifier.weight(1f))
+        Text(value, color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+    }
 }
 
 @Composable private fun PermissionsDialog(
@@ -579,6 +825,8 @@ private fun friendlyZoneName(id: String): String = TimeZoneCatalog.labelFor(id) 
 private data class ColorPickTarget(val key: String, val label: String, val value: String, val calendar: Boolean)
 
 @Composable private fun SettingsScreen(
+    screen: String,
+    onBack: () -> Unit,
     settings: WidgetPrefs,
     calendarSettings: com.example.darktodo.data.CalendarWidgetPrefs,
     importedFonts: List<ImportedWidgetFont>,
@@ -598,6 +846,7 @@ private data class ColorPickTarget(val key: String, val label: String, val value
     onCalendarDots: (Boolean) -> Unit,
     onCalendarReset: () -> Unit
 ) {
+    val isTodo = screen == "TodoSettings"
     var pickTarget by remember { mutableStateOf<ColorPickTarget?>(null) }
     var confirmTodoReset by remember { mutableStateOf(false) }
     var confirmCalendarReset by remember { mutableStateOf(false) }
@@ -609,8 +858,15 @@ private data class ColorPickTarget(val key: String, val label: String, val value
     var calendarSizesExpanded by remember { mutableStateOf(false) }
     var calendarLayoutExpanded by remember { mutableStateOf(false) }
 
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(UiTokens.SectionGap)) {
-        SettingsSection("To-Do Widget", "Colors, typography, and task display") {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(UiTokens.ControlGap)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(if (isTodo) "To-Do settings" else "Calendar settings", color = Ink, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Text("Widget preferences", color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp)
+            }
+            TextButton(onClick = onBack) { Text("Done", color = Accent) }
+        }
+        if (isTodo) SettingsSection("To-Do Widget", "Independent task widget appearance") {
             CollapsibleSettingsSection("Font", selectedFontLabel(settings.fontFamily, settings.fontFileId, importedFonts), todoFontExpanded, { todoFontExpanded = it }) {
                 SettingsPanel {
                     FontFamilyRow("Font family", settings.fontFamily, settings.fontFileId, importedFonts, onFontFamily, onTodoImportedFont)
@@ -634,9 +890,7 @@ private data class ColorPickTarget(val key: String, val label: String, val value
               }
             }
             ResetAction("Reset To-Do settings") { confirmTodoReset = true }
-        }
-
-        SettingsSection("Calendar Widget", "Calendar appearance and task indicators") {
+        } else SettingsSection("Calendar Widget", "Independent calendar appearance and task indicators") {
             CollapsibleSettingsSection("Font", selectedFontLabel(calendarSettings.fontFamily, calendarSettings.fontFileId, importedFonts), calendarFontExpanded, { calendarFontExpanded = it }) {
                 SettingsPanel {
                     FontFamilyRow("Font family", calendarSettings.fontFamily, calendarSettings.fontFileId, importedFonts, onCalendarFontFamily, onCalendarImportedFont)
@@ -716,6 +970,60 @@ private data class ColorPickTarget(val key: String, val label: String, val value
             text = { Text(message, color = UiTokens.Muted) },
             confirmButton = { TextButton(onClick = onDismissFontImportMessage) { Text("OK", color = Accent) } }
         )
+    }
+}
+
+@Composable private fun IconAction(label: String, icon: String, onClick: () -> Unit) {
+    Surface(onClick = onClick, color = Color.Transparent, shape = RoundedCornerShape(12.dp), modifier = Modifier.size(44.dp).semantics { contentDescription = label }) {
+        Box(Modifier.fillMaxSize().padding(10.dp), contentAlignment = Alignment.Center) { ClarityIcon(icon, Accent, Modifier.fillMaxSize()) }
+    }
+}
+
+@Composable private fun IconNavigationItem(label: String, icon: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Surface(onClick = onClick, color = if (selected) Accent.copy(alpha = .16f) else UiTokens.Surface, shape = RoundedCornerShape(UiTokens.CardRadius), modifier = modifier.heightIn(min = 72.dp)) {
+        Column(Modifier.fillMaxWidth().padding(vertical = 10.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            ClarityIcon(icon, if (selected) Accent else UiTokens.Muted, Modifier.size(23.dp))
+            Text(label, color = if (selected) Accent else UiTokens.Muted, fontSize = UiTokens.DetailSp.sp, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium)
+        }
+    }
+}
+
+@Composable private fun ClarityIcon(name: String, color: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val w = size.width
+        val h = size.height
+        val stroke = (size.minDimension * .09f).coerceAtLeast(1.6f)
+        val line = Stroke(width = stroke, cap = StrokeCap.Round)
+        when (name) {
+            "calendar" -> {
+                drawRoundRect(color, topLeft = androidx.compose.ui.geometry.Offset(w * .14f, h * .20f), size = androidx.compose.ui.geometry.Size(w * .72f, h * .68f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(w * .09f), style = line)
+                drawLine(color, androidx.compose.ui.geometry.Offset(w * .14f, h * .39f), androidx.compose.ui.geometry.Offset(w * .86f, h * .39f), stroke, StrokeCap.Round)
+                drawLine(color, androidx.compose.ui.geometry.Offset(w * .34f, h * .10f), androidx.compose.ui.geometry.Offset(w * .34f, h * .30f), stroke, StrokeCap.Round)
+                drawLine(color, androidx.compose.ui.geometry.Offset(w * .66f, h * .10f), androidx.compose.ui.geometry.Offset(w * .66f, h * .30f), stroke, StrokeCap.Round)
+                listOf(.36f to .57f, .62f to .57f, .36f to .75f, .62f to .75f).forEach { (x, y) -> drawCircle(color, stroke * .72f, androidx.compose.ui.geometry.Offset(w * x, h * y)) }
+            }
+            "todo" -> {
+                drawRoundRect(color, topLeft = androidx.compose.ui.geometry.Offset(w * .16f, h * .13f), size = androidx.compose.ui.geometry.Size(w * .68f, h * .74f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(w * .12f), style = line)
+                drawLine(color, androidx.compose.ui.geometry.Offset(w * .31f, h * .52f), androidx.compose.ui.geometry.Offset(w * .45f, h * .66f), stroke, StrokeCap.Round)
+                drawLine(color, androidx.compose.ui.geometry.Offset(w * .45f, h * .66f), androidx.compose.ui.geometry.Offset(w * .71f, h * .36f), stroke, StrokeCap.Round)
+            }
+            "back", "next" -> {
+                val direction = if (name == "back") -1f else 1f
+                val startX = if (direction < 0) w * .70f else w * .30f
+                val endX = if (direction < 0) w * .30f else w * .70f
+                drawLine(color, androidx.compose.ui.geometry.Offset(startX, h * .5f), androidx.compose.ui.geometry.Offset(endX, h * .5f), stroke, StrokeCap.Round)
+                drawLine(color, androidx.compose.ui.geometry.Offset(endX, h * .5f), androidx.compose.ui.geometry.Offset(endX + direction * w * .22f, h * .28f), stroke, StrokeCap.Round)
+                drawLine(color, androidx.compose.ui.geometry.Offset(endX, h * .5f), androidx.compose.ui.geometry.Offset(endX + direction * w * .22f, h * .72f), stroke, StrokeCap.Round)
+            }
+            else -> {
+                listOf(.24f, .50f, .76f).forEachIndexed { index, y ->
+                    drawLine(color, androidx.compose.ui.geometry.Offset(w * .22f, h * y), androidx.compose.ui.geometry.Offset(w * .78f, h * y), stroke, StrokeCap.Round)
+                    val x = when (index) { 0 -> .43f; 1 -> .62f; else -> .36f }
+                    drawCircle(UiTokens.Background, stroke * 1.9f, androidx.compose.ui.geometry.Offset(w * x, h * y))
+                    drawCircle(color, stroke * 1.35f, androidx.compose.ui.geometry.Offset(w * x, h * y), style = line)
+                }
+            }
+        }
     }
 }
 
