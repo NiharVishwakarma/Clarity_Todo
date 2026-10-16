@@ -439,13 +439,42 @@ class MainActivity : ComponentActivity() {
                     RadioButton(selected = kind == key, onClick = { if (!completed) onKind(key) }, enabled = !completed); Text(label, color = if (completed) Color.Gray else Ink, fontSize = 14.sp)
                 }
             }
-            if (kind == "time" && !completed) TextButton(onClick = {
-                val current = java.util.Calendar.getInstance().apply { timeInMillis = deadline }
-                DatePickerDialog(context, { _, year, month, day ->
-                    val date = java.util.Calendar.getInstance().apply { set(year, month, day) }
-                    TimePickerDialog(context, { _, hour, minute -> date.set(java.util.Calendar.HOUR_OF_DAY, hour); date.set(java.util.Calendar.MINUTE, minute); date.set(java.util.Calendar.SECOND, 0); onDeadline(date.timeInMillis) }, current.get(java.util.Calendar.HOUR_OF_DAY), current.get(java.util.Calendar.MINUTE), android.text.format.DateFormat.is24HourFormat(context)).show()
-                }, current.get(java.util.Calendar.YEAR), current.get(java.util.Calendar.MONTH), current.get(java.util.Calendar.DAY_OF_MONTH)).show()
-            }) { Text("Choose date and time: ${TaskStore.dateTime(context, deadline, timeZone)} (${if (timeZone.isBlank()) friendlyZoneName(ZoneId.systemDefault().id) else TimeZoneCatalog.labelFor(timeZone) ?: timeZone})", color = Accent, fontSize = 12.sp) }
+            if (kind == "time" && !completed) Surface(
+                onClick = {
+                    val current = java.util.Calendar.getInstance().apply { timeInMillis = deadline }
+                    DatePickerDialog(context, { _, year, month, day ->
+                        val date = java.util.Calendar.getInstance().apply { set(year, month, day) }
+                        TimePickerDialog(context, { _, hour, minute ->
+                            date.set(java.util.Calendar.HOUR_OF_DAY, hour)
+                            date.set(java.util.Calendar.MINUTE, minute)
+                            date.set(java.util.Calendar.SECOND, 0)
+                            onDeadline(date.timeInMillis)
+                        }, current.get(java.util.Calendar.HOUR_OF_DAY), current.get(java.util.Calendar.MINUTE), android.text.format.DateFormat.is24HourFormat(context)).show()
+                    }, current.get(java.util.Calendar.YEAR), current.get(java.util.Calendar.MONTH), current.get(java.util.Calendar.DAY_OF_MONTH)).show()
+                },
+                modifier = Modifier.fillMaxWidth().border(1.dp, UiTokens.Secondary.copy(alpha = .55f), RoundedCornerShape(UiTokens.RowRadius)),
+                color = UiTokens.Secondary.copy(alpha = .10f),
+                shape = RoundedCornerShape(UiTokens.RowRadius)
+            ) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text("TIME", color = UiTokens.Secondary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text("Choose date and time", color = Ink, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                        Text(
+                            TaskStore.dateTime(context, deadline, timeZone),
+                            color = UiTokens.Muted,
+                            fontSize = 12.sp,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    Text(">", color = UiTokens.Secondary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                }
+            }
             if (kind == "time" && !completed) {
                 val selectedZone = if (timeZone.isBlank()) "Device time zone - ${friendlyZoneName(ZoneId.systemDefault().id)}" else TimeZoneCatalog.labelFor(timeZone) ?: "Unavailable time zone - $timeZone"
                 androidx.compose.material3.OutlinedTextField(
@@ -566,13 +595,10 @@ private data class ColorPickTarget(val key: String, val label: String, val value
     var pickTarget by remember { mutableStateOf<ColorPickTarget?>(null) }
     var confirmTodoReset by remember { mutableStateOf(false) }
     var confirmCalendarReset by remember { mutableStateOf(false) }
+    var todoColorsExpanded by remember { mutableStateOf(false) }
+    var calendarColorsExpanded by remember { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(UiTokens.SectionGap)) {
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("Settings", color = Ink, fontSize = UiTokens.PageTitleSp.sp, fontWeight = FontWeight.Bold)
-            Text("Make Clarity widgets yours", color = UiTokens.Muted, fontSize = UiTokens.LabelSp.sp)
-        }
-
         SettingsSection("To-Do Widget", "Colors, typography, and task display") {
             SettingsPanel {
                 FontFamilyRow("Font family", settings.fontFamily, settings.fontFileId, importedFonts, onFontFamily, onTodoImportedFont)
@@ -580,14 +606,15 @@ private data class ColorPickTarget(val key: String, val label: String, val value
                 SettingSlider("Task-title size", "${settings.taskTitleSizeSp.toInt()} sp", settings.taskTitleSizeSp, 12f..24f, onTaskTitleSize)
                 SettingSlider("Completed-task fade", "${settings.fadePercent}%", settings.fadePercent.toFloat(), 0f..100f, { onFade(it.toInt()) })
             }
-            Text("Widget colors", color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp, modifier = Modifier.padding(start = 2.dp))
-            Column(verticalArrangement = Arrangement.spacedBy(UiTokens.ControlGap)) {
+            ExpandableColorPalette("To-Do widget colors", 6, todoColorsExpanded, { todoColorsExpanded = it }) {
+              Column(verticalArrangement = Arrangement.spacedBy(UiTokens.ControlGap)) {
                 ColorSettingRow("Incomplete checkbox", settings.incomplete) { pickTarget = ColorPickTarget("incomplete", "Incomplete checkbox", settings.incomplete, false) }
                 ColorSettingRow("Completed checkbox", settings.complete) { pickTarget = ColorPickTarget("complete", "Completed checkbox", settings.complete, false) }
                 ColorSettingRow("Task-count panel", settings.countPanel) { pickTarget = ColorPickTarget("count_panel", "Task-count panel", settings.countPanel, false) }
                 ColorSettingRow("Widget background", settings.widgetBackground) { pickTarget = ColorPickTarget("background", "Widget background", settings.widgetBackground, false) }
                 ColorSettingRow("Task card background", settings.taskCard) { pickTarget = ColorPickTarget("task_card", "Task card background", settings.taskCard, false) }
                 ColorSettingRow("Task title", settings.taskTitle) { pickTarget = ColorPickTarget("task_title", "Task title", settings.taskTitle, false) }
+              }
             }
             ResetAction("Reset To-Do settings") { confirmTodoReset = true }
         }
@@ -602,8 +629,8 @@ private data class ColorPickTarget(val key: String, val label: String, val value
                 SettingSlider("Weekday size", "${calendarSettings.weekdaySize} sp", calendarSettings.weekdaySize.toFloat(), 8f..14f, { onCalendarInt("weekday_size", it.toInt()) })
                 SettingSlider("Month heading size", "${calendarSettings.headingSize} sp", calendarSettings.headingSize.toFloat(), 14f..24f, { onCalendarInt("heading_size", it.toInt()) })
             }
-            Text("Widget colors", color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp, modifier = Modifier.padding(start = 2.dp))
-            Column(verticalArrangement = Arrangement.spacedBy(UiTokens.ControlGap)) {
+            ExpandableColorPalette("Calendar widget colors", 10, calendarColorsExpanded, { calendarColorsExpanded = it }) {
+              Column(verticalArrangement = Arrangement.spacedBy(UiTokens.ControlGap)) {
                 val colors = listOf(
                     "background" to ("Background" to calendarSettings.background),
                     "date" to ("Date text" to calendarSettings.date),
@@ -619,6 +646,7 @@ private data class ColorPickTarget(val key: String, val label: String, val value
                 colors.forEach { (key, pair) ->
                     ColorSettingRow(pair.first, pair.second) { pickTarget = ColorPickTarget(key, pair.first, pair.second, true) }
                 }
+              }
             }
             SettingsPanel {
                 SettingSlider("Corner radius", "${calendarSettings.cornerRadius} dp", calendarSettings.cornerRadius.toFloat(), 8f..32f, { onCalendarInt("corner_radius", it.toInt()) })
@@ -694,6 +722,36 @@ private data class ColorPickTarget(val key: String, val label: String, val value
 @Composable private fun SettingsPanel(content: @Composable ColumnScope.() -> Unit) {
     Surface(color = UiTokens.Surface, shape = RoundedCornerShape(UiTokens.CardRadius)) {
         Column(Modifier.fillMaxWidth().padding(UiTokens.PanelPadding), verticalArrangement = Arrangement.spacedBy(14.dp), content = content)
+    }
+}
+
+@Composable private fun ExpandableColorPalette(
+    title: String,
+    colorCount: Int,
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(UiTokens.ControlGap)) {
+        Surface(
+            onClick = { onExpandedChange(!expanded) },
+            color = UiTokens.SurfaceRaised,
+            shape = RoundedCornerShape(UiTokens.RowRadius),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                Modifier.fillMaxWidth().heightIn(min = UiTokens.ControlHeight).padding(horizontal = 14.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(UiTokens.ControlGap)
+            ) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(title, color = Ink, fontSize = UiTokens.LabelSp.sp, fontWeight = FontWeight.Medium)
+                    Text("$colorCount color options", color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp)
+                }
+                Text(if (expanded) "▴" else "▾", color = UiTokens.Secondary, fontSize = 20.sp)
+            }
+        }
+        if (expanded) content()
     }
 }
 
