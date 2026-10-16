@@ -1,0 +1,88 @@
+package com.example.darktodo.data
+
+import android.content.Context
+import org.json.JSONArray
+import org.json.JSONObject
+import java.io.File
+import java.nio.ByteBuffer
+import java.security.SecureRandom
+import javax.crypto.Cipher
+import javax.crypto.SecretKeyFactory
+import javax.crypto.spec.GCMParameterSpec
+import javax.crypto.spec.PBEKeySpec
+import javax.crypto.spec.SecretKeySpec
+
+data class VaultEntry(val id: String, val title: String, val username: String, val password: String, val notes: String)
+
+/** Password-encrypted vault file under noBackupFilesDir; it is never synced or backed up. */
+object LocalVaultStore {
+    private const val ITERATIONS = 210_000
+    private const val SALT_SIZE = 16
+    private const val IV_SIZE = 12
+    private const val MAGIC = 0x434C5654 // CLVT
+    private fun file(context: Context) = File(context.noBackupFilesDir, "clarity-vault.bin")
+
+    fun exists(context: Context) = file(context).exists()
+
+    fun create(context: Context, masterPassword: CharArray, entries: List<VaultEntry> = emptyList()) {
+        require(masterPassword.size >= 8) { "Use at least 8 characters for the vault password." }
+        require(!exists(context)) { "The vault already exists." }
+        val salt = ByteArray(SALT_SIZE).also { SecureRandom().nextBytes(it) }
+        write(context, key(masterPassword, salt), salt, entries)
+    }
+
+    fun unlock(context: Context, masterPassword: CharArray): List<VaultEntry>? = runCatching {
+        val bytes = file(context).readBytes()
+        val input = ByteBuffer.wrap(bytes)
+        require(input.int == MAGIC)
+        val salt = ByteArray(SALT_SIZE).also { input.get(it) }
+        val iv = ByteArray(IV_SIZE).also { input.get(it) }
+        val encrypted = ByteArray(input.remaining()).also { input.get(it) }
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(Cipher.DECRYPT_MODE, key(masterPassword, salt), GCMParameterSpec(128, iv))
+        val array = JSONArray(cipher.doFinal(encrypted).toString(Charsets.UTF_8))
+        (0 until array.length()).map { index ->
+            val item = array.getJSONObject(index)
+            VaultEntry(item.getString("id"), item.getString("title"), item.optString("username"), item.getString("password"), item.optString("notes"))
+        }
+    }.getOrNull()
+
+    fun save(context: Context, masterPassword: CharArray, entries: List<VaultEntry>) {
+        val old = ByteBuffer.wrap(file(context).readBytes())
+        require(old.int == MAGIC)
+        val salt = ByteArray(SALT_SIZE).also { old.get(it) }
+        val iv = ByteArray(IV_SIZE).also { old.get(it) }
+        val encrypted = ByteArray(old.remaining()).also { old.get(it) }
+        val key = key(masterPassword, salt)
+        val check = Cipher.getInstance("AES/GCM/NoPadding")
+        check.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(128, iv))
+        check.doFinal(encrypted) // Authenticate before replacing the existing file.
+        write(context, key, salt, entries)
+    }
+
+    private fun write(context: Context, key: SecretKeySpec, salt: ByteArray, entries: List<VaultEntry>) {
+        val json = JSONArray().apply { entries.forEach { entry -> put(JSONObject().apply {
+            put("id", entry.id); put("title", entry.title); put("username", entry.username)
+            put("password", entry.password); put("notes", entry.notes)
+        }) } }.toString().toByteArray(Charsets.UTF_8)
+        val iv = ByteArray(IV_SIZE).also { SecureRandom().nextBytes(it) }
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(Cipher.ENCRYPT_MODE, key, GCMParameterSpec(128, iv))
+        val encrypted = cipher.doFinal(json)
+        val output = ByteBuffer.allocate(4 + SALT_SIZE + IV_SIZE + encrypted.size)
+            .putInt(MAGIC).put(salt).put(iv).put(encrypted).array()
+        val target = file(context)
+        val temporary = File(context.noBackupFilesDir, "clarity-vault.tmp")
+        temporary.writeBytes(output)
+        if (!temporary.renameTo(target)) {
+            target.writeBytes(output)
+            temporary.delete()
+        }
+    }
+
+    private fun key(password: CharArray, salt: ByteArray): SecretKeySpec {
+        val spec = PBEKeySpec(password, salt, ITERATIONS, 256)
+        return try { SecretKeySpec(SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").generateSecret(spec).encoded, "AES") }
+        finally { spec.clearPassword() }
+    }
+}

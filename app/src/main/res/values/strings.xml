@@ -2,4 +2,6 @@
     <string name="app_name">Clarity</string>
     <string name="calendar_widget_description">Clarity Calendar</string>
     <string name="todo_widget_description">Clarity To-Do</string>
+    <string name="vault_widget_label">Clarity Vault</string>
+    <string name="vault_widget_description">A locked shortcut to your private password vault</string>
 </resources>

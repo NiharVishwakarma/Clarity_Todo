@@ -1,0 +1,13 @@
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:label="@string/vault_widget_label"
+    android:minWidth="140dp"
+    android:minHeight="90dp"
+    android:minResizeWidth="110dp"
+    android:minResizeHeight="70dp"
+    android:targetCellWidth="2"
+    android:targetCellHeight="1"
+    android:initialLayout="@layout/vault_widget"
+    android:description="@string/vault_widget_description"
+    android:resizeMode="horizontal|vertical"
+    android:widgetCategory="home_screen"
+    android:updatePeriodMillis="0" />

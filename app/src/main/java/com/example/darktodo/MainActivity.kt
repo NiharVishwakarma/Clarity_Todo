@@ -3,6 +3,7 @@ package com.example.darktodo
 import android.graphics.Color as AndroidColor
 import android.graphics.Typeface as AndroidTypeface
 import android.graphics.Paint as AndroidPaint
+import android.app.Activity
 import android.text.TextUtils
 import android.view.Gravity
 import android.widget.TextView
@@ -39,6 +40,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
@@ -104,6 +107,8 @@ import com.example.darktodo.data.CalendarDates
 import com.example.darktodo.data.CalendarTaskStatus
 import com.example.darktodo.data.ImportedWidgetFont
 import com.example.darktodo.data.LocalWidgetFonts
+import com.example.darktodo.data.LocalVaultStore
+import com.example.darktodo.data.VaultEntry
 import com.example.darktodo.ui.ColorPickerDialog
 import com.example.darktodo.widget.TodoWidget
 import java.time.Instant
@@ -143,7 +148,8 @@ private object UiTokens {
 private data class WidgetDestination(val label: String, val route: String, val icon: String)
 private val widgetDestinations = listOf(
     WidgetDestination("Calendar", "Calendar", "calendar"),
-    WidgetDestination("To-Do", "To-Do", "todo")
+    WidgetDestination("To-Do", "To-Do", "todo"),
+    WidgetDestination("Vault", "Vault", "lock")
 )
 private val Bg = UiTokens.Background
 private val Card = UiTokens.Surface
@@ -152,6 +158,7 @@ private val Ink = UiTokens.Ink
 class MainActivity : ComponentActivity() {
     companion object {
         const val ACTION_CREATE_TASK = "com.example.darktodo.action.CREATE_TASK"
+        const val ACTION_OPEN_VAULT = "com.example.darktodo.action.OPEN_VAULT"
     }
 
     private val screenOnReceiver = object : BroadcastReceiver() {
@@ -176,7 +183,7 @@ class MainActivity : ComponentActivity() {
             com.example.darktodo.widget.CalendarWidget.selectDate(this, intent.getIntExtra(com.example.darktodo.widget.CalendarWidget.EXTRA_WIDGET, android.appwidget.AppWidgetManager.INVALID_APPWIDGET_ID), intent.getStringExtra("task_date") ?: return)
         }
         com.example.darktodo.reminders.ReminderScheduler.restore(this)
-        setContent { MaterialTheme { Surface(color = Bg) { TodoApp(intent.getStringExtra("edit_task_id"), intent.getStringExtra("task_date"), intent.action == ACTION_CREATE_TASK) } } }
+        setContent { MaterialTheme { Surface(color = Bg) { TodoApp(intent.getStringExtra("edit_task_id"), intent.getStringExtra("task_date"), intent.action == ACTION_CREATE_TASK, intent.action == ACTION_OPEN_VAULT) } } }
     }
 
     override fun onNewIntent(intent: android.content.Intent) { super.onNewIntent(intent); setIntent(intent) }
@@ -184,12 +191,12 @@ class MainActivity : ComponentActivity() {
 }
 
 @OptIn(ExperimentalFoundationApi::class)
-@Composable private fun TodoApp(openTaskId: String? = null, openTaskDate: String? = null, startCreateTask: Boolean = false) {
+@Composable private fun TodoApp(openTaskId: String? = null, openTaskDate: String? = null, startCreateTask: Boolean = false, openVault: Boolean = false) {
     val context = LocalContext.current
     var tasks by remember { mutableStateOf(TaskStore.tasks(context)) }
     var events by remember { mutableStateOf(TaskStore.history(context)) }
     var settings by remember { mutableStateOf(WidgetSettings.load(context)) }
-    var page by remember { mutableStateOf("Calendar") }
+    var page by remember { mutableStateOf(if (openVault) "Vault" else "Calendar") }
     var todoPage by remember { mutableStateOf("Tasks") }
     var title by remember { mutableStateOf("") }
     var timeTick by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -354,6 +361,7 @@ class MainActivity : ComponentActivity() {
                     }
                     CalendarHomeScreen(tasks, calendarSettings, onDate = { selectedDate -> dateFilter = selectedDate.toString(); todoPage = "Tasks"; page = "To-Do" })
                 }
+                page == "Vault" -> VaultScreen()
                 page == "Settings" -> GlobalSettingsScreen(
                     onOpenPermissions = { page = "Permissions" },
                     appFontSettings = appFontSettings,
@@ -504,6 +512,128 @@ private fun widgetTypeface(context: Context, family: WidgetFontFamily, fontFileI
 
 private fun composeFontFamily(context: Context, family: WidgetFontFamily, fontFileId: String?): FontFamily =
     FontFamily(widgetTypeface(context, family, fontFileId))
+
+@Composable private fun VaultScreen() {
+    val context = LocalContext.current
+    val activity = context as? Activity
+    var hasVault by remember { mutableStateOf(LocalVaultStore.exists(context)) }
+    var entries by remember { mutableStateOf<List<VaultEntry>?>(null) }
+    var masterPassword by remember { mutableStateOf("") }
+    var confirmation by remember { mutableStateOf("") }
+    var title by remember { mutableStateOf("") }
+    var username by remember { mutableStateOf("") }
+    var secret by remember { mutableStateOf("") }
+    var notes by remember { mutableStateOf("") }
+    var revealedId by remember { mutableStateOf<String?>(null) }
+    var message by remember { mutableStateOf("") }
+
+    DisposableEffect(activity) {
+        activity?.window?.setFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE, android.view.WindowManager.LayoutParams.FLAG_SECURE)
+        onDispose { activity?.window?.clearFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE) }
+    }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_STOP) { entries = null; masterPassword = ""; secret = ""; revealedId = null } }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    fun saveEntries(updated: List<VaultEntry>) {
+        val passwordChars = masterPassword.toCharArray()
+        try {
+            LocalVaultStore.save(context, passwordChars, updated)
+            entries = updated
+            message = ""
+        } catch (error: Exception) { message = error.message ?: "Could not save the vault." }
+        finally { passwordChars.fill('\u0000') }
+    }
+
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text("Private Vault", color = Ink, fontSize = UiTokens.PageTitleSp.sp, fontWeight = FontWeight.Bold)
+        Text("Your passwords stay encrypted on this device. Vault data is excluded from device backup and sync.", color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp)
+        val opened = entries
+        if (opened == null) {
+            SettingsPanel {
+                Text(if (hasVault) "Unlock your vault" else "Create your vault", color = Ink, fontSize = UiTokens.SectionTitleSp.sp, fontWeight = FontWeight.SemiBold)
+                VaultInput("Master password", masterPassword, { masterPassword = it }, secret = true)
+                if (!hasVault) VaultInput("Confirm password", confirmation, { confirmation = it }, secret = true)
+                if (message.isNotEmpty()) Text(message, color = Accent, fontSize = UiTokens.DetailSp.sp)
+                TextButton(onClick = {
+                    val passwordChars = masterPassword.toCharArray()
+                    try {
+                        if (hasVault) {
+                            val result = LocalVaultStore.unlock(context, passwordChars)
+                            if (result == null) message = "That password could not unlock the vault."
+                            else { entries = result; message = "" }
+                        } else if (masterPassword != confirmation) message = "Passwords do not match."
+                        else {
+                            LocalVaultStore.create(context, passwordChars)
+                            hasVault = true
+                            entries = emptyList()
+                            message = ""
+                        }
+                    } catch (error: Exception) { message = error.message ?: "Could not open the vault." }
+                    finally { passwordChars.fill('\u0000') }
+                }) { Text(if (hasVault) "Unlock" else "Create encrypted vault", color = Accent) }
+            }
+        } else {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("${opened.size} saved ${if (opened.size == 1) "item" else "items"}", color = Ink, modifier = Modifier.weight(1f))
+                TextButton(onClick = { entries = null; masterPassword = ""; secret = ""; title = ""; username = ""; notes = ""; revealedId = null }) { Text("Lock", color = Accent) }
+            }
+            SettingsPanel {
+                Text("Add a password", color = Ink, fontWeight = FontWeight.SemiBold)
+                VaultInput("Title", title, { title = it })
+                VaultInput("Username or email", username, { username = it })
+                VaultInput("Password", secret, { secret = it }, secret = true)
+                VaultInput("Notes", notes, { notes = it })
+                TextButton(onClick = {
+                    if (title.isBlank() || secret.isEmpty()) message = "Enter a title and password."
+                    else {
+                        val updated = opened + VaultEntry(java.util.UUID.randomUUID().toString(), title.trim(), username.trim(), secret, notes.trim())
+                        saveEntries(updated)
+                        if (entries == updated) { title = ""; username = ""; secret = ""; notes = "" }
+                    }
+                }) { Text("Save securely", color = Accent) }
+                if (message.isNotEmpty()) Text(message, color = Accent, fontSize = UiTokens.DetailSp.sp)
+            }
+            if (opened.isEmpty()) Text("No passwords saved yet.", color = UiTokens.Muted)
+            opened.forEach { entry ->
+                SettingsPanel {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(entry.title, color = Ink, fontWeight = FontWeight.SemiBold)
+                            if (entry.username.isNotEmpty()) Text(entry.username, color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp)
+                            Text(if (revealedId == entry.id) entry.password else "••••••••", color = Ink)
+                            if (entry.notes.isNotEmpty()) Text(entry.notes, color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp)
+                        }
+                        Column {
+                            TextButton(onClick = { revealedId = if (revealedId == entry.id) null else entry.id }) { Text(if (revealedId == entry.id) "Hide" else "Show", color = Accent) }
+                            TextButton(onClick = {
+                                val updated = opened.filterNot { it.id == entry.id }
+                                saveEntries(updated)
+                            }) { Text("Delete", color = Accent) }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable private fun VaultInput(label: String, value: String, onValueChange: (String) -> Unit, secret: Boolean = false) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(label, color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp)
+        BasicTextField(
+            value = value,
+            onValueChange = onValueChange,
+            singleLine = secret || label != "Notes",
+            visualTransformation = if (secret) PasswordVisualTransformation() else VisualTransformation.None,
+            textStyle = TextStyle(color = Ink, fontSize = UiTokens.LabelSp.sp),
+            modifier = Modifier.fillMaxWidth().background(UiTokens.SurfaceRaised, RoundedCornerShape(UiTokens.RowRadius)).padding(12.dp),
+            decorationBox = { inner -> if (value.isEmpty()) Text(label, color = UiTokens.Subdued); inner() }
+        )
+    }
+}
 
 @Composable private fun CalendarHomeScreen(
     tasks: List<Task>,
@@ -1054,6 +1184,11 @@ private data class ColorPickTarget(val key: String, val label: String, val value
                 drawRoundRect(color, topLeft = androidx.compose.ui.geometry.Offset(w * .16f, h * .13f), size = androidx.compose.ui.geometry.Size(w * .68f, h * .74f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(w * .12f), style = line)
                 drawLine(color, androidx.compose.ui.geometry.Offset(w * .31f, h * .52f), androidx.compose.ui.geometry.Offset(w * .45f, h * .66f), stroke, StrokeCap.Round)
                 drawLine(color, androidx.compose.ui.geometry.Offset(w * .45f, h * .66f), androidx.compose.ui.geometry.Offset(w * .71f, h * .36f), stroke, StrokeCap.Round)
+            }
+            "lock" -> {
+                drawRoundRect(color, topLeft = androidx.compose.ui.geometry.Offset(w * .18f, h * .42f), size = androidx.compose.ui.geometry.Size(w * .64f, h * .48f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(w * .08f), style = line)
+                drawArc(color, 180f, 180f, false, androidx.compose.ui.geometry.Offset(w * .32f, h * .12f), androidx.compose.ui.geometry.Size(w * .36f, h * .52f), style = line)
+                drawCircle(color, stroke * .7f, androidx.compose.ui.geometry.Offset(w * .5f, h * .62f))
             }
             "chevron_left", "chevron_right" -> {
                 val direction = if (name == "chevron_left") -1f else 1f

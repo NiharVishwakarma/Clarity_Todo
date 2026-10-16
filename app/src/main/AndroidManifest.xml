@@ -17,6 +17,10 @@
             <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/calendar_widget_info" />
         </receiver>
+        <receiver android:name=".widget.VaultWidgetReceiver" android:exported="true">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/vault_widget_info" />
+        </receiver>
         <receiver android:name=".widget.CalendarMidnightReceiver" android:exported="false" />
         <receiver android:name=".reminders.ReminderReceiver" android:exported="false" />
         <receiver android:name=".reminders.ReminderRecoveryReceiver" android:exported="true">
