@@ -519,8 +519,8 @@ private fun composeFontFamily(context: Context, family: WidgetFontFamily, fontFi
             Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(month.format(DateTimeFormatter.ofPattern("LLLL yyyy", java.util.Locale.getDefault())), color = colorFromHex(settings.heading), fontSize = settings.headingSize.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                    IconAction("Previous month", "chevron_left", { month = month.minusMonths(1) }, colorFromHex(settings.navigationArrows))
-                    IconAction("Next month", "chevron_right", { month = month.plusMonths(1) }, colorFromHex(settings.navigationArrows))
+                    IconAction("Previous month", "chevron_left", colorFromHex(settings.navigationArrows)) { month = month.minusMonths(1) }
+                    IconAction("Next month", "chevron_right", colorFromHex(settings.navigationArrows)) { month = month.plusMonths(1) }
                 }
                 Row(Modifier.fillMaxWidth()) {
                     weekdays.forEach { day -> Box(Modifier.weight(1f).height(32.dp), contentAlignment = Alignment.Center) { Text(day.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.getDefault()).take(2), color = colorFromHex(settings.weekday), fontSize = settings.weekdaySize.sp) } }
@@ -1021,7 +1021,7 @@ private data class ColorPickTarget(val key: String, val label: String, val value
     }
 }
 
-@Composable private fun IconAction(label: String, icon: String, onClick: () -> Unit, iconColor: Color = Accent) {
+@Composable private fun IconAction(label: String, icon: String, iconColor: Color = Accent, onClick: () -> Unit) {
     Surface(onClick = onClick, color = Color.Transparent, shape = RoundedCornerShape(12.dp), modifier = Modifier.size(44.dp).semantics { contentDescription = label }) {
         Box(Modifier.fillMaxSize().padding(10.dp), contentAlignment = Alignment.Center) { ClarityIcon(icon, iconColor, Modifier.fillMaxSize()) }
     }
