@@ -124,6 +124,11 @@ object CalendarWidget {
         val cellWidthDp = (widgetWidthDp - 24f) / 7f // calendar root has 12dp side padding
         val circleDiameterDp = minOf(50f, cellWidthDp * 0.96f, maxOf(28f, prefs.dateSize * 2.3f))
         val effectiveDateSizeSp = minOf(prefs.dateSize.toFloat(), (circleDiameterDp * 0.58f).coerceAtLeast(10f))
+        // Imported-font dates are bitmap-rendered and ellipsized before being sent to the
+        // launcher. Let two-digit dates use the day face's full available width; a fixed
+        // 22dp cap clipped wider numerals (such as 10, 28, and 30) for many font files.
+        val dateFaceWidthDp = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) circleDiameterDp else 30f
+        val dateTextMaxWidthDp = (dateFaceWidthDp - 2f).coerceAtLeast(20f)
         // Keep the configured spacing visible. The previous height-based clamp often
         // reduced this to zero for normal launcher widget sizes, making the slider inert.
         val effectiveRowSpacing = prefs.rowSpacing
@@ -150,7 +155,7 @@ object CalendarWidget {
                         isSelected -> prefs.selectedText
                         else -> prefs.date
                     })
-                    setText(context, cell, R.id.calendar_day_number, date.dayOfMonth.toString(), prefs.fontFileId, effectiveDateSizeSp, dateColor, 22f, Paint.Align.CENTER)
+                    setText(context, cell, R.id.calendar_day_number, date.dayOfMonth.toString(), prefs.fontFileId, effectiveDateSizeSp, dateColor, dateTextMaxWidthDp, Paint.Align.CENTER)
                     if (!importedFont) {
                         cell.setTextViewTextSize(R.id.calendar_day_number, TypedValue.COMPLEX_UNIT_SP, effectiveDateSizeSp)
                         cell.setInt(R.id.calendar_day_number, "setTextColor", color(if (isSelected) prefs.selectedText else prefs.date))
