@@ -136,14 +136,14 @@ Push and manual builds require all four signing secrets documented in README. Fo
 - **Reminders:** No reminder, selected-time reminder with searchable time zones, and duration countdown. Task detail edits validate names, future times, zones, and non-zero duration. Notification permission is requested on Android 13+.
 - **Calendar:** In-app month calendar and independently configurable home-screen month calendar with task completion-status dots and date-to-task navigation.
 - **To-Do widget:** Count, all-task scrollable collection, check/tap completion, task ordering, refresh and add actions, countdown labels, and appearance preview in settings.
-- **Vault:** Create/unlock a password-encrypted vault; add/search/edit/reorder/delete saved credentials; reveal/hide passwords; explicitly lock; optionally use strong biometrics as primary authentication with password fallback. The encrypted file is under `noBackupFilesDir`; the screen sets `FLAG_SECURE`. The implementation derives a 256-bit key with PBKDF2-HMAC-SHA256 (210,000 iterations) and uses AES-GCM; biometric access wraps the master password with an Android Keystore key.
+- **Vault:** Create/unlock a password-encrypted vault; add/search/edit/reorder/delete saved credentials; reveal/hide passwords; explicitly lock; optionally use strong biometrics as primary authentication with password fallback. Each Show, Edit, and Delete action now requires fresh biometric or master-password verification; the screen clears its in-memory vault state before requesting verification and remains locked if verification fails, is canceled, or expires after 60 seconds. Password tiles use compact cards with Show/Edit/Delete controls beneath their details; Move up/Move down remain reorder-only controls. The encrypted file is under `noBackupFilesDir`; the screen sets `FLAG_SECURE`. The implementation derives a 256-bit key with PBKDF2-HMAC-SHA256 (210,000 iterations) and uses AES-GCM; biometric access wraps the master password with an Android Keystore key.
 - **Appearance:** To-Do color customization, completed-task fade, task title size, and font family/import; Calendar colors, date/weekday/heading sizes, corner radius, row spacing, dots, and font family/import; app typography selection. Widget settings are independent.
 - **Fonts:** Five system families are supported directly by widget layouts. User-picked `.ttf`, `.otf`, and `.ttc` files are validated and copied privately; imported-font rendering in widgets uses bitmaps.
 - **Permissions/settings:** Notification and exact-alarm status/help and links to Android settings are available in the app.
 
 ## Tests
 
-The current JVM unit tests cover Calendar grid/status/date defaults, countdown edit policy, history date formatting, task countdown formatting/transition boundaries, time-zone catalog/search/DST resolution, and system-font widget-layout mappings. There are no Android instrumentation/UI tests in the inspected tree. Alarm delivery, notification permissions, launcher behavior, biometric authentication, and actual widget sizing therefore require device/emulator validation beyond these unit tests.
+The current JVM unit tests cover Calendar grid/status/date defaults, countdown edit policy, history date formatting, task countdown formatting/transition boundaries, time-zone catalog/search/DST resolution, and system-font widget-layout mappings. There are no Android instrumentation/UI tests in the inspected tree. Alarm delivery, notification permissions, launcher behavior, biometric authentication, Vault action reauthentication, and actual widget sizing therefore require device/emulator validation beyond these unit tests.
 
 ## Known issues and operational constraints
 
@@ -155,6 +155,7 @@ The current JVM unit tests cover Calendar grid/status/date defaults, countdown e
 - The feature/pricing plan is aspirational, but the local encrypted Vault and locked widget are already implemented. The plan now identifies them as existing foundation and reserves future work for security/recovery review.
 - The app's Android package/project identifiers retain `com.example.darktodo` / `DarkTodoWidget` despite user-facing Clarity branding.
 - The existing test suite does not exercise Android component lifecycles, WorkManager (not used), alarm/notification delivery, widget launcher rendering, or vault crypto/UI end to end.
+- The Password Vault's Show/Edit/Delete reauthentication and compact-card behavior have no automated UI coverage yet; verify biometric success/failure/cancel/timeout and master-password fallback on a device or emulator when available.
 
 ## Future improvements
 
