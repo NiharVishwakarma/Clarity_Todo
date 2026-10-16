@@ -88,3 +88,11 @@ This log begins with the repository snapshot available when these project notes 
 - VaultScreen: idle auto-lock timer (pointer activity based).
 - Fixed a malformed page-routing branch in MainActivity.kt left by the wallpaper phase (WidgetBackground/Permissions).
 - Not yet compiled; CI is the first build.
+
+## 2026-10-17 - Google Drive backup and restore (Phase 4)
+
+- Added backup/ (BackupManager, DriveClient, BackupCodec, BackupScheduler + BackupWorker), ClarityApplication, BackupScreens.kt (Settings > Backup & Restore, Welcome Back gate). Dependencies: androidx.work:work-runtime 2.9.1, play-services-auth 21.2.0 (test: org.json). Manifest: INTERNET, ACCESS_NETWORK_STATE, application class.
+- Backs up tasks, history, widget/calendar/app settings, vault auth prefs (auto-lock), wallpapers, and the already-encrypted vault file. Keys are never uploaded; biometric unlock is reset on restore.
+- Auto backup after changes (WorkManager, network required, 20 s debounce); stays off after Start Fresh so the cloud copy is not overwritten.
+- Vault intro text updated (no longer says excluded from backup). Added BackupCodecTest. Not compiled yet.
+- Required setup (Google Cloud Console): create a project, enable Google Drive API, configure the OAuth consent screen (add yourself as a test user), create an OAuth client ID of type Android with package com.example.darktodo and the SHA-1 of the signing key. Use a persistent keystore (ANDROID_KEYSTORE_* secrets) so the SHA-1 stays stable. No client ID is placed in code.

@@ -41,11 +41,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-private val SecAccent = Color(0xFFF20D24)
-private val SecInk = Color(0xFFF4F3F5)
-private val SecMuted = Color(0xFFAAA8B0)
-private val SecCard = Color(0xFF19191E)
-private val SecRaised = Color(0xFF222228)
+internal val SecAccent = Color(0xFFF20D24)
+internal val SecInk = Color(0xFFF4F3F5)
+internal val SecMuted = Color(0xFFAAA8B0)
+internal val SecCard = Color(0xFF19191E)
+internal val SecRaised = Color(0xFF222228)
 
 private val autoLockOptions = listOf("1 min" to 60, "2 min" to 120, "5 min" to 300, "15 min" to 900, "Never" to 0)
 
@@ -224,7 +224,7 @@ private fun PasswordDialog(
 }
 
 @Composable
-private fun InfoRow(label: String, value: String) {
+internal fun InfoRow(label: String, value: String) {
     Surface(color = SecRaised, shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
         Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(horizontal = 14.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(label, color = SecInk, fontSize = 15.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
@@ -234,7 +234,7 @@ private fun InfoRow(label: String, value: String) {
 }
 
 @Composable
-private fun ActionRow(label: String, onClick: () -> Unit) {
+internal fun ActionRow(label: String, onClick: () -> Unit) {
     Surface(onClick = onClick, color = SecRaised, shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
         Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(horizontal = 14.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(label, color = SecInk, fontSize = 15.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))

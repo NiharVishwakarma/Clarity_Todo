@@ -30,7 +30,7 @@ object LocalVaultStore {
     const val AUTH_BIOMETRIC = "biometric"
     private const val BIOMETRIC_ALIAS = "clarity_vault_biometric_key"
     private const val BIOMETRIC_FILE = "clarity-vault-biometric.bin"
-    private fun file(context: Context) = File(context.noBackupFilesDir, "clarity-vault.bin")
+    internal fun file(context: Context) = File(context.noBackupFilesDir, "clarity-vault.bin")
     private fun biometricFile(context: Context) = File(context.noBackupFilesDir, BIOMETRIC_FILE)
 
     fun primaryAuth(context: Context): String = context.getSharedPreferences(AUTH_PREFS, Context.MODE_PRIVATE)
@@ -173,6 +173,7 @@ object LocalVaultStore {
             target.writeBytes(output)
             temporary.delete()
         }
+        com.example.darktodo.backup.BackupScheduler.requestBackup(context)
     }
 
     private fun key(password: CharArray, salt: ByteArray): SecretKeySpec {

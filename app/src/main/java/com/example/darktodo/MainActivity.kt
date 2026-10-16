@@ -194,7 +194,12 @@ class MainActivity : FragmentActivity() {
             com.example.darktodo.widget.CalendarWidget.selectDate(this, intent.getIntExtra(com.example.darktodo.widget.CalendarWidget.EXTRA_WIDGET, android.appwidget.AppWidgetManager.INVALID_APPWIDGET_ID), intent.getStringExtra("task_date") ?: return)
         }
         com.example.darktodo.reminders.ReminderScheduler.restore(this)
-        setContent { MaterialTheme { Surface(color = Bg) { TodoApp(intent.getStringExtra("edit_task_id"), intent.getStringExtra("task_date"), intent.action == ACTION_CREATE_TASK, intent.action == ACTION_OPEN_VAULT) } } }
+        setContent { MaterialTheme { Surface(color = Bg) {
+            var welcome by remember { mutableStateOf(com.example.darktodo.backup.BackupManager.needsWelcome(this@MainActivity)) }
+            if (welcome) WelcomeBackGate { restored ->
+                if (restored) recreate() else welcome = false
+            } else TodoApp(intent.getStringExtra("edit_task_id"), intent.getStringExtra("task_date"), intent.action == ACTION_CREATE_TASK, intent.action == ACTION_OPEN_VAULT)
+        } } }
     }
 
     override fun onNewIntent(intent: android.content.Intent) { super.onNewIntent(intent); setIntent(intent) }
@@ -867,7 +872,7 @@ private sealed class VaultSensitiveAction(open val entryId: String) {
         awaitPointerEventScope { while (true) { awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial); lastActivity[0] = System.currentTimeMillis() } }
     }, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text("Private Vault", color = Ink, fontSize = UiTokens.PageTitleSp.sp, fontWeight = FontWeight.Bold)
-        Text("Your passwords stay encrypted on this device. Vault data is excluded from device backup and sync.", color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp)
+        Text("Your passwords stay encrypted with your master password. If Backup & Restore is on, only the encrypted vault file is uploaded to your private Google Drive app folder; the password and biometric keys never leave this device.", color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp)
         val opened = entries
         if (opened == null) {
             SettingsPanel {
@@ -1201,6 +1206,8 @@ private fun biometricUnavailableMessage(status: Int): String = when (status) {
                 LocalFontImportRow(importedFonts.size, onImportAppFont)
             }
         }
+        Text("BACKUP & RESTORE", color = UiTokens.Subdued, fontSize = UiTokens.DetailSp.sp, modifier = Modifier.padding(top = 8.dp))
+        BackupSettingsSection()
         Text("VAULT SECURITY", color = UiTokens.Subdued, fontSize = UiTokens.DetailSp.sp, modifier = Modifier.padding(top = 8.dp))
         Surface(onClick = onOpenVaultSecurity, color = UiTokens.SurfaceRaised, shape = RoundedCornerShape(UiTokens.RowRadius), modifier = Modifier.fillMaxWidth()) {
             Row(Modifier.fillMaxWidth().heightIn(min = UiTokens.ControlHeight).padding(horizontal = 14.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {

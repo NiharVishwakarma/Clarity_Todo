@@ -28,7 +28,7 @@ object WidgetBackgrounds {
     private const val PREFS = "widget_backgrounds"
 
     private fun prefs(context: Context) = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-    private fun file(context: Context, key: String) = File(context.applicationContext.filesDir, "widget_background_$key.jpg")
+    internal fun file(context: Context, key: String) = File(context.applicationContext.filesDir, "widget_background_$key.jpg")
 
     fun has(context: Context, key: String): Boolean = file(context, key).isFile
     fun fade(context: Context, key: String): Int = prefs(context).getInt("${key}_fade", DEFAULT_FADE).coerceIn(0, 100)
@@ -36,13 +36,14 @@ object WidgetBackgrounds {
 
     fun save(context: Context, key: String, bitmap: Bitmap, fadePercent: Int): Boolean {
         val saved = runCatching { file(context, key).outputStream().use { bitmap.compress(Bitmap.CompressFormat.JPEG, 90, it) } }.getOrDefault(false)
-        if (saved) saveFade(context, key, fadePercent)
+        if (saved) { saveFade(context, key, fadePercent); com.example.darktodo.backup.BackupScheduler.requestBackup(context) }
         return saved
     }
 
     fun clear(context: Context, key: String) {
         file(context, key).delete()
         prefs(context).edit().remove("${key}_fade").apply()
+        com.example.darktodo.backup.BackupScheduler.requestBackup(context)
     }
 
     /** Builds the rounded, faded bitmap for an ImageView background, or null when no wallpaper is set. */
