@@ -34,6 +34,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.core.tween
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -597,14 +603,25 @@ private data class ColorPickTarget(val key: String, val label: String, val value
     var confirmCalendarReset by remember { mutableStateOf(false) }
     var todoColorsExpanded by remember { mutableStateOf(false) }
     var calendarColorsExpanded by remember { mutableStateOf(false) }
+    var todoFontExpanded by remember { mutableStateOf(false) }
+    var todoDisplayExpanded by remember { mutableStateOf(false) }
+    var calendarFontExpanded by remember { mutableStateOf(false) }
+    var calendarSizesExpanded by remember { mutableStateOf(false) }
+    var calendarLayoutExpanded by remember { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(UiTokens.SectionGap)) {
         SettingsSection("To-Do Widget", "Colors, typography, and task display") {
-            SettingsPanel {
-                FontFamilyRow("Font family", settings.fontFamily, settings.fontFileId, importedFonts, onFontFamily, onTodoImportedFont)
-                LocalFontImportRow(importedFonts.size) { onImportFont(false) }
-                SettingSlider("Task-title size", "${settings.taskTitleSizeSp.toInt()} sp", settings.taskTitleSizeSp, 12f..24f, onTaskTitleSize)
-                SettingSlider("Completed-task fade", "${settings.fadePercent}%", settings.fadePercent.toFloat(), 0f..100f, { onFade(it.toInt()) })
+            CollapsibleSettingsSection("Font", selectedFontLabel(settings.fontFamily, settings.fontFileId, importedFonts), todoFontExpanded, { todoFontExpanded = it }) {
+                SettingsPanel {
+                    FontFamilyRow("Font family", settings.fontFamily, settings.fontFileId, importedFonts, onFontFamily, onTodoImportedFont)
+                    LocalFontImportRow(importedFonts.size) { onImportFont(false) }
+                }
+            }
+            CollapsibleSettingsSection("Text & completion", "${settings.taskTitleSizeSp.toInt()} sp title · ${settings.fadePercent}% fade", todoDisplayExpanded, { todoDisplayExpanded = it }) {
+                SettingsPanel {
+                    SettingSlider("Task-title size", "${settings.taskTitleSizeSp.toInt()} sp", settings.taskTitleSizeSp, 12f..24f, onTaskTitleSize)
+                    SettingSlider("Completed-task fade", "${settings.fadePercent}%", settings.fadePercent.toFloat(), 0f..100f, { onFade(it.toInt()) })
+                }
             }
             ExpandableColorPalette("To-Do widget colors", 6, todoColorsExpanded, { todoColorsExpanded = it }) {
               Column(verticalArrangement = Arrangement.spacedBy(UiTokens.ControlGap)) {
@@ -620,14 +637,18 @@ private data class ColorPickTarget(val key: String, val label: String, val value
         }
 
         SettingsSection("Calendar Widget", "Calendar appearance and task indicators") {
-            SettingsPanel {
-                FontFamilyRow("Font family", calendarSettings.fontFamily, calendarSettings.fontFileId, importedFonts, onCalendarFontFamily, onCalendarImportedFont)
-                LocalFontImportRow(importedFonts.size) { onImportFont(true) }
+            CollapsibleSettingsSection("Font", selectedFontLabel(calendarSettings.fontFamily, calendarSettings.fontFileId, importedFonts), calendarFontExpanded, { calendarFontExpanded = it }) {
+                SettingsPanel {
+                    FontFamilyRow("Font family", calendarSettings.fontFamily, calendarSettings.fontFileId, importedFonts, onCalendarFontFamily, onCalendarImportedFont)
+                    LocalFontImportRow(importedFonts.size) { onImportFont(true) }
+                }
             }
-            SettingsPanel {
-                SettingSlider("Date size", "${calendarSettings.dateSize} sp", calendarSettings.dateSize.toFloat(), 12f..20f, { onCalendarInt("date_size", it.toInt()) })
-                SettingSlider("Weekday size", "${calendarSettings.weekdaySize} sp", calendarSettings.weekdaySize.toFloat(), 8f..14f, { onCalendarInt("weekday_size", it.toInt()) })
-                SettingSlider("Month heading size", "${calendarSettings.headingSize} sp", calendarSettings.headingSize.toFloat(), 14f..24f, { onCalendarInt("heading_size", it.toInt()) })
+            CollapsibleSettingsSection("Text sizes", "Date ${calendarSettings.dateSize} sp · Weekday ${calendarSettings.weekdaySize} sp · Month ${calendarSettings.headingSize} sp", calendarSizesExpanded, { calendarSizesExpanded = it }) {
+                SettingsPanel {
+                    SettingSlider("Date size", "${calendarSettings.dateSize} sp", calendarSettings.dateSize.toFloat(), 12f..20f, { onCalendarInt("date_size", it.toInt()) })
+                    SettingSlider("Weekday size", "${calendarSettings.weekdaySize} sp", calendarSettings.weekdaySize.toFloat(), 8f..14f, { onCalendarInt("weekday_size", it.toInt()) })
+                    SettingSlider("Month heading size", "${calendarSettings.headingSize} sp", calendarSettings.headingSize.toFloat(), 14f..24f, { onCalendarInt("heading_size", it.toInt()) })
+                }
             }
             ExpandableColorPalette("Calendar widget colors", 10, calendarColorsExpanded, { calendarColorsExpanded = it }) {
               Column(verticalArrangement = Arrangement.spacedBy(UiTokens.ControlGap)) {
@@ -648,9 +669,11 @@ private data class ColorPickTarget(val key: String, val label: String, val value
                 }
               }
             }
-            SettingsPanel {
-                SettingSlider("Corner radius", "${calendarSettings.cornerRadius} dp", calendarSettings.cornerRadius.toFloat(), 8f..32f, { onCalendarInt("corner_radius", it.toInt()) })
-                SettingSlider("Vertical row spacing", "${calendarSettings.rowSpacing} dp", calendarSettings.rowSpacing.toFloat(), 0f..8f, { onCalendarInt("row_spacing", it.toInt()) })
+            CollapsibleSettingsSection("Layout", "${calendarSettings.cornerRadius} dp corners · ${calendarSettings.rowSpacing} dp row spacing", calendarLayoutExpanded, { calendarLayoutExpanded = it }) {
+                SettingsPanel {
+                    SettingSlider("Corner radius", "${calendarSettings.cornerRadius} dp", calendarSettings.cornerRadius.toFloat(), 8f..32f, { onCalendarInt("corner_radius", it.toInt()) })
+                    SettingSlider("Vertical row spacing", "${calendarSettings.rowSpacing} dp", calendarSettings.rowSpacing.toFloat(), 0f..8f, { onCalendarInt("row_spacing", it.toInt()) })
+                }
             }
             SettingsPanel {
                 SettingsSwitchRow("Show task-status dots", "Mark dates with completed or open tasks", calendarSettings.showDots, onCalendarDots)
@@ -721,13 +744,13 @@ private data class ColorPickTarget(val key: String, val label: String, val value
 
 @Composable private fun SettingsPanel(content: @Composable ColumnScope.() -> Unit) {
     Surface(color = UiTokens.Surface, shape = RoundedCornerShape(UiTokens.CardRadius)) {
-        Column(Modifier.fillMaxWidth().padding(UiTokens.PanelPadding), verticalArrangement = Arrangement.spacedBy(14.dp), content = content)
+        Column(Modifier.fillMaxWidth().padding(UiTokens.PanelPadding), verticalArrangement = Arrangement.spacedBy(10.dp), content = content)
     }
 }
 
-@Composable private fun ExpandableColorPalette(
+@Composable private fun CollapsibleSettingsSection(
     title: String,
-    colorCount: Int,
+    summary: String,
     expanded: Boolean,
     onExpandedChange: (Boolean) -> Unit,
     content: @Composable ColumnScope.() -> Unit
@@ -740,21 +763,48 @@ private data class ColorPickTarget(val key: String, val label: String, val value
             modifier = Modifier.fillMaxWidth()
         ) {
             Row(
-                Modifier.fillMaxWidth().heightIn(min = UiTokens.ControlHeight).padding(horizontal = 14.dp, vertical = 8.dp),
+                Modifier.fillMaxWidth().heightIn(min = UiTokens.ControlHeight).padding(horizontal = 14.dp, vertical = 7.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(UiTokens.ControlGap)
             ) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(title, color = Ink, fontSize = UiTokens.LabelSp.sp, fontWeight = FontWeight.Medium)
-                    Text("$colorCount color options", color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp)
+                    Text(summary, color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
-                Text(if (expanded) "▴" else "▾", color = UiTokens.Secondary, fontSize = 20.sp)
+                Text(if (expanded) "\u2303" else "\u2304", color = UiTokens.Secondary, fontSize = 20.sp)
             }
         }
-        if (expanded) content()
+        AnimatedVisibility(
+            visible = expanded,
+            enter = expandVertically(animationSpec = tween(200)) + fadeIn(animationSpec = tween(160)),
+            exit = shrinkVertically(animationSpec = tween(180)) + fadeOut(animationSpec = tween(120))
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(UiTokens.ControlGap), content = content)
+        }
     }
 }
 
+private fun selectedFontLabel(
+    family: WidgetFontFamily,
+    fileId: String?,
+    importedFonts: List<ImportedWidgetFont>
+): String = importedFonts.firstOrNull { it.id == fileId }?.name ?: family.label
+
+@Composable private fun ExpandableColorPalette(
+    title: String,
+    colorCount: Int,
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    CollapsibleSettingsSection(
+        title = title,
+        summary = "$colorCount color options",
+        expanded = expanded,
+        onExpandedChange = onExpandedChange,
+        content = content
+    )
+}
 @Composable private fun ColorSettingRow(label: String, value: String, onClick: () -> Unit) {
     Surface(
         onClick = onClick,
