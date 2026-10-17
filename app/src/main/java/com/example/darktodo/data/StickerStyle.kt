@@ -29,7 +29,10 @@ data class StickerStyle(
     val marginDp: Int = 0,
     val opacityPercent: Int = 100,
     val elevationDp: Int = 0,
-    val widgetSize: StickerWidgetSize = StickerWidgetSize.Auto
+    val widgetSize: StickerWidgetSize = StickerWidgetSize.Auto,
+    val fontFileId: String? = null,
+    val borderWidthDp: Int = 0,
+    val borderColor: String = "#000000"
 ) {
     /** Stored values are clamped so a hand-edited or old file can never produce an unreadable sticker. */
     fun sanitized() = copy(
@@ -45,7 +48,9 @@ data class StickerStyle(
         paddingDp = paddingDp.coerceIn(4, 32),
         marginDp = marginDp.coerceIn(0, 24),
         opacityPercent = opacityPercent.coerceIn(30, 100),
-        elevationDp = elevationDp.coerceIn(0, 16)
+        elevationDp = elevationDp.coerceIn(0, 16),
+        borderWidthDp = borderWidthDp.coerceIn(0, 12),
+        borderColor = StickerHex.normalize(borderColor) ?: DEFAULT.borderColor
     )
 
     fun toJson(): JSONObject = JSONObject().put("background", background).put("text", text).put("pin", pin)
@@ -53,6 +58,7 @@ data class StickerStyle(
         .put("lineHeight", lineHeight.toDouble()).put("textScale", textScalePercent).put("radius", cornerRadiusDp)
         .put("padding", paddingDp).put("margin", marginDp).put("opacity", opacityPercent)
         .put("elevation", elevationDp).put("widgetSize", widgetSize.name)
+        .put("fontFileId", fontFileId ?: JSONObject.NULL).put("borderWidth", borderWidthDp).put("borderColor", borderColor)
 
     companion object {
         val DEFAULT = StickerStyle()
@@ -73,13 +79,17 @@ data class StickerStyle(
                 marginDp = o.optInt("margin", DEFAULT.marginDp),
                 opacityPercent = o.optInt("opacity", DEFAULT.opacityPercent),
                 elevationDp = o.optInt("elevation", DEFAULT.elevationDp),
-                widgetSize = StickerWidgetSize.fromName(o.optString("widgetSize"))
+                widgetSize = StickerWidgetSize.fromName(o.optString("widgetSize")),
+                fontFileId = if (o.isNull("fontFileId")) null else o.optString("fontFileId").ifBlank { null },
+                borderWidthDp = o.optInt("borderWidth", DEFAULT.borderWidthDp),
+                borderColor = o.optString("borderColor", DEFAULT.borderColor)
             ).sanitized()
         }
 
         /** Style used for a sticker that has no override: global typography/layout plus its own preset colours. */
-        fun resolve(sticker: Sticker, global: StickerStyle): StickerStyle =
-            sticker.style ?: global.copy(background = hex(sticker.color.background), text = hex(sticker.color.ink), pin = hex(sticker.color.ink))
+        fun resolve(sticker: Sticker, global: StickerStyle, useGlobalColors: Boolean = false): StickerStyle =
+            sticker.style ?: if (useGlobalColors) global
+            else global.copy(background = hex(sticker.color.background), text = hex(sticker.color.ink), pin = hex(sticker.color.ink))
 
         private fun hex(argb: Long) = "#%06X".format(argb and 0xFFFFFF)
     }

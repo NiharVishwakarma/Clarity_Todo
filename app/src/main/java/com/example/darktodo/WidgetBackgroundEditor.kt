@@ -132,7 +132,7 @@ internal fun WidgetBackgroundEditor(target: String, onClose: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val isTodo = target == WidgetBackgrounds.TODO
-    val aspect = if (isTodo) 5f / 3f else 6f / 5f
+    val aspect = if (isTodo || target == WidgetBackgrounds.STICKER) 5f / 3f else 6f / 5f
     var bitmap by remember { mutableStateOf<Bitmap?>(null) }
     var frame by remember { mutableStateOf(IntSize.Zero) }
     var zoom by remember { mutableFloatStateOf(1f) }
@@ -149,12 +149,18 @@ internal fun WidgetBackgroundEditor(target: String, onClose: () -> Unit) {
     val gallery = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) scope.launch { load(withContext(Dispatchers.IO) { decodeUri(context, uri) }, "That image could not be opened.") }
     }
-    fun refreshWidget() { if (isTodo) TodoWidget.updateAll(context) else CalendarWidget.updateAll(context) }
+    fun refreshWidget() {
+        when (target) {
+            WidgetBackgrounds.TODO -> TodoWidget.updateAll(context)
+            WidgetBackgrounds.STICKER -> com.example.darktodo.widget.StickerWidget.updateAll(context)
+            else -> CalendarWidget.updateAll(context)
+        }
+    }
 
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text(if (isTodo) "To-Do widget wallpaper" else "Calendar widget wallpaper", color = EditorInk, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Text(when (target) { WidgetBackgrounds.TODO -> "To-Do widget wallpaper"; WidgetBackgrounds.STICKER -> "Sticker background image"; else -> "Calendar widget wallpaper" }, color = EditorInk, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                 Text("Pinch to zoom, drag to reposition", color = EditorMuted, fontSize = 13.sp)
             }
             TextButton(onClick = onClose) { Text("Cancel", color = EditorAccent) }

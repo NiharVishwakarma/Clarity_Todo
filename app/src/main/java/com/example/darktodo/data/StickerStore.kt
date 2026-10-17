@@ -92,8 +92,7 @@ object StickerStore {
 
     fun add(context: Context, title: String, content: String, color: StickerColor): List<Sticker> = synchronized(lock) {
         val current = load(context)
-        val inherited = if (saveAsDefault(context)) globalStyle(context) else null
-        val sticker = StickerOps.create(title, content, color, System.currentTimeMillis(), style = inherited) ?: return current
+        val sticker = StickerOps.create(title, content, color, System.currentTimeMillis()) ?: return current
         (current + sticker).also { save(context, it) }
     }
 
@@ -122,7 +121,7 @@ object StickerStore {
         runCatching { com.example.darktodo.widget.StickerWidget.updateAll(context) }
     }
 
-    /** When true, new stickers copy the global style (colours included) instead of using a preset colour. */
+    /** When true, stickers without their own style also use the global colours instead of their preset colour. */
     fun saveAsDefault(context: Context): Boolean = prefs(context).getBoolean(KEY_SAVE_DEFAULT, false)
 
     fun setSaveAsDefault(context: Context, enabled: Boolean) {

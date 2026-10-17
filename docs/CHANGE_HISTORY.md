@@ -108,6 +108,17 @@ This log begins with the repository snapshot available when these project notes 
 - `TodoWidget` and `CalendarWidget` render the wallpaper into their background ImageViews (tint filter cleared); the To-Do task card is semi-transparent and its rows transparent while a wallpaper is set. The To-Do list adapter URI now includes the wallpaper state.
 - Reading the device wallpaper may be denied by Android on newer versions; the editor then tells the user to pick it from the gallery. Not compiled or device-tested; verify in CI and on a device.
 
+## 2026-10-17 - Sticker fonts, border and settings headings (not compiled or device-tested)
+
+- Stickers: new stickers no longer freeze a copy of the global style, so font/style changes reach the home-screen widget; "Save As Default Style" now makes stickers without their own style use the global colours too.
+- Added imported custom fonts (shared `LocalWidgetFonts`) and a Border section (thickness 0-12 dp, HEX colour) to `StickerStyle`, the app preview and the widget bitmap renderer.
+- Removed the Recent colours row; sticker settings groups now carry headings that say what they change.
+- Added an optional Background image for stickers (Sticker settings > Background image), reusing `WidgetBackgroundEditor` and `WidgetBackgrounds` (key `sticker`, new `renderPx`): gallery/device/generated source, zoom/rotate, and a 0-100% dark fade for text legibility. Applies to all stickers in the app and the widget; not included in Drive backup. Not compiled or device-tested.
+
+## 2026-10-17 - Sticker widget picker preview
+
+- Added a yellow sticker preview (`widget_preview_sticker.xml`, `sticker_widget_preview.xml`) as `previewImage`/`previewLayout` of the sticker widget, which previously showed an empty preview. Not device-tested.
+
 ## 2026-10-17 - Vault Security settings (Phase 3)
 
 - Added Settings > Vault Security (VaultSecurityScreen.kt): change master password, biometric status/turn-off, auto-lock timer, security audit.

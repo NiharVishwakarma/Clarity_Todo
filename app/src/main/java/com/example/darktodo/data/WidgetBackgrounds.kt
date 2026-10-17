@@ -21,6 +21,7 @@ import kotlin.math.max
 object WidgetBackgrounds {
     const val TODO = "todo"
     const val CALENDAR = "calendar"
+    const val STICKER = "sticker"
     const val DEFAULT_FADE = 25
     const val MAX_SIDE_PX = 560
     val presets = listOf("Default" to DEFAULT_FADE, "Slightly faded" to 40, "Medium fade" to 60, "Strong fade" to 80)
@@ -48,11 +49,16 @@ object WidgetBackgrounds {
 
     /** Builds the rounded, faded bitmap for an ImageView background, or null when no wallpaper is set. */
     fun render(context: Context, key: String, widthDp: Int, heightDp: Int, radiusDp: Float): Bitmap? {
+        val density = context.resources.displayMetrics.density
+        return renderPx(context, key, widthDp * density, heightDp * density, radiusDp * density)
+    }
+
+    /** Same as [render] but sized in pixels; the result is downscaled when larger than [MAX_SIDE_PX]. */
+    fun renderPx(context: Context, key: String, widthPx: Float, heightPx: Float, radiusPx: Float): Bitmap? {
         if (!has(context, key)) return null
         val source = runCatching { BitmapFactory.decodeFile(file(context, key).absolutePath) }.getOrNull() ?: return null
-        val density = context.resources.displayMetrics.density
-        var width = widthDp * density
-        var height = heightDp * density
+        var width = widthPx
+        var height = heightPx
         val shrink = max(width, height) / MAX_SIDE_PX
         if (shrink > 1f) { width /= shrink; height /= shrink }
         val w = width.toInt().coerceAtLeast(1)
@@ -70,7 +76,7 @@ object WidgetBackgrounds {
         source.recycle()
         val rounded = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { shader = BitmapShader(cropped, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP) }
-        val radius = radiusDp * density * (w / width)
+        val radius = radiusPx * (w / width)
         Canvas(rounded).drawRoundRect(RectF(0f, 0f, w.toFloat(), h.toFloat()), radius, radius, paint)
         cropped.recycle()
         return rounded

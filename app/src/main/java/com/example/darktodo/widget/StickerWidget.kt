@@ -21,7 +21,8 @@ import android.widget.RemoteViews
 import com.example.darktodo.MainActivity
 import com.example.darktodo.R
 import com.example.darktodo.data.Sticker
-import com.example.darktodo.data.StickerHex
+import com.example.darktodo.data.LocalWidgetFonts
+import com.example.darktodo.data.WidgetBackgroundsimport com.example.darktodo.data.StickerHex
 import com.example.darktodo.data.StickerOps
 import com.example.darktodo.data.StickerStore
 import com.example.darktodo.data.StickerStyle
@@ -74,7 +75,7 @@ object StickerWidget {
         val hDp = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 110).coerceAtLeast(40)
         val sticker = selected(context, id)
         val global = StickerStore.globalStyle(context)
-        val style = sticker?.let { StickerStyle.resolve(it, global) } ?: global
+        val style = sticker?.let { StickerStyle.resolve(it, global, StickerStore.saveAsDefault(context)) } ?: global
         val bitmap = render(
             title = sticker?.title ?: "No stickers yet",
             content = sticker?.content ?: "Open Clarity and add a sticker to see it here.",
@@ -82,7 +83,9 @@ object StickerWidget {
             pinned = sticker?.pinned == true,
             widthPx = (wDp * density).toInt(),
             heightPx = (hDp * density).toInt(),
-            density = density
+            density = density,
+            custom = LocalWidgetFonts.typeface(context, style.fontFileId),
+            context = context
         )
         val views = RemoteViews(context.packageName, R.layout.sticker_widget)
         views.setImageViewBitmap(R.id.sticker_widget_image, bitmap)
@@ -122,8 +125,8 @@ object StickerWidget {
         prefs(context).edit().apply { ids.forEach { remove("w_$it") } }.apply()
     }
 
-    private fun resolveTypeface(style: StickerStyle, weight: Int): Typeface {
-        val base = Typeface.create(style.fontFamily, Typeface.NORMAL)
+    private fun resolveTypeface(style: StickerStyle, weight: Int, custom: Typeface?): Typeface {
+        val base = custom ?: Typeface.create(style.fontFamily, Typeface.NORMAL)
         return if (Build.VERSION.SDK_INT >= 28) Typeface.create(base, weight.coerceIn(100, 900), false)
         else Typeface.create(base, if (weight >= 600) Typeface.BOLD else Typeface.NORMAL)
     }
@@ -137,7 +140,7 @@ object StickerWidget {
             .build()
 
     /** Draws the whole sticker (card, shadow, text) so every style option renders identically to the app. */
-    internal fun render(title: String, content: String, style: StickerStyle, pinned: Boolean, widthPx: Int, heightPx: Int, density: Float): Bitmap {
+    internal fun render(title: String, content: String, style: StickerStyle, pinned: Boolean, widthPx: Int, heightPx: Int, density: Float, custom: Typeface? = null, context: Context? = null): Bitmap {
         val scale = min(1f, kotlin.math.sqrt(MAX_PIXELS.toFloat() / (max(1, widthPx).toFloat() * max(1, heightPx))))
         val w = max(40, (widthPx * scale).toInt())
         val h = max(40, (heightPx * scale).toInt())
@@ -155,7 +158,21 @@ object StickerWidget {
             if (shadow > 0f) setShadowLayer(shadow, 0f, shadow / 3f, 0x66000000)
         }
         canvas.drawRoundRect(card, radius, radius, fill)
-
+        val wallpaper = context?.let { WidgetBackgrounds.renderPx(it, WidgetBackgrounds.STICKER, card.width(), card.height(), radius) }
+        if (wallpaper != null) {
+            val imagePaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG).apply { alpha = (255 * style.opacityPercent / 100f).toInt() }
+            canvas.drawBitmap(wallpaper, null, card, imagePaint)
+            wallpaper.recycle()
+        }        if (style.borderWidthDp > 0) {
+            val stroke = style.borderWidthDp * d
+            val line = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                this.style = Paint.Style.STROKE
+                strokeWidth = stroke
+                color = StickerHex.toArgb(style.borderColor)
+            }
+            val half = stroke / 2f
+            canvas.drawRoundRect(RectF(card.left + half, card.top + half, card.right - half, card.bottom - half), max(0f, radius - half), max(0f, radius - half), line)
+        }
         val pad = style.paddingDp * d
         val textWidth = (card.width() - pad * 2).toInt().coerceAtLeast(10)
         val availHeight = (card.height() - pad * 2).coerceAtLeast(10f)
@@ -171,8 +188,8 @@ object StickerWidget {
         val minScale = if (style.widgetSize == StickerWidgetSize.Auto) 0.5f else 0.6f
 
         fun paints(s: Float): Pair<TextPaint, TextPaint> {
-            val body = TextPaint(Paint.ANTI_ALIAS_FLAG).apply { color = ink; textSize = baseSize * s; typeface = resolveTypeface(style, style.fontWeight) }
-            val head = TextPaint(Paint.ANTI_ALIAS_FLAG).apply { color = ink; textSize = baseSize * s * 1.15f; typeface = resolveTypeface(style, style.fontWeight + 200) }
+            val body = TextPaint(Paint.ANTI_ALIAS_FLAG).apply { color = ink; textSize = baseSize * s; typeface = resolveTypeface(style, style.fontWeight, custom) }
+            val head = TextPaint(Paint.ANTI_ALIAS_FLAG).apply { color = ink; textSize = baseSize * s * 1.15f; typeface = resolveTypeface(style, style.fontWeight + 200, custom) }
             return head to body
         }
 

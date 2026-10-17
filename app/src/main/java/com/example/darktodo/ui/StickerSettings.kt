@@ -60,9 +60,25 @@ import com.example.darktodo.data.StickerHex
 import com.example.darktodo.data.StickerStore
 import com.example.darktodo.data.StickerStyle
 import com.example.darktodo.data.StickerWidgetSize
+import com.example.darktodo.data.LocalWidgetFonts
+import com.example.darktodo.data.WidgetBackgrounds
+import android.graphics.BitmapFactory
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.window.Dialog
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import com.example.darktodo.data.WidgetFontFamily
 
-fun stickerFontFamily(key: String): FontFamily = when (key) {
+fun stickerFontFamily(key: String, custom: Typeface? = null): FontFamily = if (custom != null) FontFamily(custom) else when (key) {
     WidgetFontFamily.SERIF.key -> FontFamily.Serif
     WidgetFontFamily.MONOSPACE.key -> FontFamily.Monospace
     WidgetFontFamily.SANS_SERIF.key -> FontFamily.SansSerif
@@ -74,11 +90,31 @@ fun stickerFontFamily(key: String): FontFamily = when (key) {
     val ink = Color(StickerHex.toArgb(style.text))
     val shape = RoundedCornerShape(style.cornerRadiusDp.dp)
     val size = (style.fontSizeSp * style.textScalePercent / 100f).sp
-    val family = stickerFontFamily(style.fontFamily)
+    val family = stickerFontFamily(style.fontFamily, LocalWidgetFonts.typeface(LocalContext.current, style.fontFileId))
+    val appContext = LocalContext.current
+    val wallpaperFile = WidgetBackgrounds.file(appContext, WidgetBackgrounds.STICKER)
+    val wallpaperStamp = if (wallpaperFile.isFile) wallpaperFile.lastModified() else 0L
+    val wallpaper = remember(wallpaperStamp) {
+        if (wallpaperStamp == 0L) null else runCatching { BitmapFactory.decodeFile(wallpaperFile.absolutePath)?.asImageBitmap() }.getOrNull()
+    }
+    val wallpaperFade = WidgetBackgrounds.fade(appContext, WidgetBackgrounds.STICKER) / 100f
     Box(modifier.padding(style.marginDp.dp).shadow(style.elevationDp.dp, shape).alpha(style.opacityPercent / 100f)) {
         Column(
             Modifier.fillMaxWidth().heightIn(min = style.widgetSize.minHeightDp.dp)
-                .background(Color(StickerHex.toArgb(style.background)), shape).padding(style.paddingDp.dp),
+                .clip(shape)
+                .background(Color(StickerHex.toArgb(style.background)), shape)
+                .then(if (wallpaper == null) Modifier else Modifier.drawBehind {
+                    val scale = maxOf(size.width / wallpaper.width, size.height / wallpaper.height)
+                    val srcW = (size.width / scale).toInt().coerceIn(1, wallpaper.width)
+                    val srcH = (size.height / scale).toInt().coerceIn(1, wallpaper.height)
+                    drawImage(
+                        wallpaper, IntOffset((wallpaper.width - srcW) / 2, (wallpaper.height - srcH) / 2), IntSize(srcW, srcH),
+                        dstSize = IntSize(size.width.toInt(), size.height.toInt())
+                    )
+                    drawRect(Color.Black.copy(alpha = wallpaperFade))
+                })
+                .then(if (style.borderWidthDp > 0) Modifier.border(style.borderWidthDp.dp, Color(StickerHex.toArgb(style.borderColor)), shape) else Modifier)
+                .padding(style.paddingDp.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Row(verticalAlignment = Alignment.Top) {
@@ -152,10 +188,6 @@ private val fieldColors @Composable get() = OutlinedTextFieldDefaults.colors(
             Text("Favourites", color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp)
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) { book.favorites.forEach { Swatch(it, it == normalized) { commit(it) } } }
         }
-        if (book.recents.isNotEmpty()) {
-            Text("Recent", color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp)
-            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) { book.recents.forEach { Swatch(it, it == normalized) { commit(it) } } }
-        }
     }
     if (picker) ColorPickerDialog(label, normalized ?: value, onApply = { commit(it); picker = false }, onDismiss = { picker = false })
 }
@@ -185,21 +217,43 @@ private val fieldColors @Composable get() = OutlinedTextFieldDefaults.colors(
     }
 }
 
-@Composable private fun GroupTitle(text: String) = Text(text, color = UiTokens.Ink, fontSize = UiTokens.SectionTitleSp.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 8.dp))
+@Composable private fun GroupTitle(text: String, hint: String) {
+    Column(Modifier.padding(top = 12.dp)) {
+        Text(text, color = UiTokens.Ink, fontSize = UiTokens.SectionTitleSp.sp, fontWeight = FontWeight.SemiBold)
+        Text(hint, color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp)
+    }
+}
 
 /** Every sticker style control. Used for the global style and, inside the editor, for a per-sticker override. */
 @Composable fun StickerStyleControls(style: StickerStyle, book: StickerColorBook, onBook: (StickerColorBook) -> Unit, onChange: (StickerStyle) -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var importedFonts by remember { mutableStateOf(LocalWidgetFonts.list(context)) }
+    val fontPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) scope.launch {
+            val result = withContext(Dispatchers.IO) { runCatching { LocalWidgetFonts.import(context, uri) } }
+            result.fold(
+                onSuccess = { font -> importedFonts = LocalWidgetFonts.list(context); onChange(style.copy(fontFileId = font.id)) },
+                onFailure = { Toast.makeText(context, it.message ?: "Could not import that font file.", Toast.LENGTH_LONG).show() }
+            )
+        }
+    }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        GroupTitle("Colours")
-        HexColorField("Background HEX", style.background, book, onBook) { onChange(style.copy(background = it)) }
+        GroupTitle("Sticker colours", "Changes the card background, the text colour and the pin colour.")
+        HexColorField("Card background HEX", style.background, book, onBook) { onChange(style.copy(background = it)) }
         HexColorField("Text HEX", style.text, book, onBook) { onChange(style.copy(text = it)) }
         HexColorField("Pin HEX", style.pin, book, onBook) { onChange(style.copy(pin = it)) }
 
-        GroupTitle("Fonts Customization")
+        GroupTitle("Fonts Customization", "Changes the font, size and weight of the title and note text, in the app and on the home-screen widget.")
         val families = WidgetFontFamily.entries
         families.chunked(2).forEach { row ->
-            ChoiceRow(row.map { it.label to (it.key == style.fontFamily) }) { onChange(style.copy(fontFamily = row[it].key)) }
+            ChoiceRow(row.map { it.label to (style.fontFileId == null && it.key == style.fontFamily) }) { onChange(style.copy(fontFamily = row[it].key, fontFileId = null)) }
         }
+        Text("Custom fonts", color = UiTokens.Ink, fontSize = UiTokens.LabelSp.sp)
+        importedFonts.chunked(2).forEach { row ->
+            ChoiceRow(row.map { it.name.substringBeforeLast('.') to (it.id == style.fontFileId) }) { onChange(style.copy(fontFileId = row[it].id)) }
+        }
+        TextButton(onClick = { fontPicker.launch(arrayOf("*/*")) }) { Text("Import font file (.ttf, .otf, .ttc)", color = UiTokens.Accent, fontSize = UiTokens.DetailSp.sp) }
         StyleSlider("Font size", "${style.fontSizeSp.toInt()} sp", style.fontSizeSp, 10f..28f) { onChange(style.copy(fontSizeSp = it)) }
         Text("Font weight", color = UiTokens.Ink, fontSize = UiTokens.LabelSp.sp)
         val weights = listOf("Light" to 300, "Regular" to 400, "Medium" to 500, "Bold" to 700)
@@ -207,12 +261,16 @@ private val fieldColors @Composable get() = OutlinedTextFieldDefaults.colors(
         StyleSlider("Line height", "%.1f×".format(style.lineHeight), style.lineHeight, 1f..2f) { onChange(style.copy(lineHeight = (it * 10).toInt() / 10f)) }
         StyleSlider("Text scaling", "${style.textScalePercent}%", style.textScalePercent.toFloat(), 80f..150f) { onChange(style.copy(textScalePercent = it.toInt())) }
 
-        GroupTitle("Widget size")
+        GroupTitle("Border", "Changes the outline around the sticker card. Set thickness to 0 for no border.")
+        StyleSlider("Border thickness", if (style.borderWidthDp == 0) "None" else "${style.borderWidthDp} dp", style.borderWidthDp.toFloat(), 0f..12f) { onChange(style.copy(borderWidthDp = it.toInt())) }
+        HexColorField("Border HEX", style.borderColor, book, onBook) { onChange(style.copy(borderColor = it)) }
+
+        GroupTitle("Widget size", "Changes how tall the sticker card is.")
         val sizes = StickerWidgetSize.entries
         ChoiceRow(sizes.map { it.label to (it == style.widgetSize) }) { onChange(style.copy(widgetSize = sizes[it])) }
         if (style.widgetSize == StickerWidgetSize.Auto) Text("Auto sizes each sticker to fit its text.", color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp)
 
-        GroupTitle("Widget layout")
+        GroupTitle("Card shape & spacing", "Changes the corner roundness, inner padding, outer margin, transparency and shadow of the card.")
         StyleSlider("Corner radius", "${style.cornerRadiusDp} dp", style.cornerRadiusDp.toFloat(), 0f..32f) { onChange(style.copy(cornerRadiusDp = it.toInt())) }
         StyleSlider("Padding", "${style.paddingDp} dp", style.paddingDp.toFloat(), 4f..32f) { onChange(style.copy(paddingDp = it.toInt())) }
         StyleSlider("Margin", "${style.marginDp} dp", style.marginDp.toFloat(), 0f..24f) { onChange(style.copy(marginDp = it.toInt())) }
@@ -220,13 +278,22 @@ private val fieldColors @Composable get() = OutlinedTextFieldDefaults.colors(
         StyleSlider("Elevation / shadow", "${style.elevationDp} dp", style.elevationDp.toFloat(), 0f..16f) { onChange(style.copy(elevationDp = it.toInt())) }
     }
 }
-
+Stickers without their own style also use these colours, font
 @Composable fun StickerSettingsScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     var style by remember { mutableStateOf(StickerStore.globalStyle(context)) }
     var saveDefault by remember { mutableStateOf(StickerStore.saveAsDefault(context)) }
     var book by remember { mutableStateOf(StickerStore.colorBook(context)) }
     LaunchedEffect(style) { StickerStore.saveGlobalStyle(context, style) }
+    var editingBackground by remember { mutableStateOf(false) }
+    var backgroundRevision by remember { mutableIntStateOf(0) }
+    if (editingBackground) Dialog(onDismissRequest = { editingBackground = false }) {
+        Surface(color = Color(0xFF19191E), shape = RoundedCornerShape(20.dp)) {
+            Box(Modifier.padding(16.dp)) {
+                com.example.darktodo.WidgetBackgroundEditor(WidgetBackgrounds.STICKER) { editingBackground = false; backgroundRevision++ }
+            }
+        }
+    }
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text("Sticker settings", color = UiTokens.Ink, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
@@ -248,6 +315,22 @@ private val fieldColors @Composable get() = OutlinedTextFieldDefaults.colors(
                 }
             }
             Text("These settings apply to every sticker. A sticker can override them from its editor.", color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp)
+            Surface(color = UiTokens.SurfaceRaised, shape = RoundedCornerShape(UiTokens.CardRadius), modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Background image", color = UiTokens.Ink, fontSize = UiTokens.SectionTitleSp.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Puts a picture behind every sticker, in the app and on the widget. Raise the image fade to make text easier to read on colourful pictures.", color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp)
+                    Row {
+                        TextButton(onClick = { editingBackground = true }) {
+                            Text(if (WidgetBackgrounds.has(context, WidgetBackgrounds.STICKER) || backgroundRevision < 0) "Change image" else "Choose image", color = UiTokens.Accent)
+                        }
+                        if (WidgetBackgrounds.has(context, WidgetBackgrounds.STICKER)) TextButton(onClick = {
+                            WidgetBackgrounds.clear(context, WidgetBackgrounds.STICKER)
+                            com.example.darktodo.widget.StickerWidget.updateAll(context)
+                            backgroundRevision++
+                        }) { Text("Remove image", color = UiTokens.Accent) }
+                    }
+                }
+            }
             Text("Home-screen widget: add \"Clarity Sticker\" from your launcher's widget picker. It uses these styles, updates instantly, and tapping it flips to the next sticker.", color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp)
             StickerStyleControls(style, book, { book = it; StickerStore.saveColorBook(context, it) }) { style = it }
             TextButton(onClick = { style = StickerStyle.DEFAULT }) { Text("Reset to defaults", color = UiTokens.Accent) }

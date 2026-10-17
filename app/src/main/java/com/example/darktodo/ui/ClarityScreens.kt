@@ -65,6 +65,7 @@ import com.example.darktodo.data.StickerStyle
     val context = LocalContext.current
     var stickers by remember { mutableStateOf(StickerStore.load(context)) }
     val globalStyle = remember { StickerStore.globalStyle(context) }
+    val globalColors = remember { StickerStore.saveAsDefault(context) }
     var book by remember { mutableStateOf(StickerStore.colorBook(context)) }
     var editor by remember { mutableStateOf<Sticker?>(null) }
     var creating by remember { mutableStateOf(false) }
@@ -83,7 +84,7 @@ import com.example.darktodo.data.StickerStyle
                 modifier = Modifier.fillMaxSize()
             ) {
                 items(StickerOps.display(stickers), key = { it.id }) { sticker ->
-                    val style = StickerStyle.resolve(sticker, globalStyle)
+                    val style = StickerStyle.resolve(sticker, globalStyle, globalColors)
                     Surface(onClick = { editor = sticker }, color = Color.Transparent, shape = RoundedCornerShape(style.cornerRadiusDp.dp)) {
                         StickerSurface(sticker.title, sticker.content, style, sticker.pinned) {
                             Box(Modifier.size(28.dp).clickable { stickers = StickerStore.setPinned(context, sticker.id, !sticker.pinned) }.semantics { contentDescription = if (sticker.pinned) "Unpin sticker" else "Pin sticker" }, contentAlignment = Alignment.Center) {
