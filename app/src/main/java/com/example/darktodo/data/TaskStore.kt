@@ -20,10 +20,15 @@ object TaskStore {
     private const val ACTIVE_KEY = "active_tasks_v1"
     private const val HISTORY_KEY = "task_history_v1"
     private val lock = Any()
+    // Parsed copy of the stored JSON, valid only while the stored string is unchanged.
+    private var cachedRaw: String? = null
+    private var cachedTasks: List<Task> = emptyList()
     private fun prefs(context: Context) = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
     fun tasks(context: Context): List<Task> = synchronized(lock) {
-        val array = JSONArray(prefs(context).getString(ACTIVE_KEY, "[]"))
+        val raw = prefs(context).getString(ACTIVE_KEY, "[]") ?: "[]"
+        if (raw == cachedRaw) return@synchronized cachedTasks
+        val array = JSONArray(raw)
         val zone = ZoneId.systemDefault()
         val loaded = (0 until array.length()).map { i -> array.getJSONObject(i).let { o ->
             val taskDate = o.optString("taskDate", "").takeIf { value -> runCatching { LocalDate.parse(value) }.isSuccess } ?: runCatching {
@@ -40,6 +45,7 @@ object TaskStore {
             Task(o.getString("id"), o.getString("title"), o.getBoolean("completed"), o.optString("reminderType", "none"), o.optLong("reminderAt"), o.optLong("deadlineAt"), o.optBoolean("overdueNotified"), o.optLong("countdownStartedAt"), o.optLong("countdownDurationMs"), o.optLong("countdownStartElapsed"), o.optLong("countdownDeadlineElapsed"), o.optInt("countdownBootCount", -1), o.optString("localDateTime", ""), o.optString("timeZoneId", ""), o.optBoolean("followsDeviceTimeZone", true), taskDate)
         } }
         if ((0 until array.length()).any { i -> runCatching { LocalDate.parse(array.getJSONObject(i).optString("taskDate")) }.isFailure }) saveTasks(context, loaded)
+        else { cachedRaw = raw; cachedTasks = loaded }
         loaded
     }
 
@@ -49,6 +55,8 @@ object TaskStore {
     }
 
     private fun saveTasks(context: Context, values: List<Task>) {
+        // Calendar dots depend only on id, date and completion; skip its refresh when none changed.
+        val previous = if (cachedRaw != null) cachedTasks else null
         val array = JSONArray()
         values.forEach { array.put(JSONObject().put("id", it.id).put("title", it.title).put("completed", it.completed).put("reminderType", it.reminderType).put("reminderAt", it.reminderAt).put("deadlineAt", it.deadlineAt).put("overdueNotified", it.overdueNotified).put("countdownStartedAt", it.countdownStartedAt).put("countdownDurationMs", it.countdownDurationMs).put("countdownStartElapsed", it.countdownStartElapsed).put("countdownDeadlineElapsed", it.countdownDeadlineElapsed).put("countdownBootCount", it.countdownBootCount).put("localDateTime", it.localDateTime).put("timeZoneId", it.timeZoneId).put("followsDeviceTimeZone", it.followsDeviceTimeZone).put("taskDate", it.taskDate)) }
         // Alarm scheduling happens immediately after this call. Commit the task state first so
@@ -56,7 +64,9 @@ object TaskStore {
         check(prefs(context).edit().putString(ACTIVE_KEY, array.toString()).commit()) {
             "Could not persist active tasks"
         }
-        com.example.darktodo.widget.CalendarWidget.updateAll(context)
+        cachedRaw = null
+        fun calendarView(list: List<Task>) = list.map { Triple(it.id, it.taskDate, it.completed) }.toSet()
+        if (previous == null || calendarView(previous) != calendarView(values)) com.example.darktodo.widget.CalendarWidget.updateAll(context)
     }
 
     private fun log(context: Context, task: Task, type: String) {

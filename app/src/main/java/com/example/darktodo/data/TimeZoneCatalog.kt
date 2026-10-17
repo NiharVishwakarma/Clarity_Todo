@@ -109,8 +109,8 @@ object TimeZoneCatalog {
         preferred + remaining
     }
 
-    val popular: List<TimeZoneOption> get() = all.filter { it.popular }
-    val other: List<TimeZoneOption> get() = all.filterNot { it.popular }
+    val popular: List<TimeZoneOption> by lazy { all.filter { it.popular } }
+    val other: List<TimeZoneOption> by lazy { all.filterNot { it.popular } }
 
     fun find(id: String): TimeZoneOption? = all.firstOrNull { it.id == id }
 

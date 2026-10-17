@@ -47,6 +47,15 @@ android {
         }
         buildTypes.getByName("debug").signingConfig = signingConfigs.getByName("persistent")
     }
+
+    buildTypes {
+        release {
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            if (persistentSigningValues.all { !it.isNullOrBlank() }) signingConfig = signingConfigs.getByName("persistent")
+        }
+    }
 }
 
 dependencies {

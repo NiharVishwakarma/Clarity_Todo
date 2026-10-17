@@ -115,6 +115,16 @@ This log begins with the repository snapshot available when these project notes 
 - Removed the Recent colours row; sticker settings groups now carry headings that say what they change.
 - Added an optional Background image for stickers (Sticker settings > Background image), reusing `WidgetBackgroundEditor` and `WidgetBackgrounds` (key `sticker`, new `renderPx`): gallery/device/generated source, zoom/rotate, and a 0-100% dark fade for text legibility. Applies to all stickers in the app and the widget; not included in Drive backup. Not compiled or device-tested.
 
+## 2026-10-17 - Performance pass 1 (not compiled or device-tested)
+
+- `TaskStore.tasks()` caches the parsed list keyed by the stored JSON string; `saveTasks` clears it and only refreshes the Calendar widget when an id/date/completed value changed.
+- `LocalWidgetFonts.list()` caches the parsed font registry (file-exists check still runs each call); the To-Do row factory loads settings once per data refresh instead of per row.
+- Whole-number settings sliders skip commits that do not change the integer; Sticker settings saves are debounced 150 ms and flushed when the screen closes.
+- Task list group positions, calendar status lookup, vault search filtering and History grouping are computed once per data change (`remember`) instead of per item/recomposition; `TimeZoneCatalog.popular/other` are lazy.
+- `ReminderScheduler.restore` now runs on a background thread at launch and on resume (UI refreshes before and after it finishes).
+- `WidgetBackgrounds` reuses the decoded wallpaper per saved-file version; `LocalWidgetFonts.renderText` caches rendered bitmaps (LRU 128) keyed by every input.
+- Added an optional `release` build type (R8 + resource shrinking, same persistent signing) and a non-blocking CI step that uploads `dark-todo-release-apk`; the debug APK flow is unchanged. Release build is not device-tested; add keep rules in `app/proguard-rules.pro` if it misbehaves. Vault key-derivation threading and quote pruning were deliberately left unchanged.
+
 ## 2026-10-17 - Sticker fonts always follow global settings
 
 - `StickerStyle.resolve` now always takes font family/file, size, weight, line height and text scale from the global sticker style, so stickers holding an older per-sticker style no longer ignore the selected (custom) font on the widget. The per-sticker editor no longer shows font controls. Added `StickerWidget` debug logs (tag `StickerWidget`). Not device-tested.

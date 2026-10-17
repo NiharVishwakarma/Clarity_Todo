@@ -32,6 +32,23 @@ object WidgetBackgrounds {
     internal fun file(context: Context, key: String) = File(context.applicationContext.filesDir, "widget_background_$key.jpg")
 
     fun has(context: Context, key: String): Boolean = file(context, key).isFile
+
+    private class CachedSource(val modified: Long, val length: Long, val bitmap: Bitmap)
+    private val sources = HashMap<String, CachedSource>()
+
+    /** Decoded source image, reused until the saved file changes. Never recycle the returned bitmap. */
+    private fun source(context: Context, key: String): Bitmap? {
+        val file = file(context, key)
+        if (!file.isFile) return null
+        val modified = file.lastModified()
+        val length = file.length()
+        synchronized(sources) {
+            sources[key]?.takeIf { it.modified == modified && it.length == length }?.let { return it.bitmap }
+            val decoded = runCatching { BitmapFactory.decodeFile(file.absolutePath) }.getOrNull() ?: return null
+            sources[key] = CachedSource(modified, length, decoded)
+            return decoded
+        }
+    }
     fun fade(context: Context, key: String): Int = prefs(context).getInt("${key}_fade", DEFAULT_FADE).coerceIn(0, 100)
     fun saveFade(context: Context, key: String, percent: Int) { prefs(context).edit().putInt("${key}_fade", percent.coerceIn(0, 100)).apply() }
 
@@ -43,6 +60,7 @@ object WidgetBackgrounds {
 
     fun clear(context: Context, key: String) {
         file(context, key).delete()
+        synchronized(sources) { sources.remove(key) }
         prefs(context).edit().remove("${key}_fade").apply()
         com.example.darktodo.backup.BackupScheduler.requestBackup(context)
     }
@@ -56,7 +74,7 @@ object WidgetBackgrounds {
     /** Same as [render] but sized in pixels; the result is downscaled when larger than [MAX_SIDE_PX]. */
     fun renderPx(context: Context, key: String, widthPx: Float, heightPx: Float, radiusPx: Float): Bitmap? {
         if (!has(context, key)) return null
-        val source = runCatching { BitmapFactory.decodeFile(file(context, key).absolutePath) }.getOrNull() ?: return null
+        val source = source(context, key) ?: return null
         var width = widthPx
         var height = heightPx
         val shrink = max(width, height) / MAX_SIDE_PX
@@ -73,7 +91,6 @@ object WidgetBackgrounds {
         canvas.drawBitmap(source, 0f, 0f, Paint(Paint.FILTER_BITMAP_FLAG))
         canvas.restore()
         canvas.drawColor(Color.argb(fade(context, key) * 255 / 100, 0, 0, 0))
-        source.recycle()
         val rounded = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { shader = BitmapShader(cropped, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP) }
         val radius = radiusPx * (w / width)

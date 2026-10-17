@@ -20,6 +20,7 @@ class TodoWidgetService : RemoteViewsService() {
 
 private class TaskRowsFactory(private val context: android.content.Context, private val widgetWidthDp: Int) : RemoteViewsService.RemoteViewsFactory {
     private var tasks: List<Task> = emptyList()
+    private var settings: com.example.darktodo.data.WidgetPrefs? = null
 
     override fun onCreate() = Unit
 
@@ -27,6 +28,7 @@ private class TaskRowsFactory(private val context: android.content.Context, priv
         tasks = runCatching { TaskStore.tasks(context) }
             .onFailure { Log.e("TodoWidgetService", "Unable to load widget task rows", it) }
             .getOrDefault(emptyList())
+        settings = runCatching { com.example.darktodo.data.WidgetSettings.load(context) }.getOrNull()
     }
 
     override fun onDestroy() {
@@ -36,7 +38,7 @@ private class TaskRowsFactory(private val context: android.content.Context, priv
     override fun getCount(): Int = tasks.size
 
     override fun getViewAt(position: Int): RemoteViews? =
-        tasks.getOrNull(position)?.let { TodoWidget.renderTaskRow(context, it, widgetWidthDp) }
+        tasks.getOrNull(position)?.let { TodoWidget.renderTaskRow(context, it, widgetWidthDp, settings) }
 
     override fun getLoadingView(): RemoteViews = RemoteViews(context.packageName, com.example.darktodo.R.layout.widget_task_loading)
 

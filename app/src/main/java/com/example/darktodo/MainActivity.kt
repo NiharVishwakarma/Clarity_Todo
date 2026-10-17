@@ -196,7 +196,11 @@ class MainActivity : FragmentActivity() {
         if (intent.action == com.example.darktodo.widget.CalendarWidget.ACTION_DATE) {
             com.example.darktodo.widget.CalendarWidget.selectDate(this, intent.getIntExtra(com.example.darktodo.widget.CalendarWidget.EXTRA_WIDGET, android.appwidget.AppWidgetManager.INVALID_APPWIDGET_ID), intent.getStringExtra("task_date") ?: return)
         }
-        com.example.darktodo.reminders.ReminderScheduler.restore(this)
+        val appContext = applicationContext
+        kotlin.concurrent.thread(name = "reminder-restore") {
+            runCatching { com.example.darktodo.reminders.ReminderScheduler.restore(appContext) }
+                .onFailure { android.util.Log.e("MainActivity", "Reminder recovery failed", it) }
+        }
         setContent { MaterialTheme { Surface(color = Bg) {
             var welcome by remember { mutableStateOf(com.example.darktodo.backup.BackupManager.needsWelcome(this@MainActivity)) }
             if (welcome) WelcomeBackGate { restored ->
@@ -280,12 +284,20 @@ class MainActivity : FragmentActivity() {
         }
     }
     val lifecycleOwner = LocalLifecycleOwner.current
+    val restoreScope = rememberCoroutineScope()
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_RESUME) {
             timeTick = System.currentTimeMillis()
             permissionRevision++
-            com.example.darktodo.reminders.ReminderScheduler.restore(context)
             refresh()
+            // restore() is synchronized and re-registers every alarm; refresh again once it finishes.
+            restoreScope.launch {
+                withContext(Dispatchers.Default) {
+                    runCatching { com.example.darktodo.reminders.ReminderScheduler.restore(context) }
+                        .onFailure { android.util.Log.e("MainActivity", "Reminder recovery failed", it) }
+                }
+                refresh()
+            }
         } }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
@@ -363,13 +375,19 @@ class MainActivity : FragmentActivity() {
                         TextButton(onClick = { if (title.isNotBlank()) addReminder = true }) { Text("Add", color = Accent) }
                     }
                     Spacer(Modifier.height(12.dp))
+                    val groupPositions = remember(tasks) {
+                        val counts = mutableMapOf(true to 0, false to 0)
+                        val positions = HashMap<String, Int>()
+                        tasks.forEach { positions[it.id] = counts.getValue(it.completed); counts[it.completed] = counts.getValue(it.completed) + 1 }
+                        positions to counts.toMap()
+                    }
                     val visibleTasks = tasks.filter { dateFilter == null || it.taskDate == dateFilter }
                     LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         items(visibleTasks, key = { it.id }) { task ->
                             val taskColor = colorFromHex(settings.taskTitle)
                             val checkColor = colorFromHex(if (task.completed) settings.complete else settings.incomplete)
-                            val groupPosition = tasks.filter { it.completed == task.completed }.indexOfFirst { it.id == task.id }
-                            val groupSize = tasks.count { it.completed == task.completed }
+                            val groupPosition = groupPositions.first[task.id] ?: -1
+                            val groupSize = groupPositions.second.getValue(task.completed)
                             Row(Modifier.fillMaxWidth().combinedClickable(onClick = {}, onLongClick = { actionTask = task }).graphicsLayer(alpha = if (task.completed) 1f - settings.fadePercent / 100f else 1f).background(Card, RoundedCornerShape(14.dp)).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Text(if (task.completed) "\u25cf" else "\u25cb", modifier = Modifier.clickable { TaskStore.toggle(context, task.id); refresh() }, color = checkColor, fontSize = 22.sp)
                                 Spacer(Modifier.width(12.dp))
@@ -916,6 +934,11 @@ private sealed class VaultSensitiveAction(open val entryId: String) {
                     Text(if (addExpanded) "⌃" else "⌄", color = Accent, fontSize = 20.sp)
                 }
             }
+            val visibleEntries = remember(opened, searchQuery) {
+                opened.filter { entry ->
+                    searchQuery.isBlank() || listOf(entry.title, entry.username, entry.notes).any { it.contains(searchQuery, ignoreCase = true) }
+                }
+            }
             LazyColumn(Modifier.weight(1f), state = listState, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 item(key = "password_form") {
                     AnimatedVisibility(visible = addExpanded, enter = expandVertically(animationSpec = tween(180)) + fadeIn(animationSpec = tween(140)), exit = shrinkVertically(animationSpec = tween(150)) + fadeOut(animationSpec = tween(120))) {
@@ -940,9 +963,6 @@ private sealed class VaultSensitiveAction(open val entryId: String) {
                     }
                 }
                 item(key = "vault_search") { VaultInput("Search titles, usernames, and notes", searchQuery, { searchQuery = it }) }
-                val visibleEntries = opened.filter { entry ->
-                    searchQuery.isBlank() || listOf(entry.title, entry.username, entry.notes).any { it.contains(searchQuery, ignoreCase = true) }
-                }
                 if (visibleEntries.isEmpty()) item(key = "vault_empty") { Text(if (opened.isEmpty()) "No passwords saved yet." else "No matching passwords.", color = UiTokens.Muted) }
                 itemsIndexed(visibleEntries, key = { _, entry -> entry.id }) { _, entry ->
                     val originalIndex = opened.indexOfFirst { it.id == entry.id }
@@ -1114,6 +1134,7 @@ private fun biometricUnavailableMessage(status: Int): String = when (status) {
     var selected by remember(month) { mutableStateOf(LocalDate.now().takeIf { it.month == month.month && it.year == month.year } ?: month.atDay(1)) }
     val cells = remember(month) { CalendarDates.monthCells(month, java.util.Locale.getDefault()).chunked(7) }
     val weekdays = remember { CalendarDates.weekdays(java.util.Locale.getDefault()) }
+    val tasksByDate = remember(tasks) { tasks.groupBy { it.taskDate } }
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Surface(color = colorFromHex(settings.background), shape = RoundedCornerShape(settings.cornerRadius.dp), modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1130,7 +1151,7 @@ private fun biometricUnavailableMessage(status: Int): String = when (status) {
                         week.forEach { date ->
                             Box(Modifier.weight(1f).height(44.dp), contentAlignment = Alignment.Center) {
                                 if (date != null) {
-                                    val status = CalendarDates.status(tasks, date)
+                                    val status = CalendarDates.status(tasksByDate[date.toString()].orEmpty(), date)
                                     Column(
                                         Modifier.size(38.dp).clip(RoundedCornerShape(50)).background(if (date == selected) colorFromHex(settings.selectedBackground) else Color.Transparent).clickable { selected = date }.padding(2.dp),
                                         horizontalAlignment = Alignment.CenterHorizontally,
@@ -1525,7 +1546,7 @@ private data class ColorPickTarget(val key: String, val label: String, val value
             CollapsibleSettingsSection("Text & completion", "${settings.taskTitleSizeSp.toInt()} sp title · ${settings.fadePercent}% fade", todoDisplayExpanded, { todoDisplayExpanded = it }) {
                 SettingsPanel {
                     SettingSlider("Task-title size", "${settings.taskTitleSizeSp.toInt()} sp", settings.taskTitleSizeSp, 12f..24f, onTaskTitleSize)
-                    SettingSlider("Completed-task fade", "${settings.fadePercent}%", settings.fadePercent.toFloat(), 0f..100f, { onFade(it.toInt()) })
+                    SettingSlider("Completed-task fade", "${settings.fadePercent}%", settings.fadePercent.toFloat(), 0f..100f, { onFade(it.toInt()) }, intValued = true)
                 }
             }
             ExpandableColorPalette("To-Do widget colors", 6, todoColorsExpanded, { todoColorsExpanded = it }) {
@@ -1545,8 +1566,8 @@ private data class ColorPickTarget(val key: String, val label: String, val value
                             com.example.darktodo.ui.OutlineChip(label, settings.paddingDp == v.first && settings.rowSpacingDp == v.second, { onTodoLayout(v.first, v.second) }, Modifier.weight(1f))
                         }
                     }
-                    SettingSlider("Widget padding", "${settings.paddingDp} dp", settings.paddingDp.toFloat(), 0f..20f, { onTodoLayout(it.toInt(), settings.rowSpacingDp) })
-                    SettingSlider("Row spacing", "${settings.rowSpacingDp} dp", settings.rowSpacingDp.toFloat(), 0f..12f, { onTodoLayout(settings.paddingDp, it.toInt()) })
+                    SettingSlider("Widget padding", "${settings.paddingDp} dp", settings.paddingDp.toFloat(), 0f..20f, { onTodoLayout(it.toInt(), settings.rowSpacingDp) }, intValued = true)
+                    SettingSlider("Row spacing", "${settings.rowSpacingDp} dp", settings.rowSpacingDp.toFloat(), 0f..12f, { onTodoLayout(settings.paddingDp, it.toInt()) }, intValued = true)
                 }
             }
             DefaultStyleActions(isTodo = true, onSave = onSaveDefault, onRestore = onRestoreDefault)
@@ -1561,9 +1582,9 @@ private data class ColorPickTarget(val key: String, val label: String, val value
             }
             CollapsibleSettingsSection("Text sizes", "Date ${calendarSettings.dateSize} sp · Weekday ${calendarSettings.weekdaySize} sp · Month ${calendarSettings.headingSize} sp", calendarSizesExpanded, { calendarSizesExpanded = it }) {
                 SettingsPanel {
-                    SettingSlider("Date size", "${calendarSettings.dateSize} sp", calendarSettings.dateSize.toFloat(), 12f..20f, { onCalendarInt("date_size", it.toInt()) })
-                    SettingSlider("Weekday size", "${calendarSettings.weekdaySize} sp", calendarSettings.weekdaySize.toFloat(), 8f..14f, { onCalendarInt("weekday_size", it.toInt()) })
-                    SettingSlider("Month heading size", "${calendarSettings.headingSize} sp", calendarSettings.headingSize.toFloat(), 14f..24f, { onCalendarInt("heading_size", it.toInt()) })
+                    SettingSlider("Date size", "${calendarSettings.dateSize} sp", calendarSettings.dateSize.toFloat(), 12f..20f, { onCalendarInt("date_size", it.toInt()) }, intValued = true)
+                    SettingSlider("Weekday size", "${calendarSettings.weekdaySize} sp", calendarSettings.weekdaySize.toFloat(), 8f..14f, { onCalendarInt("weekday_size", it.toInt()) }, intValued = true)
+                    SettingSlider("Month heading size", "${calendarSettings.headingSize} sp", calendarSettings.headingSize.toFloat(), 14f..24f, { onCalendarInt("heading_size", it.toInt()) }, intValued = true)
                 }
             }
             ExpandableColorPalette("Calendar widget colors", 10, calendarColorsExpanded, { calendarColorsExpanded = it }) {
@@ -1587,8 +1608,8 @@ private data class ColorPickTarget(val key: String, val label: String, val value
             }
             CollapsibleSettingsSection("Layout", "${calendarSettings.cornerRadius} dp corners · ${calendarSettings.rowSpacing} dp row spacing", calendarLayoutExpanded, { calendarLayoutExpanded = it }) {
                 SettingsPanel {
-                    SettingSlider("Corner radius", "${calendarSettings.cornerRadius} dp", calendarSettings.cornerRadius.toFloat(), 8f..32f, { onCalendarInt("corner_radius", it.toInt()) })
-                    SettingSlider("Vertical row spacing", "${calendarSettings.rowSpacing} dp", calendarSettings.rowSpacing.toFloat(), 0f..8f, { onCalendarInt("row_spacing", it.toInt()) })
+                    SettingSlider("Corner radius", "${calendarSettings.cornerRadius} dp", calendarSettings.cornerRadius.toFloat(), 8f..32f, { onCalendarInt("corner_radius", it.toInt()) }, intValued = true)
+                    SettingSlider("Vertical row spacing", "${calendarSettings.rowSpacing} dp", calendarSettings.rowSpacing.toFloat(), 0f..8f, { onCalendarInt("row_spacing", it.toInt()) }, intValued = true)
                 }
             }
             SettingsPanel {
@@ -1834,7 +1855,7 @@ private fun selectedFontLabel(
     }
 }
 
-@Composable private fun SettingSlider(label: String, valueLabel: String, value: Float, range: ClosedFloatingPointRange<Float>, onChange: (Float) -> Unit, steps: Int = 0) {
+@Composable private fun SettingSlider(label: String, valueLabel: String, value: Float, range: ClosedFloatingPointRange<Float>, onChange: (Float) -> Unit, steps: Int = 0, intValued: Boolean = false) {
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(label, color = Ink, fontSize = UiTokens.LabelSp.sp, modifier = Modifier.weight(1f))
@@ -1842,7 +1863,7 @@ private fun selectedFontLabel(
         }
         Slider(
             value = value.coerceIn(range),
-            onValueChange = onChange,
+            onValueChange = { next -> if (!intValued || next.toInt() != value.toInt()) onChange(next) },
             valueRange = range,
             steps = steps,
             colors = SliderDefaults.colors(thumbColor = UiTokens.Secondary, activeTrackColor = UiTokens.Secondary, inactiveTrackColor = UiTokens.Secondary.copy(alpha = .25f), activeTickColor = UiTokens.Background, inactiveTickColor = UiTokens.Secondary.copy(alpha = .5f))
@@ -1873,12 +1894,12 @@ private fun selectedFontLabel(
     val yearFmt = DateTimeFormatter.ofPattern("yyyy").withZone(zone)
     val monthFmt = DateTimeFormatter.ofPattern("yyyy-MM").withZone(zone)
     val dayFmt = DateTimeFormatter.ofPattern("yyyy-MM-dd").withZone(zone)
-    val shown = when (route.size) {
+    val shown = remember(events, route) { when (route.size) {
         0 -> events.map { yearFmt.format(Instant.ofEpochMilli(it.at)) }.distinct().sorted()
         1 -> events.map { monthFmt.format(Instant.ofEpochMilli(it.at)) }.filter { it.startsWith(route[0]) }.distinct().sorted()
         2 -> events.map { dayFmt.format(Instant.ofEpochMilli(it.at)) }.filter { it.startsWith(route[1]) }.distinct().sorted()
         else -> emptyList()
-    }
+    } }
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         if (route.isNotEmpty()) TextButton(onClick = { onRoute(route.dropLast(1)) }) { Text("< Back", color = Accent) }
         Text(

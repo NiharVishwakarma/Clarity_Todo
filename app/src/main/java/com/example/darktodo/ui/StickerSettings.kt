@@ -287,7 +287,10 @@ private val fieldColors @Composable get() = OutlinedTextFieldDefaults.colors(
     var style by remember { mutableStateOf(StickerStore.globalStyle(context)) }
     var saveDefault by remember { mutableStateOf(StickerStore.saveAsDefault(context)) }
     var book by remember { mutableStateOf(StickerStore.colorBook(context)) }
-    LaunchedEffect(style) { StickerStore.saveGlobalStyle(context, style) }
+    // Debounced while dragging; the latest value is always flushed when the screen closes.
+    val latestStyle by androidx.compose.runtime.rememberUpdatedState(style)
+    LaunchedEffect(style) { kotlinx.coroutines.delay(150); StickerStore.saveGlobalStyle(context, style) }
+    androidx.compose.runtime.DisposableEffect(Unit) { onDispose { StickerStore.saveGlobalStyle(context, latestStyle) } }
     var editingBackground by remember { mutableStateOf(false) }
     var backgroundRevision by remember { mutableIntStateOf(0) }
     if (editingBackground) Dialog(onDismissRequest = { editingBackground = false }) {

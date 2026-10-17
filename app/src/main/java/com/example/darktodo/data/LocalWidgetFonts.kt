@@ -23,24 +23,32 @@ object LocalWidgetFonts {
     private const val KEY_FONTS = "imported_fonts"
     private const val MAX_FONT_BYTES = 20L * 1024L * 1024L
     private val typefaceCache = mutableMapOf<String, Typeface>()
+    // Parsed registry keyed by its stored JSON; the file-exists check still runs on every call.
+    private var listRaw: String? = null
+    private var listEntries: List<ImportedWidgetFont> = emptyList()
 
     fun list(context: Context): List<ImportedWidgetFont> {
         val root = root(context)
         val json = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .getString(KEY_FONTS, "[]") ?: "[]"
-        return runCatching {
-            val array = JSONArray(json)
-            buildList {
-                for (index in 0 until array.length()) {
-                    val item = array.getJSONObject(index)
-                    val id = item.optString("id")
-                    val name = item.optString("name")
-                    if (id.matches(Regex("^[a-f0-9-]+\\.(ttf|otf|ttc)$")) && name.isNotBlank() && File(root, id).isFile) {
-                        add(ImportedWidgetFont(id, name))
+        val entries = synchronized(this) {
+            if (json != listRaw) {
+                listEntries = runCatching {
+                    val array = JSONArray(json)
+                    buildList {
+                        for (index in 0 until array.length()) {
+                            val item = array.getJSONObject(index)
+                            val id = item.optString("id")
+                            val name = item.optString("name")
+                            if (id.matches(Regex("^[a-f0-9-]+\\.(ttf|otf|ttc)$")) && name.isNotBlank()) add(ImportedWidgetFont(id, name))
+                        }
                     }
-                }
+                }.getOrDefault(emptyList())
+                listRaw = json
             }
-        }.getOrDefault(emptyList())
+            listEntries
+        }
+        return entries.filter { File(root, it.id).isFile }
     }
 
     /** Copy, validate, then register a font selected through Android's document picker. */
@@ -96,8 +104,28 @@ object LocalWidgetFonts {
         }
     }
 
+    private val textBitmaps = android.util.LruCache<String, Bitmap>(128)
+
     /** Render imported-font text to a bitmap in this process; Typeface itself cannot cross into a launcher process. */
     fun renderText(
+        context: Context,
+        text: String,
+        fontId: String?,
+        sizeSp: Float,
+        color: Int,
+        maxWidthDp: Float = 600f,
+        align: Paint.Align = Paint.Align.LEFT,
+        maxLines: Int = 1
+    ): Bitmap? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P || fontId == null || text.isEmpty()) return null
+        val metrics = context.resources.displayMetrics
+        // Every input that affects the pixels is part of the key; callers never modify the bitmap.
+        val key = "$fontId|$sizeSp|$color|$maxWidthDp|${align.name}|$maxLines|${metrics.density}|${metrics.scaledDensity}|$text"
+        textBitmaps.get(key)?.let { return it }
+        return renderTextUncached(context, text, fontId, sizeSp, color, maxWidthDp, align, maxLines)?.also { textBitmaps.put(key, it) }
+    }
+
+    private fun renderTextUncached(
         context: Context,
         text: String,
         fontId: String?,

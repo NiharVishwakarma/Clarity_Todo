@@ -144,8 +144,8 @@ object TodoWidget {
         return views
     }
 
-    internal fun renderTaskRow(context: Context, task: Task, widgetWidthDp: Int = 320): RemoteViews {
-        val settings = WidgetSettings.load(context)
+    internal fun renderTaskRow(context: Context, task: Task, widgetWidthDp: Int = 320, preloaded: WidgetPrefs? = null): RemoteViews {
+        val settings = preloaded ?: WidgetSettings.load(context)
         val importedFont = settings.fontFileId != null
         val row = RemoteViews(context.packageName, WidgetFontLayouts.taskRow(settings.fontFamily, importedFont))
         val spacingPx = (settings.rowSpacingDp * context.resources.displayMetrics.density).toInt()
