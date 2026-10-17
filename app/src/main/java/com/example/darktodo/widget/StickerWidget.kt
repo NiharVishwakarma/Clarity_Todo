@@ -61,6 +61,7 @@ class StickerWidgetReceiver : AppWidgetProvider() {
 object StickerWidget {
     const val ACTION_NEXT = "com.example.darktodo.STICKER_WIDGET_NEXT"
     private const val PREFS = "sticker_widget_selection"
+    private const val TAG = "StickerWidget"
     private const val MAX_PIXELS = 600_000
 
     fun updateAll(context: Context) {
@@ -77,6 +78,8 @@ object StickerWidget {
         val sticker = selected(context, id)
         val global = StickerStore.globalStyle(context)
         val style = sticker?.let { StickerStyle.resolve(it, global, StickerStore.saveAsDefault(context)) } ?: global
+        val customTypeface = LocalWidgetFonts.typeface(context, style.fontFileId)
+        android.util.Log.d(TAG, "update id=$id family=${style.fontFamily} fontFile=${style.fontFileId} loaded=${customTypeface != null} size=${style.fontSizeSp} weight=${style.fontWeight}")
         val bitmap = render(
             title = sticker?.title ?: "No stickers yet",
             content = sticker?.content ?: "Open Clarity and add a sticker to see it here.",
@@ -85,7 +88,7 @@ object StickerWidget {
             widthPx = (wDp * density).toInt(),
             heightPx = (hDp * density).toInt(),
             density = density,
-            custom = LocalWidgetFonts.typeface(context, style.fontFileId),
+            custom = customTypeface,
             context = context
         )
         val views = RemoteViews(context.packageName, R.layout.sticker_widget)

@@ -87,9 +87,15 @@ data class StickerStyle(
         }
 
         /** Style used for a sticker that has no override: global typography/layout plus its own preset colours. */
-        fun resolve(sticker: Sticker, global: StickerStyle, useGlobalColors: Boolean = false): StickerStyle =
-            sticker.style ?: if (useGlobalColors) global
+        fun resolve(sticker: Sticker, global: StickerStyle, useGlobalColors: Boolean = false): StickerStyle {
+            val base = sticker.style ?: if (useGlobalColors) global
             else global.copy(background = hex(sticker.color.background), text = hex(sticker.color.ink), pin = hex(sticker.color.ink))
+            // Fonts are configured once in Sticker settings, so a per-sticker style never overrides them.
+            return base.copy(
+                fontFamily = global.fontFamily, fontFileId = global.fontFileId, fontSizeSp = global.fontSizeSp,
+                fontWeight = global.fontWeight, lineHeight = global.lineHeight, textScalePercent = global.textScalePercent
+            )
+        }
 
         private fun hex(argb: Long) = "#%06X".format(argb and 0xFFFFFF)
     }

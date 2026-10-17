@@ -225,7 +225,7 @@ private val fieldColors @Composable get() = OutlinedTextFieldDefaults.colors(
 }
 
 /** Every sticker style control. Used for the global style and, inside the editor, for a per-sticker override. */
-@Composable fun StickerStyleControls(style: StickerStyle, book: StickerColorBook, onBook: (StickerColorBook) -> Unit, onChange: (StickerStyle) -> Unit) {
+@Composable fun StickerStyleControls(style: StickerStyle, book: StickerColorBook, onBook: (StickerColorBook) -> Unit, showFonts: Boolean = true, onChange: (StickerStyle) -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var importedFonts by remember { mutableStateOf(LocalWidgetFonts.list(context)) }
@@ -244,6 +244,7 @@ private val fieldColors @Composable get() = OutlinedTextFieldDefaults.colors(
         HexColorField("Text HEX", style.text, book, onBook) { onChange(style.copy(text = it)) }
         HexColorField("Pin HEX", style.pin, book, onBook) { onChange(style.copy(pin = it)) }
 
+        if (showFonts) {
         GroupTitle("Fonts Customization", "Changes the font, size and weight of the title and note text, in the app and on the home-screen widget.")
         val families = WidgetFontFamily.entries
         families.chunked(2).forEach { row ->
@@ -260,6 +261,7 @@ private val fieldColors @Composable get() = OutlinedTextFieldDefaults.colors(
         ChoiceRow(weights.map { it.first to (it.second == style.fontWeight) }) { onChange(style.copy(fontWeight = weights[it].second)) }
         StyleSlider("Line height", "%.1f×".format(style.lineHeight), style.lineHeight, 1f..2f) { onChange(style.copy(lineHeight = (it * 10).toInt() / 10f)) }
         StyleSlider("Text scaling", "${style.textScalePercent}%", style.textScalePercent.toFloat(), 80f..150f) { onChange(style.copy(textScalePercent = it.toInt())) }
+        }
 
         GroupTitle("Border", "Changes the outline around the sticker card. Set thickness to 0 for no border.")
         StyleSlider("Border thickness", if (style.borderWidthDp == 0) "None" else "${style.borderWidthDp} dp", style.borderWidthDp.toFloat(), 0f..12f) { onChange(style.copy(borderWidthDp = it.toInt())) }
