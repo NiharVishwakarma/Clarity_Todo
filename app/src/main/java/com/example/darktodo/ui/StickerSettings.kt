@@ -225,7 +225,7 @@ private val fieldColors @Composable get() = OutlinedTextFieldDefaults.colors(
 }
 
 /** Every sticker style control. Used for the global style and, inside the editor, for a per-sticker override. */
-@Composable fun StickerStyleControls(style: StickerStyle, book: StickerColorBook, onBook: (StickerColorBook) -> Unit, showFonts: Boolean = true, onChange: (StickerStyle) -> Unit) {
+@Composable fun StickerStyleControls(style: StickerStyle, book: StickerColorBook, onBook: (StickerColorBook) -> Unit, showFonts: Boolean = true, showLayout: Boolean = true, onChange: (StickerStyle) -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var importedFonts by remember { mutableStateOf(LocalWidgetFonts.list(context)) }
@@ -263,6 +263,7 @@ private val fieldColors @Composable get() = OutlinedTextFieldDefaults.colors(
         StyleSlider("Text scaling", "${style.textScalePercent}%", style.textScalePercent.toFloat(), 80f..150f) { onChange(style.copy(textScalePercent = it.toInt())) }
         }
 
+        if (showLayout) {
         GroupTitle("Border", "Changes the outline around the sticker card. Set thickness to 0 for no border.")
         StyleSlider("Border thickness", if (style.borderWidthDp == 0) "None" else "${style.borderWidthDp} dp", style.borderWidthDp.toFloat(), 0f..12f) { onChange(style.copy(borderWidthDp = it.toInt())) }
         HexColorField("Border HEX", style.borderColor, book, onBook) { onChange(style.copy(borderColor = it)) }
@@ -278,6 +279,7 @@ private val fieldColors @Composable get() = OutlinedTextFieldDefaults.colors(
         StyleSlider("Margin", "${style.marginDp} dp", style.marginDp.toFloat(), 0f..24f) { onChange(style.copy(marginDp = it.toInt())) }
         StyleSlider("Opacity", "${style.opacityPercent}%", style.opacityPercent.toFloat(), 30f..100f) { onChange(style.copy(opacityPercent = it.toInt())) }
         StyleSlider("Elevation / shadow", "${style.elevationDp} dp", style.elevationDp.toFloat(), 0f..16f) { onChange(style.copy(elevationDp = it.toInt())) }
+        }
     }
 }
 @Composable fun StickerSettingsScreen(onBack: () -> Unit) {

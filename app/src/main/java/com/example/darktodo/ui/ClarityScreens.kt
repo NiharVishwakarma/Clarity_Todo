@@ -165,7 +165,7 @@ import com.example.darktodo.data.StickerStyle
                 }
                 customStyle?.let { current ->
                     StickerSurface(title, content, current, pinned) { StickerPinGlyph(current, pinned) }
-                    StickerStyleControls(current, book, onBook, showFonts = false) { customStyle = it }
+                    StickerStyleControls(current, book, onBook, showFonts = false, showLayout = false) { customStyle = it }
                 }
                 Row(Modifier.clickable { pinned = !pinned }.heightIn(min = 40.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     ClarityGlyph(Icons.Outlined.PushPin, tint = if (pinned) UiTokens.Accent else UiTokens.Muted, size = 20.dp)

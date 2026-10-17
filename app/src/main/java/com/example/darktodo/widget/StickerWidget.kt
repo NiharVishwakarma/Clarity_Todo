@@ -156,8 +156,10 @@ object StickerWidget {
         val inset = style.marginDp * d + shadow + 2f * d
         val card = RectF(inset, inset, w - inset, h - inset - shadow / 2f)
         val radius = style.cornerRadiusDp * d
+        val hasWallpaper = context?.let { WidgetBackgrounds.has(it, WidgetBackgrounds.STICKER) } == true
         val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = StickerHex.toArgb(style.background)
+            // Black under a wallpaper so no card colour shows at the rounded edges.
+            color = if (hasWallpaper) android.graphics.Color.BLACK else StickerHex.toArgb(style.background)
             alpha = (255 * style.opacityPercent / 100f).toInt()
             if (shadow > 0f) setShadowLayer(shadow, 0f, shadow / 3f, 0x66000000)
         }
