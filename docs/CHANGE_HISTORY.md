@@ -13,6 +13,10 @@ This log begins with the repository snapshot available when these project notes 
 
 ## Current version summary
 
+### 2026-10-17 — Fix second CI compile failure (sticker style wiring)
+
+- Added the missing `style` field to `Sticker`; gave `StickerEditor` its `globalStyle`/`book`/`onBook` parameters and a 5-arg `onSave`; renamed the local `override` to `customStyle` and added the missing imports. Not yet re-verified by CI.
+
 ### 2026-10-17 — Fix CI compile error in StickerSettings
 
 - Removed a stray invalid `Modifier.horizontalScroll` stub in StickerSettings.kt that broke `compileDebugKotlin`. Later compile errors, if any, are not yet known.

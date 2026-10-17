@@ -26,7 +26,8 @@ data class Sticker(
     val color: StickerColor = StickerColor.Yellow,
     val pinned: Boolean = false,
     val createdAt: Long = 0L,
-    val updatedAt: Long = 0L
+    val updatedAt: Long = 0L,
+    val style: StickerStyle? = null
 )
 
 /** Pure list operations and JSON mapping, kept free of Android types so they are unit-testable. */

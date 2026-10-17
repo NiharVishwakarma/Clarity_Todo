@@ -50,7 +50,9 @@ import androidx.compose.ui.unit.sp
 import com.example.darktodo.data.Sticker
 import com.example.darktodo.data.StickerColor
 import com.example.darktodo.data.StickerOps
+import com.example.darktodo.data.StickerColorBook
 import com.example.darktodo.data.StickerStore
+import com.example.darktodo.data.StickerStyle
 
 @Composable fun ComingSoonScreen(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, message: String) {
     Column(Modifier.fillMaxSize()) {
@@ -100,9 +102,9 @@ import com.example.darktodo.data.StickerStore
     if (creating) StickerEditor(
         initial = null, globalStyle = globalStyle, book = book, onBook = { book = it; StickerStore.saveColorBook(context, it) },
         onDismiss = { creating = false },
-        onSave = { title, content, color, _, override ->
+        onSave = { title, content, color, _, customStyle ->
             stickers = StickerStore.add(context, title, content, color)
-            if (override != null) stickers.maxByOrNull { it.createdAt }?.let { stickers = StickerStore.setStyle(context, it.id, override) }
+            if (customStyle != null) stickers.maxByOrNull { it.createdAt }?.let { stickers = StickerStore.setStyle(context, it.id, customStyle) }
             creating = false
         },
         onDelete = null
@@ -111,10 +113,10 @@ import com.example.darktodo.data.StickerStore
         StickerEditor(
             initial = sticker, globalStyle = globalStyle, book = book, onBook = { book = it; StickerStore.saveColorBook(context, it) },
             onDismiss = { editor = null },
-            onSave = { title, content, color, pinned, override ->
+            onSave = { title, content, color, pinned, customStyle ->
                 stickers = StickerStore.edit(context, sticker.id, title, content, color)
                 if (pinned != sticker.pinned) stickers = StickerStore.setPinned(context, sticker.id, pinned)
-                if (override != sticker.style) stickers = StickerStore.setStyle(context, sticker.id, override)
+                if (customStyle != sticker.style) stickers = StickerStore.setStyle(context, sticker.id, customStyle)
                 editor = null
             },
             onDelete = { stickers = StickerStore.delete(context, sticker.id); editor = null }
@@ -123,14 +125,18 @@ import com.example.darktodo.data.StickerStore
 }
 @Composable private fun StickerEditor(
     initial: Sticker?,
+    globalStyle: StickerStyle,
+    book: StickerColorBook,
+    onBook: (StickerColorBook) -> Unit,
     onDismiss: () -> Unit,
-    onSave: (String, String, StickerColor, Boolean) -> Unit,
+    onSave: (String, String, StickerColor, Boolean, StickerStyle?) -> Unit,
     onDelete: (() -> Unit)?
 ) {
     var title by remember { mutableStateOf(initial?.title ?: "") }
     var content by remember { mutableStateOf(initial?.content ?: "") }
     var color by remember { mutableStateOf(initial?.color ?: StickerColor.Yellow) }
     var pinned by remember { mutableStateOf(initial?.pinned ?: false) }
+    var customStyle by remember { mutableStateOf(initial?.style) }
     val fieldColors = OutlinedTextFieldDefaults.colors(
         focusedTextColor = UiTokens.Ink, unfocusedTextColor = UiTokens.Ink,
         focusedBorderColor = UiTokens.Accent, unfocusedBorderColor = UiTokens.Subdued,
@@ -153,12 +159,12 @@ import com.example.darktodo.data.StickerStore
                         )
                     }
                 }
-                Row(Modifier.clickable { override = if (override == null) StickerStyle.resolve(Sticker("", title, content, color), globalStyle) else null }.heightIn(min = 40.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(if (override == null) "Customize this sticker" else "Using custom style · tap to use global", color = if (override == null) UiTokens.Muted else UiTokens.Accent, fontSize = UiTokens.LabelSp.sp)
+                Row(Modifier.clickable { customStyle = if (customStyle == null) StickerStyle.resolve(Sticker("", title, content, color), globalStyle) else null }.heightIn(min = 40.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(if (customStyle == null) "Customize this sticker" else "Using custom style · tap to use global", color = if (customStyle == null) UiTokens.Muted else UiTokens.Accent, fontSize = UiTokens.LabelSp.sp)
                 }
-                override?.let { current ->
+                customStyle?.let { current ->
                     StickerSurface(title, content, current, pinned) { StickerPinGlyph(current, pinned) }
-                    StickerStyleControls(current, book, onBook) { override = it }
+                    StickerStyleControls(current, book, onBook) { customStyle = it }
                 }
                 Row(Modifier.clickable { pinned = !pinned }.heightIn(min = 40.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     ClarityGlyph(Icons.Outlined.PushPin, tint = if (pinned) UiTokens.Accent else UiTokens.Muted, size = 20.dp)
@@ -167,7 +173,7 @@ import com.example.darktodo.data.StickerStore
             }
         },
         confirmButton = {
-            TextButton(onClick = { onSave(title, content, color, pinned, override) }, enabled = title.isNotBlank() || content.isNotBlank()) {
+            TextButton(onClick = { onSave(title, content, color, pinned, customStyle) }, enabled = title.isNotBlank() || content.isNotBlank()) {
                 Text(if (initial == null) "Create" else "Save", color = if (title.isNotBlank() || content.isNotBlank()) UiTokens.Accent else UiTokens.Subdued)
             }
         },
