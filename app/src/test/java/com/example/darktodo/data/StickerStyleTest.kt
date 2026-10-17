@@ -39,6 +39,30 @@ class StickerStyleTest {
         assertEquals("#9CCBFF", resolved.background)
     }
 
+    @Test fun customisedGlobalColoursApplyToStickersWithoutTheirOwn() {
+        val global = StickerStyle(background = "#101010", text = "#EEEEEE")
+        val resolved = StickerStyle.resolve(Sticker("1", "t", "c", StickerColor.Blue), global)
+        assertEquals("#101010", resolved.background)
+        assertEquals("#EEEEEE", resolved.text)
+    }
+
+    @Test fun perStickerColoursOverrideButTypographyStaysGlobal() {
+        val global = StickerStyle(fontFileId = "f.ttf", borderWidthDp = 4, background = "#101010")
+        val own = StickerStyle(background = "#222222", text = "#333333", pin = "#444444", fontSizeSp = 27f, borderWidthDp = 0)
+        val resolved = StickerStyle.resolve(Sticker("1", "t", "c", style = own), global)
+        assertEquals("#222222", resolved.background)
+        assertEquals("#333333", resolved.text)
+        assertEquals("f.ttf", resolved.fontFileId)
+        assertEquals(4, resolved.borderWidthDp)
+        assertEquals(StickerStyle.DEFAULT.fontSizeSp, resolved.fontSizeSp)
+    }
+
+    @Test fun fontFileAndBorderRoundTripThroughJson() {
+        val style = StickerStyle(fontFileId = "abc.ttf", borderWidthDp = 3, borderColor = "#112233")
+        assertEquals(style, StickerStyle.fromJson(style.toJson()))
+        assertNull(StickerStyle.fromJson(StickerStyle().toJson())!!.fontFileId)
+    }
+
     @Test fun colourBookKeepsNewestRecentsAndTogglesFavourites() {
         var book = StickerColorBook()
         (1..10).forEach { book = book.withRecent("#%06X".format(it)) }

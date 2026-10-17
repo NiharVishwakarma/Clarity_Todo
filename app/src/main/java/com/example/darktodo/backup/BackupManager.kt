@@ -24,7 +24,7 @@ object BackupManager {
     private const val STATE = "backup_state"
 
     // vault_auth is included for the auto-lock timer; the biometric choice is reset on restore.
-    val PREF_FILES = listOf("todo_store", "calendar_widget_settings", "app_typography", "widget_backgrounds", "vault_auth")
+    val PREF_FILES = listOf("todo_store", "calendar_widget_settings", "app_typography", "widget_backgrounds", "vault_auth", "sticker_store")
 
     class Outcome(val ok: Boolean, val retry: Boolean, val message: String)
 
@@ -73,7 +73,8 @@ object BackupManager {
     private fun blobFiles(context: Context): Map<String, File> = mapOf(
         "vault" to LocalVaultStore.file(context),
         "wallpaper_todo" to WidgetBackgrounds.file(context, WidgetBackgrounds.TODO),
-        "wallpaper_calendar" to WidgetBackgrounds.file(context, WidgetBackgrounds.CALENDAR)
+        "wallpaper_calendar" to WidgetBackgrounds.file(context, WidgetBackgrounds.CALENDAR),
+        "wallpaper_sticker" to WidgetBackgrounds.file(context, WidgetBackgrounds.STICKER)
     )
 
     /** Replaces local data with the snapshot. Returns true when the snapshot contained a vault. */
@@ -113,6 +114,7 @@ object BackupManager {
         }
         com.example.darktodo.widget.TodoWidget.updateAll(context)
         com.example.darktodo.widget.CalendarWidget.updateAll(context)
+        com.example.darktodo.widget.StickerWidget.updateAll(context)
         return files.optString("vault", "").isNotEmpty()
     }
 

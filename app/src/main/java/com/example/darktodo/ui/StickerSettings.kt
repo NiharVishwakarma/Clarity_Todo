@@ -98,20 +98,21 @@ fun stickerFontFamily(key: String, custom: Typeface? = null): FontFamily = if (c
         if (wallpaperStamp == 0L) null else runCatching { BitmapFactory.decodeFile(wallpaperFile.absolutePath)?.asImageBitmap() }.getOrNull()
     }
     val wallpaperFade = WidgetBackgrounds.fade(appContext, WidgetBackgrounds.STICKER) / 100f
-    Box(modifier.padding(style.marginDp.dp).shadow(style.elevationDp.dp, shape).alpha(style.opacityPercent / 100f)) {
+    val opacity = style.opacityPercent / 100f
+    Box(modifier.padding(style.marginDp.dp).shadow(style.elevationDp.dp, shape)) {
         Column(
             Modifier.fillMaxWidth().heightIn(min = style.widgetSize.minHeightDp.dp)
                 .clip(shape)
-                .background(Color(StickerHex.toArgb(style.background)), shape)
+                .background(Color(StickerHex.toArgb(style.background)).copy(alpha = opacity), shape)
                 .then(if (wallpaper == null) Modifier else Modifier.drawBehind {
                     val scale = maxOf(this.size.width / wallpaper.width, this.size.height / wallpaper.height)
                     val srcW = (this.size.width / scale).toInt().coerceIn(1, wallpaper.width)
                     val srcH = (this.size.height / scale).toInt().coerceIn(1, wallpaper.height)
                     drawImage(
                         wallpaper, IntOffset((wallpaper.width - srcW) / 2, (wallpaper.height - srcH) / 2), IntSize(srcW, srcH),
-                        dstSize = IntSize(this.size.width.toInt(), this.size.height.toInt())
+                        dstSize = IntSize(this.size.width.toInt(), this.size.height.toInt()), alpha = opacity
                     )
-                    drawRect(Color.Black.copy(alpha = wallpaperFade))
+                    drawRect(Color.Black.copy(alpha = wallpaperFade * opacity))
                 })
                 .then(if (style.borderWidthDp > 0) Modifier.border(style.borderWidthDp.dp, Color(StickerHex.toArgb(style.borderColor)), shape) else Modifier)
                 .padding(style.paddingDp.dp),

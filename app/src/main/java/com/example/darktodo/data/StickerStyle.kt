@@ -89,10 +89,12 @@ data class StickerStyle(
         /** Style used for a sticker that has no override: global typography/layout plus its own preset colours. */
         fun resolve(sticker: Sticker, global: StickerStyle, useGlobalColors: Boolean = false): StickerStyle {
             val own = sticker.style
+            // Colours changed in Sticker settings apply to every sticker without its own colours.
+            val globalCustomised = global.background != DEFAULT.background || global.text != DEFAULT.text || global.pin != DEFAULT.pin
             // Only colours can differ per sticker; every other option comes from the global sticker settings.
             return when {
                 own != null -> global.copy(background = own.background, text = own.text, pin = own.pin)
-                useGlobalColors -> global
+                useGlobalColors || globalCustomised -> global
                 else -> global.copy(background = hex(sticker.color.background), text = hex(sticker.color.ink), pin = hex(sticker.color.ink))
             }
         }
