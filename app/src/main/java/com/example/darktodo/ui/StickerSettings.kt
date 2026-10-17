@@ -160,8 +160,6 @@ private val fieldColors @Composable get() = OutlinedTextFieldDefaults.colors(
     if (picker) ColorPickerDialog(label, normalized ?: value, onApply = { commit(it); picker = false }, onDismiss = { picker = false })
 }
 
-private fun Modifier.horizontalScroll(rememberScrollState()): Modifier = this
-
 @Composable private fun StyleSlider(label: String, valueLabel: String, value: Float, range: ClosedFloatingPointRange<Float>, onChange: (Float) -> Unit) {
     Column {
         Row(Modifier.fillMaxWidth()) {

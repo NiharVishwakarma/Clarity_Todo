@@ -13,6 +13,10 @@ This log begins with the repository snapshot available when these project notes 
 
 ## Current version summary
 
+### 2026-10-17 — Fix CI compile error in StickerSettings
+
+- Removed a stray invalid `Modifier.horizontalScroll` stub in StickerSettings.kt that broke `compileDebugKotlin`. Later compile errors, if any, are not yet known.
+
 ### 2026-10-17 — Sticker widget, To-Do layout controls, Save As Default for To-Do/Calendar
 
 - Added the Sticker home-screen widget (StickerWidgetReceiver, sticker_widget layout/info, manifest receiver) with tap-to-cycle and auto-refresh from StickerStore.
