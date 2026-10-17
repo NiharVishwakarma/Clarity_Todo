@@ -16,6 +16,7 @@ sealed interface BackStep {
 
 object ModuleNavigation {
     const val TASKS = "tasks"
+    /** Legacy id: History is now a sub-tab of Tasks, so it is no longer in [modules]. */
     const val HISTORY = "history"
     const val CALENDAR = "calendar"
     const val VAULT = "vault"
@@ -26,7 +27,6 @@ object ModuleNavigation {
 
     val modules = listOf(
         ModuleSpec(TASKS, "Tasks"),
-        ModuleSpec(HISTORY, "History"),
         ModuleSpec(CALENDAR, "Calendar"),
         ModuleSpec(VAULT, "Vault"),
         ModuleSpec(QUOTES, "Quotes"),
@@ -51,25 +51,29 @@ object ModuleNavigation {
 
     /** Which tab is highlighted for the current page, including that module's sub-screens. */
     fun moduleFor(page: String, todoPage: String): String = when (page) {
-        "To-Do" -> if (todoPage == "History") HISTORY else TASKS
-        "TodoSettings" -> TASKS
-        "Calendar", "CalendarSettings" -> CALENDAR
+        "To-Do" -> TASKS
+        "TodoSettings", "TodoWallpaper" -> TASKS
+        "Calendar", "CalendarSettings", "CalendarWallpaper" -> CALENDAR
+        "StickerSettings" -> STICKERS
         "Vault" -> VAULT
         "Quotes" -> QUOTES
         "Stickers" -> STICKERS
         "Wallpapers" -> WALLPAPERS
-        "Settings", "Permissions", "VaultSecurity", "WidgetBackground", "SupportClarity", "About" -> SETTINGS
+        "Settings", "Permissions", "VaultSecurity", "SupportClarity", "About" -> SETTINGS
         else -> TASKS
     }
 
-    private val settingsSubScreens = setOf("Permissions", "VaultSecurity", "WidgetBackground", "SupportClarity", "About")
+    private val settingsSubScreens = setOf("Permissions", "VaultSecurity", "SupportClarity", "About")
 
     /** Detail screen -> module screen -> home -> (double back) exit. */
     fun backStep(page: String, todoPage: String, routeDepth: Int): BackStep = when {
         page == "To-Do" && todoPage == "History" && routeDepth > 0 -> BackStep.PopRoute
         page in settingsSubScreens -> BackStep.GoTo(ModuleRoute("Settings"))
         page == "TodoSettings" -> BackStep.GoTo(home)
+        page == "TodoWallpaper" -> BackStep.GoTo(ModuleRoute("TodoSettings"))
+        page == "CalendarWallpaper" -> BackStep.GoTo(ModuleRoute("CalendarSettings"))
         page == "CalendarSettings" -> BackStep.GoTo(ModuleRoute("Calendar"))
+        page == "StickerSettings" -> BackStep.GoTo(ModuleRoute("Stickers"))
         page == "To-Do" && todoPage == "Tasks" -> BackStep.AtHome
         else -> BackStep.GoTo(home)
     }

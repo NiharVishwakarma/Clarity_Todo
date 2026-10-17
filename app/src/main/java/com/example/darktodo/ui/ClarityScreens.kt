@@ -59,14 +59,19 @@ import com.example.darktodo.data.StickerStore
     }
 }
 
-@Composable fun StickersScreen() {
+@Composable fun StickersScreen(onOpenSettings: () -> Unit = {}) {
     val context = LocalContext.current
     var stickers by remember { mutableStateOf(StickerStore.load(context)) }
+    val globalStyle = remember { StickerStore.globalStyle(context) }
+    var book by remember { mutableStateOf(StickerStore.colorBook(context)) }
     var editor by remember { mutableStateOf<Sticker?>(null) }
     var creating by remember { mutableStateOf(false) }
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
-            ScreenHeader(ClarityIcons.Stickers, "Stickers", "Quick notes that stay in view")
+            Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("Quick notes that stay in view", color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp, modifier = Modifier.weight(1f))
+                SettingsGearButton("Sticker settings", onOpenSettings)
+            }
             if (stickers.isEmpty()) EmptyState(ClarityIcons.Stickers, "No stickers yet", "Tap + to jot down a quick note.")
             else LazyVerticalGrid(
                 columns = GridCells.Fixed(2),
@@ -76,7 +81,14 @@ import com.example.darktodo.data.StickerStore
                 modifier = Modifier.fillMaxSize()
             ) {
                 items(StickerOps.display(stickers), key = { it.id }) { sticker ->
-                    StickerCard(sticker, onClick = { editor = sticker }, onTogglePin = { stickers = StickerStore.setPinned(context, sticker.id, !sticker.pinned) })
+                    val style = StickerStyle.resolve(sticker, globalStyle)
+                    Surface(onClick = { editor = sticker }, color = Color.Transparent, shape = RoundedCornerShape(style.cornerRadiusDp.dp)) {
+                        StickerSurface(sticker.title, sticker.content, style, sticker.pinned) {
+                            Box(Modifier.size(28.dp).clickable { stickers = StickerStore.setPinned(context, sticker.id, !sticker.pinned) }.semantics { contentDescription = if (sticker.pinned) "Unpin sticker" else "Pin sticker" }, contentAlignment = Alignment.Center) {
+                                StickerPinGlyph(style, sticker.pinned)
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -86,40 +98,29 @@ import com.example.darktodo.data.StickerStore
         ) { Box(contentAlignment = Alignment.Center) { ClarityGlyph(Icons.Outlined.Add, tint = Color.White, size = 24.dp) } }
     }
     if (creating) StickerEditor(
-        initial = null,
+        initial = null, globalStyle = globalStyle, book = book, onBook = { book = it; StickerStore.saveColorBook(context, it) },
         onDismiss = { creating = false },
-        onSave = { title, content, color, _ -> stickers = StickerStore.add(context, title, content, color); creating = false },
+        onSave = { title, content, color, _, override ->
+            stickers = StickerStore.add(context, title, content, color)
+            if (override != null) stickers.maxByOrNull { it.createdAt }?.let { stickers = StickerStore.setStyle(context, it.id, override) }
+            creating = false
+        },
         onDelete = null
     )
     editor?.let { sticker ->
         StickerEditor(
-            initial = sticker,
+            initial = sticker, globalStyle = globalStyle, book = book, onBook = { book = it; StickerStore.saveColorBook(context, it) },
             onDismiss = { editor = null },
-            onSave = { title, content, color, pinned ->
+            onSave = { title, content, color, pinned, override ->
                 stickers = StickerStore.edit(context, sticker.id, title, content, color)
                 if (pinned != sticker.pinned) stickers = StickerStore.setPinned(context, sticker.id, pinned)
+                if (override != sticker.style) stickers = StickerStore.setStyle(context, sticker.id, override)
                 editor = null
             },
             onDelete = { stickers = StickerStore.delete(context, sticker.id); editor = null }
         )
     }
 }
-
-@Composable private fun StickerCard(sticker: Sticker, onClick: () -> Unit, onTogglePin: () -> Unit) {
-    val ink = Color(sticker.color.ink)
-    Surface(onClick = onClick, color = Color(sticker.color.background), shape = RoundedCornerShape(UiTokens.CardRadius), modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp)) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(verticalAlignment = Alignment.Top) {
-                Text(sticker.title.ifBlank { "Untitled" }, color = ink, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                Box(Modifier.size(28.dp).clickable(onClick = onTogglePin).semantics { contentDescription = if (sticker.pinned) "Unpin sticker" else "Pin sticker" }, contentAlignment = Alignment.Center) {
-                    ClarityGlyph(Icons.Outlined.PushPin, tint = ink.copy(alpha = if (sticker.pinned) 1f else .4f), size = 20.dp)
-                }
-            }
-            if (sticker.content.isNotBlank()) Text(sticker.content, color = ink.copy(alpha = .85f), fontSize = 13.sp, maxLines = 6, overflow = TextOverflow.Ellipsis)
-        }
-    }
-}
-
 @Composable private fun StickerEditor(
     initial: Sticker?,
     onDismiss: () -> Unit,
@@ -152,6 +153,13 @@ import com.example.darktodo.data.StickerStore
                         )
                     }
                 }
+                Row(Modifier.clickable { override = if (override == null) StickerStyle.resolve(Sticker("", title, content, color), globalStyle) else null }.heightIn(min = 40.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(if (override == null) "Customize this sticker" else "Using custom style · tap to use global", color = if (override == null) UiTokens.Muted else UiTokens.Accent, fontSize = UiTokens.LabelSp.sp)
+                }
+                override?.let { current ->
+                    StickerSurface(title, content, current, pinned) { StickerPinGlyph(current, pinned) }
+                    StickerStyleControls(current, book, onBook) { override = it }
+                }
                 Row(Modifier.clickable { pinned = !pinned }.heightIn(min = 40.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     ClarityGlyph(Icons.Outlined.PushPin, tint = if (pinned) UiTokens.Accent else UiTokens.Muted, size = 20.dp)
                     Text(if (pinned) "Pinned" else "Pin to top", color = if (pinned) UiTokens.Accent else UiTokens.Muted, fontSize = UiTokens.LabelSp.sp)
@@ -159,7 +167,7 @@ import com.example.darktodo.data.StickerStore
             }
         },
         confirmButton = {
-            TextButton(onClick = { onSave(title, content, color, pinned) }, enabled = title.isNotBlank() || content.isNotBlank()) {
+            TextButton(onClick = { onSave(title, content, color, pinned, override) }, enabled = title.isNotBlank() || content.isNotBlank()) {
                 Text(if (initial == null) "Create" else "Save", color = if (title.isNotBlank() || content.isNotBlank()) UiTokens.Accent else UiTokens.Subdued)
             }
         },

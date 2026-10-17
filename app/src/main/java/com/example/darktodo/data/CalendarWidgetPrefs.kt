@@ -61,6 +61,9 @@ object CalendarWidgetSettings {
         context.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit()
             .putString("font_file_id", fontId).apply()
     }
+    fun saveAsDefault(context: Context) = StyleSnapshot.save(context, StyleSnapshot.CALENDAR, FILE, "")
+    fun hasSavedDefault(context: Context) = StyleSnapshot.has(context, StyleSnapshot.CALENDAR)
+    fun restoreDefault(context: Context) = StyleSnapshot.restore(context, StyleSnapshot.CALENDAR, FILE, "")
     fun reset(context: Context) {
         // Remove only this settings file's customization keys; calendar navigation state and
         // every To-Do preference/task remain untouched.

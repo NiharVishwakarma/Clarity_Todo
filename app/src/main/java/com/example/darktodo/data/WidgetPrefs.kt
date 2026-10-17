@@ -13,7 +13,9 @@ data class WidgetPrefs(
     val fadePercent: Int = 45,
     val fontFamily: WidgetFontFamily = WidgetFontFamily.SANS_SERIF,
     val fontFileId: String? = null,
-    val taskTitleSizeSp: Float = 16f
+    val taskTitleSizeSp: Float = 16f,
+    val paddingDp: Int = 8,
+    val rowSpacingDp: Int = 2
 )
 object WidgetSettings {
     private const val PREFS = "todo_store"
@@ -39,7 +41,9 @@ object WidgetSettings {
             fadePercent = p.getInt(PREFIX + "fade", defaults.fadePercent).coerceIn(0, 100),
             fontFamily = family,
             fontFileId = fontFileId,
-            taskTitleSizeSp = p.getFloat(PREFIX + "task_title_size_sp", defaults.taskTitleSizeSp).coerceIn(12f, 24f)
+            taskTitleSizeSp = p.getFloat(PREFIX + "task_title_size_sp", defaults.taskTitleSizeSp).coerceIn(12f, 24f),
+            paddingDp = p.getInt(PREFIX + "padding_dp", defaults.paddingDp).coerceIn(0, 20),
+            rowSpacingDp = p.getInt(PREFIX + "row_spacing_dp", defaults.rowSpacingDp).coerceIn(0, 12)
         )
     }
 
@@ -72,9 +76,19 @@ object WidgetSettings {
             .putFloat(PREFIX + "task_title_size_sp", value.coerceIn(12f, 24f)).apply()
     }
 
+    fun saveLayout(context: Context, paddingDp: Int, rowSpacingDp: Int) {
+        context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putInt(PREFIX + "padding_dp", paddingDp.coerceIn(0, 20))
+            .putInt(PREFIX + "row_spacing_dp", rowSpacingDp.coerceIn(0, 12)).apply()
+    }
+
+    fun saveAsDefault(context: Context) = StyleSnapshot.save(context, StyleSnapshot.TODO, PREFS, PREFIX)
+    fun hasSavedDefault(context: Context) = StyleSnapshot.has(context, StyleSnapshot.TODO)
+    fun restoreDefault(context: Context) = StyleSnapshot.restore(context, StyleSnapshot.TODO, PREFS, PREFIX)
+
     fun reset(context: Context) {
         context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().apply {
-            listOf("incomplete", "complete", "count_panel", "background", "task_card", "task_title", "fade", "font_weight", "font_family", "font_file_id", "font_italic", "font_style", "task_title_size_sp").forEach { remove(PREFIX + it) }
+            listOf("incomplete", "complete", "count_panel", "background", "task_card", "task_title", "fade", "font_weight", "font_family", "font_file_id", "font_italic", "font_style", "task_title_size_sp", "padding_dp", "row_spacing_dp").forEach { remove(PREFIX + it) }
         }.apply()
     }
 }

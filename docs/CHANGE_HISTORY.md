@@ -13,6 +13,12 @@ This log begins with the repository snapshot available when these project notes 
 
 ## Current version summary
 
+### 2026-10-17 — Sticker widget, To-Do layout controls, Save As Default for To-Do/Calendar
+
+- Added the Sticker home-screen widget (StickerWidgetReceiver, sticker_widget layout/info, manifest receiver) with tap-to-cycle and auto-refresh from StickerStore.
+- Added To-Do widget Padding/Row spacing controls and presets; added Save As Default / Restore default for To-Do and Calendar widgets (StyleSnapshot).
+- Updated [PROJECT_MEMORY.md](./PROJECT_MEMORY.md). Not compiled or device-tested; no Android SDK available locally.
+
 ### 2026-10-17 — Phase 1: scrollable navigation, icons, Stickers, settings refactor
 
 - Replaced the top navigation with a floating scrollable module tab bar, swipe between modules, remembered last tab, and hierarchical back handling with double-back-to-exit.
@@ -117,3 +123,10 @@ This log begins with the repository snapshot available when these project notes 
 ## 2026-10-17 - Drive backup verified on device
 
 - Documented the persistent keystore, GitHub secrets and Google OAuth setup (no client ID recorded). Connect Google account and automatic backup were confirmed on a device; restore is still untested.
+
+
+## 2026-10-17 - UI/UX refinement and Sticker customization
+
+- History moved under Tasks as a sub-tab; removed redundant page titles and the To-Do widget preview; shared gear button; Typography renamed Fonts Customization; widget wallpapers moved from global Settings into Tasks/Calendar settings; Vault scrolling and Password/Fingerprint labels.
+- Added Sticker Settings (HEX colours, fonts, layout, widget size, live preview, Save As Default Style) with per-sticker overrides; added StickerStyleTest and updated ModuleNavigationTest.
+- Not compiled or run locally (no Gradle/Android SDK available); see PROJECT_MEMORY.md for gaps.

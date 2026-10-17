@@ -8,7 +8,7 @@ import org.junit.Test
 class ModuleNavigationTest {
     @Test fun registryContainsPlannedModulesInOrder() {
         assertEquals(
-            listOf("Tasks", "History", "Calendar", "Vault", "Quotes", "Stickers", "Wallpapers", "Settings"),
+            listOf("Tasks", "Calendar", "Vault", "Quotes", "Stickers", "Wallpapers", "Settings"),
             ModuleNavigation.modules.map { it.label }
         )
     }
@@ -28,7 +28,7 @@ class ModuleNavigationTest {
     }
 
     @Test fun backFromSettingsDetailReturnsToSettings() {
-        listOf("Permissions", "VaultSecurity", "WidgetBackground", "SupportClarity", "About").forEach {
+        listOf("Permissions", "VaultSecurity", "SupportClarity", "About").forEach {
             assertEquals(BackStep.GoTo(ModuleRoute("Settings")), ModuleNavigation.backStep(it, "Tasks", 0))
         }
     }
@@ -36,6 +36,14 @@ class ModuleNavigationTest {
     @Test fun backFromWidgetSettingsReturnsToItsModule() {
         assertEquals(BackStep.GoTo(ModuleNavigation.home), ModuleNavigation.backStep("TodoSettings", "Tasks", 0))
         assertEquals(BackStep.GoTo(ModuleRoute("Calendar")), ModuleNavigation.backStep("CalendarSettings", "Tasks", 0))
+    }
+
+    @Test fun wallpaperEditorsBelongToTheirModuleSettings() {
+        assertEquals(ModuleNavigation.TASKS, ModuleNavigation.moduleFor("TodoWallpaper", "Tasks"))
+        assertEquals(ModuleNavigation.CALENDAR, ModuleNavigation.moduleFor("CalendarWallpaper", "Tasks"))
+        assertEquals(ModuleNavigation.STICKERS, ModuleNavigation.moduleFor("StickerSettings", "Tasks"))
+        assertEquals(BackStep.GoTo(ModuleRoute("TodoSettings")), ModuleNavigation.backStep("TodoWallpaper", "Tasks", 0))
+        assertEquals(BackStep.GoTo(ModuleRoute("Stickers")), ModuleNavigation.backStep("StickerSettings", "Tasks", 0))
     }
 
     @Test fun backInsideHistoryDrillDownPopsBeforeLeavingModule() {
@@ -66,7 +74,7 @@ class ModuleNavigationTest {
 
     @Test fun swipeNeighboursStopAtEnds() {
         assertNull(ModuleNavigation.adjacent(ModuleNavigation.TASKS, forward = false))
-        assertEquals(ModuleNavigation.HISTORY, ModuleNavigation.adjacent(ModuleNavigation.TASKS, forward = true))
+        assertEquals(ModuleNavigation.CALENDAR, ModuleNavigation.adjacent(ModuleNavigation.TASKS, forward = true))
         assertNull(ModuleNavigation.adjacent(ModuleNavigation.SETTINGS, forward = true))
         assertNull(ModuleNavigation.adjacent("unknown", forward = true))
     }

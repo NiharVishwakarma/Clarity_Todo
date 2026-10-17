@@ -344,12 +344,15 @@ class MainActivity : FragmentActivity() {
                 )
             }) {
             when {
-                page == "To-Do" && todoPage == "Tasks" -> {
-                    Row(Modifier.fillMaxWidth().padding(bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text("Tasks", color = Ink, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                page == "To-Do" -> {
+                    Row(Modifier.fillMaxWidth().padding(bottom = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        NavigationItem("Tasks", todoPage == "Tasks") { todoPage = "Tasks"; route = emptyList(); refresh() }
                         NavigationItem("History", todoPage == "History") { todoPage = "History"; route = emptyList(); refresh() }
-                        IconAction("To-Do widget settings", "settings") { page = "TodoSettings"; refreshSettings() }
+                        Spacer(Modifier.weight(1f))
+                        com.example.darktodo.ui.SettingsGearButton("Tasks settings") { page = "TodoSettings"; refreshSettings() }
                     }
+                    if (todoPage == "History") HistoryScreen(events, route, onRoute = { route = it }, onDelete = { TaskStore.deleteEvent(context, it); refresh() }, onClear = { scope -> TaskStore.deleteEvents(context, scope); refresh() }, onClearAll = { confirmClear = true })
+                    else Column(Modifier.weight(1f).fillMaxWidth()) {
                     if (dateFilter != null) Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Text("Tasks for $dateFilter", color = Accent, fontSize = 13.sp, modifier = Modifier.weight(1f))
                         TextButton(onClick = { dateFilter = null }) { Text("Show all", color = Ink) }
@@ -359,7 +362,6 @@ class MainActivity : FragmentActivity() {
                         BasicTextField(value = title, onValueChange = { title = it }, modifier = Modifier.weight(1f), singleLine = true, cursorBrush = SolidColor(caretColor), textStyle = TextStyle(color = Ink, fontSize = 16.sp, fontFamily = appUiFontFamily, fontStyle = FontStyle.Normal, fontWeight = FontWeight.Normal), decorationBox = { inner -> if (title.isEmpty()) Text("Add a task", color = Color.Gray); inner() })
                         TextButton(onClick = { if (title.isNotBlank()) addReminder = true }) { Text("Add", color = Accent) }
                     }
-                    TodoWidgetPreview(tasks, settings)
                     Spacer(Modifier.height(12.dp))
                     val visibleTasks = tasks.filter { dateFilter == null || it.taskDate == dateFilter }
                     LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -388,22 +390,12 @@ class MainActivity : FragmentActivity() {
                         if (dateFilter == null) TextButton(onClick = { TaskStore.clearCompleted(context); refresh() }) { Text("Clear completed", color = Accent) }
                         else Spacer(Modifier.width(1.dp))
                     }
-                }
-                page == "To-Do" -> {
-                    Row(Modifier.fillMaxWidth().padding(bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text("History", color = Ink, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                        NavigationItem("Tasks", todoPage == "Tasks") { todoPage = "Tasks"; refresh() }
-                        IconAction("To-Do widget settings", "settings") { page = "TodoSettings"; refreshSettings() }
                     }
-                    HistoryScreen(events, route, onRoute = { route = it }, onDelete = { TaskStore.deleteEvent(context, it); refresh() }, onClear = { scope -> TaskStore.deleteEvents(context, scope); refresh() }, onClearAll = { confirmClear = true })
                 }
                 page == "Calendar" -> {
                     Row(Modifier.fillMaxWidth().padding(bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text("Calendar", color = Ink, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-                            Text("Your month at a glance", color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp)
-                        }
-                        IconAction("Calendar widget settings", "settings") { page = "CalendarSettings"; refreshSettings() }
+                        Text("Your month at a glance", color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp, modifier = Modifier.weight(1f))
+                        com.example.darktodo.ui.SettingsGearButton("Calendar settings") { page = "CalendarSettings"; refreshSettings() }
                     }
                     CalendarHomeScreen(tasks, calendarSettings, onDate = { selectedDate -> dateFilter = selectedDate.toString(); todoPage = "Tasks"; page = "To-Do" })
                 }
@@ -419,19 +411,11 @@ class MainActivity : FragmentActivity() {
                     notificationGranted = Build.VERSION.SDK_INT < 33 || ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED,
                     notificationsEnabled = androidx.core.app.NotificationManagerCompat.from(context).areNotificationsEnabled(),
                     channelImportance = if (Build.VERSION.SDK_INT >= 26) context.getSystemService(android.app.NotificationManager::class.java).getNotificationChannel(com.example.darktodo.reminders.ReminderScheduler.CHANNEL)?.importance else null,
-                    onOpenWallpaper = { wallpaperTarget = it; page = "WidgetBackground" },
                     onOpenVaultSecurity = { page = "VaultSecurity" },
                     onOpenSupport = { page = "SupportClarity" },
-                    onOpenAbout = { page = "About" },
-                    onResetBackgrounds = {
-                        com.example.darktodo.data.WidgetBackgrounds.clear(context, com.example.darktodo.data.WidgetBackgrounds.TODO)
-                        com.example.darktodo.data.WidgetBackgrounds.clear(context, com.example.darktodo.data.WidgetBackgrounds.CALENDAR)
-                        TodoWidget.updateAll(context)
-                        com.example.darktodo.widget.CalendarWidget.updateAll(context)
-                        permissionRevision++
-                    }
+                    onOpenAbout = { page = "About" }
                 )
-                page == "WidgetBackground" -> WidgetBackgroundEditor(wallpaperTarget) { page = "Settings" }
+                page == "TodoWallpaper" || page == "CalendarWallpaper" -> WidgetBackgroundEditor(wallpaperTarget) { page = if (page == "TodoWallpaper") "TodoSettings" else "CalendarSettings" }
                 page == "VaultSecurity" -> VaultSecurityScreen { page = "Settings" }
                 page == "Permissions" -> PermissionsScreen(
                     remindersEnabled = tasks.any { !it.completed && it.reminderType != "none" },
@@ -447,6 +431,15 @@ class MainActivity : FragmentActivity() {
                 page == "TodoSettings" || page == "CalendarSettings" -> SettingsScreen(
                     screen = page,
                     onBack = { page = if (page == "TodoSettings") "To-Do" else "Calendar" },
+                    onOpenWallpaper = { wallpaperTarget = it; page = if (it == com.example.darktodo.data.WidgetBackgrounds.TODO) "TodoWallpaper" else "CalendarWallpaper" },
+                    onTodoLayout = { pad, gap -> WidgetSettings.saveLayout(context, pad, gap); refreshSettings(); TodoWidget.updateAll(context) },
+                    onSaveDefault = { calendar -> if (calendar) CalendarWidgetSettings.saveAsDefault(context) else WidgetSettings.saveAsDefault(context) },
+                    onRestoreDefault = { calendar ->
+                        val ok = if (calendar) CalendarWidgetSettings.restoreDefault(context) else WidgetSettings.restoreDefault(context)
+                        refreshSettings()
+                        if (calendar) com.example.darktodo.widget.CalendarWidget.updateAll(context) else TodoWidget.updateAll(context)
+                        ok
+                    },
                     settings = settings,
                     calendarSettings = calendarSettings,
                     importedFonts = importedWidgetFonts,
@@ -475,7 +468,8 @@ class MainActivity : FragmentActivity() {
                 )
                 page == "Quotes" -> com.example.darktodo.ui.ComingSoonScreen(com.example.darktodo.ui.ClarityIcons.Quotes, "Quotes", "Browse and save motivational quotes here in a future update.")
                 page == "Wallpapers" -> com.example.darktodo.ui.ComingSoonScreen(com.example.darktodo.ui.ClarityIcons.Wallpapers, "Wallpapers", "A wallpaper library is planned. Widget backgrounds can be set today in Settings, under Personalization.")
-                page == "Stickers" -> com.example.darktodo.ui.StickersScreen()
+                page == "Stickers" -> com.example.darktodo.ui.StickersScreen(onOpenSettings = { page = "StickerSettings" })
+                page == "StickerSettings" -> com.example.darktodo.ui.StickerSettingsScreen(onBack = { page = "Stickers" })
                 page == "SupportClarity" -> com.example.darktodo.ui.SupportClarityScreen { page = "Settings" }
                 page == "About" -> com.example.darktodo.ui.AboutScreen({ page = "Settings" }, runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull() ?: "")
             }
@@ -528,48 +522,6 @@ class MainActivity : FragmentActivity() {
     }
     if (confirmClear) AlertDialog(onDismissRequest = { confirmClear = false }, containerColor = Card, title = { Text("Clear all history?", color = Ink) }, text = { Text("Active tasks and their completion status will not change.", color = Ink) }, confirmButton = { TextButton(onClick = { TaskStore.clearHistory(context); confirmClear = false; refresh() }) { Text("Delete history", color = Accent) } }, dismissButton = { TextButton(onClick = { confirmClear = false }) { Text("Cancel") } })
     }
-}
-
-@Composable private fun TodoWidgetPreview(tasks: List<Task>, settings: WidgetPrefs) {
-    val context = LocalContext.current
-    val previewTypeface = remember(settings.fontFamily, settings.fontFileId) { widgetTypeface(context, settings.fontFamily, settings.fontFileId) }
-    val previewFontFamily = remember(previewTypeface) { FontFamily(previewTypeface) }
-    val openCount = tasks.count { !it.completed }
-    val shown = tasks.take(3)
-    ProvideTextStyle(TextStyle(fontFamily = previewFontFamily)) {
-        Surface(color = colorFromHex(settings.widgetBackground), shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
-            Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("To-Do widget preview", color = UiTokens.Muted, fontSize = 11.sp, modifier = Modifier.weight(1f))
-                    Box(Modifier.background(colorFromHex(settings.countPanel), RoundedCornerShape(8.dp)).padding(horizontal = 9.dp, vertical = 4.dp)) {
-                        Text("$openCount open", color = Ink, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-                    }
-                }
-                if (shown.isEmpty()) Text("Your tasks will appear here", color = UiTokens.Muted, fontSize = 13.sp)
-                else shown.forEach { task ->
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(if (task.completed) "●" else "○", color = colorFromHex(if (task.completed) settings.complete else settings.incomplete), fontSize = 17.sp)
-                        WidgetPreviewTaskText(task, settings, previewTypeface, Modifier.weight(1f))
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable private fun WidgetPreviewTaskText(task: Task, settings: WidgetPrefs, typeface: AndroidTypeface, modifier: Modifier = Modifier) {
-    val opacity = if (task.completed) (100 - settings.fadePercent).coerceIn(0, 100) / 100f else 1f
-    AndroidView(
-        factory = { context -> TextView(context).apply { isSingleLine = true; maxLines = 1; ellipsize = TextUtils.TruncateAt.END; gravity = Gravity.CENTER_VERTICAL } },
-        modifier = modifier,
-        update = { view ->
-            view.text = task.title
-            view.typeface = typeface
-            view.textSize = settings.taskTitleSizeSp * (13f / 16f)
-            view.setTextColor(colorFromHex(settings.taskTitle).copy(alpha = opacity).toArgb())
-            view.paintFlags = if (task.completed) view.paintFlags or AndroidPaint.STRIKE_THRU_TEXT_FLAG else view.paintFlags and AndroidPaint.STRIKE_THRU_TEXT_FLAG.inv()
-        }
-    )
 }
 
 private fun widgetTypeface(context: Context, family: WidgetFontFamily, fontFileId: String?): AndroidTypeface =
@@ -908,18 +860,19 @@ private sealed class VaultSensitiveAction(open val entryId: String) {
     Column(Modifier.fillMaxSize().pointerInput(Unit) {
         awaitPointerEventScope { while (true) { awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial); lastActivity[0] = System.currentTimeMillis() } }
     }, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("Private Vault", color = Ink, fontSize = UiTokens.PageTitleSp.sp, fontWeight = FontWeight.Bold)
-        Text("Your passwords stay encrypted with your master password. If Backup & Restore is on, only the encrypted vault file is uploaded to your private Google Drive app folder; the password and biometric keys never leave this device.", color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp)
+        // Long privacy copy scrolls inside a short box so it never permanently takes half the screen.
+        Text("Your passwords stay encrypted with your master password. If Backup & Restore is on, only the encrypted vault file is uploaded to your private Google Drive app folder; the password and biometric keys never leave this device.", color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp, modifier = Modifier.fillMaxWidth().heightIn(max = 56.dp).verticalScroll(rememberScrollState()))
         val opened = entries
         if (opened == null) {
+            Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
             SettingsPanel {
                 Text(if (!hasVault) "Create your vault" else if (authMode == LocalVaultStore.AUTH_BIOMETRIC && !passwordFallback) "Unlock with fingerprint" else "Unlock your vault", color = Ink, fontSize = UiTokens.SectionTitleSp.sp, fontWeight = FontWeight.SemiBold)
                 if (hasVault && authMode == LocalVaultStore.AUTH_BIOMETRIC && !passwordFallback) {
                     Text("Your selected primary unlock is fingerprint.", color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp)
                     TextButton(onClick = { beginBiometricUnlock() }, enabled = !biometricPromptActive) { Text(if (biometricPromptActive) "Waiting for fingerprint…" else "Unlock with fingerprint", color = Accent) }
-                    TextButton(onClick = { passwordFallback = true; message = "Enter your master password to unlock." }) { Text("Use master password", color = UiTokens.Muted) }
+                    TextButton(onClick = { passwordFallback = true; message = "Enter your master password to unlock." }) { Text("Use password", color = UiTokens.Muted) }
                 } else {
-                    VaultInput("Master password", masterPassword, { masterPassword = it }, secret = true)
+                    VaultInput("Password", masterPassword, { masterPassword = it }, secret = true)
                     if (!hasVault) VaultInput("Confirm password", confirmation, { confirmation = it }, secret = true)
                     TextButton(onClick = {
                         val passwordChars = masterPassword.toCharArray()
@@ -942,12 +895,13 @@ private sealed class VaultSensitiveAction(open val entryId: String) {
                 }
                 if (message.isNotEmpty()) Text(message, color = Accent, fontSize = UiTokens.DetailSp.sp)
             }
+            }
         } else {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Box {
-                    TextButton(onClick = { authMenu = true }) { Text("Primary unlock: ${if (authMode == LocalVaultStore.AUTH_BIOMETRIC) "Fingerprint" else "Master password"}  ▾", color = Accent) }
+                    TextButton(onClick = { authMenu = true }) { Text("Primary unlock: ${if (authMode == LocalVaultStore.AUTH_BIOMETRIC) "Fingerprint" else "Password"}  ▾", color = Accent) }
                     DropdownMenu(expanded = authMenu, onDismissRequest = { authMenu = false }) {
-                        DropdownMenuItem(text = { Text("Master password") }, onClick = { LocalVaultStore.usePasswordAuthentication(context); authMode = LocalVaultStore.AUTH_PASSWORD; passwordFallback = true; authMenu = false; message = "Master password is the primary unlock." })
+                        DropdownMenuItem(text = { Text("Password") }, onClick = { LocalVaultStore.usePasswordAuthentication(context); authMode = LocalVaultStore.AUTH_PASSWORD; passwordFallback = true; authMenu = false; message = "Password is the primary unlock." })
                         DropdownMenuItem(text = { Text("Fingerprint") }, onClick = { authMenu = false; beginBiometricEnrollment() })
                     }
                 }
@@ -1100,7 +1054,7 @@ private sealed class VaultSensitiveAction(open val entryId: String) {
                 TextButton(onClick = {
                     showSensitiveAuthChoice = false
                     showSensitivePasswordPrompt = true
-                }) { Text("Master password", color = Accent) }
+                }) { Text("Password", color = Accent) }
             }
         )
     }
@@ -1112,7 +1066,7 @@ private sealed class VaultSensitiveAction(open val entryId: String) {
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Enter your master password to access this vault entry.", color = Ink)
-                    VaultInput("Master password", sensitivePassword, { sensitivePassword = it }, secret = true)
+                    VaultInput("Password", sensitivePassword, { sensitivePassword = it }, secret = true)
                 }
             },
             confirmButton = {
@@ -1221,45 +1175,22 @@ private fun biometricUnavailableMessage(status: Int): String = when (status) {
     notificationGranted: Boolean,
     notificationsEnabled: Boolean,
     channelImportance: Int?,
-    onOpenWallpaper: (String) -> Unit,
     onOpenVaultSecurity: () -> Unit,
     onOpenSupport: () -> Unit,
-    onOpenAbout: () -> Unit,
-    onResetBackgrounds: () -> Unit
+    onOpenAbout: () -> Unit
 ) {
     var typographyExpanded by remember { mutableStateOf(false) }
-    var confirmResetBackgrounds by remember { mutableStateOf(false) }
-    val backgroundContext = androidx.compose.ui.platform.LocalContext.current
     val channelEnabled = channelImportance != android.app.NotificationManager.IMPORTANCE_NONE
     val notificationsOkay = notificationGranted && notificationsEnabled && channelEnabled
     val permissionNeeded = remindersEnabled && !notificationsOkay
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(UiTokens.ControlGap)) {
-        com.example.darktodo.ui.ScreenHeader(ClarityIcons.Settings, "Settings", "App preferences", Modifier.padding(bottom = 0.dp))
         SettingsCategoryHeader(ClarityIcons.Personalization, "Personalization")
-        CollapsibleSettingsSection("Typography", selectedFontLabel(appFontSettings.family, appFontSettings.fontFileId, importedFonts), typographyExpanded, { typographyExpanded = it }) {
+        CollapsibleSettingsSection("Fonts Customization", selectedFontLabel(appFontSettings.family, appFontSettings.fontFileId, importedFonts), typographyExpanded, { typographyExpanded = it }) {
             SettingsPanel {
                 FontFamilyRow("App font", appFontSettings.family, appFontSettings.fontFileId, importedFonts, onAppFontFamily, onAppImportedFont)
                 LocalFontImportRow(importedFonts.size, onImportAppFont)
             }
         }
-        Text("Widget Customization", color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp, modifier = Modifier.padding(top = UiTokens.SmallGap))
-        Column(verticalArrangement = Arrangement.spacedBy(UiTokens.ControlGap)) {
-            listOf(
-                Triple(com.example.darktodo.data.WidgetBackgrounds.TODO, "To-Do widget wallpaper", "To-Do"),
-                Triple(com.example.darktodo.data.WidgetBackgrounds.CALENDAR, "Calendar widget wallpaper", "Calendar")
-            ).forEach { (key, label, _) ->
-                val status = if (com.example.darktodo.data.WidgetBackgrounds.has(backgroundContext, key)) "${com.example.darktodo.data.WidgetBackgrounds.fade(backgroundContext, key)}% fade" else "Not set"
-                SettingsNavRow(ClarityIcons.Wallpapers, label, "", status) { onOpenWallpaper(key) }
-            }
-            ResetAction("Reset widget backgrounds") { confirmResetBackgrounds = true }
-        }
-        if (confirmResetBackgrounds) AlertDialog(
-            onDismissRequest = { confirmResetBackgrounds = false }, containerColor = Card,
-            title = { Text("Reset widget backgrounds?", color = Ink) },
-            text = { Text("Both widgets return to their plain background colors.", color = Ink) },
-            confirmButton = { TextButton(onClick = { confirmResetBackgrounds = false; onResetBackgrounds() }) { Text("Reset", color = Accent) } },
-            dismissButton = { TextButton(onClick = { confirmResetBackgrounds = false }) { Text("Cancel") } }
-        )
         Spacer(Modifier.height(UiTokens.CompactGap))
         SettingsCategoryHeader(ClarityIcons.Security, "Privacy & Security")
         SettingsNavRow(ClarityIcons.Vault, "Vault Security", "Master password, biometrics, auto lock, audit", onClick = onOpenVaultSecurity)
@@ -1556,13 +1487,18 @@ private data class ColorPickTarget(val key: String, val label: String, val value
     onCalendarColor: (String, String) -> Unit,
     onCalendarInt: (String, Int) -> Unit,
     onCalendarDots: (Boolean) -> Unit,
-    onCalendarReset: () -> Unit
+    onCalendarReset: () -> Unit,
+    onOpenWallpaper: (String) -> Unit,
+    onTodoLayout: (Int, Int) -> Unit,
+    onSaveDefault: (Boolean) -> Unit,
+    onRestoreDefault: (Boolean) -> Boolean
 ) {
     val isTodo = screen == "TodoSettings"
     var pickTarget by remember { mutableStateOf<ColorPickTarget?>(null) }
     var confirmTodoReset by remember { mutableStateOf(false) }
     var confirmCalendarReset by remember { mutableStateOf(false) }
     var todoColorsExpanded by remember { mutableStateOf(false) }
+    var todoLayoutExpanded by remember { mutableStateOf(false) }
     var calendarColorsExpanded by remember { mutableStateOf(false) }
     var todoFontExpanded by remember { mutableStateOf(false) }
     var todoDisplayExpanded by remember { mutableStateOf(false) }
@@ -1573,12 +1509,13 @@ private data class ColorPickTarget(val key: String, val label: String, val value
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(UiTokens.ControlGap)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text(if (isTodo) "To-Do settings" else "Calendar settings", color = Ink, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Text(if (isTodo) "Tasks settings" else "Calendar settings", color = Ink, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                 Text("Widget preferences", color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp)
             }
             TextButton(onClick = onBack) { Text("Done", color = Accent) }
         }
         if (isTodo) SettingsSection("To-Do Widget", "Independent task widget appearance") {
+            WallpaperRow(com.example.darktodo.data.WidgetBackgrounds.TODO, "To-Do widget wallpaper", onOpenWallpaper)
             CollapsibleSettingsSection("Font", selectedFontLabel(settings.fontFamily, settings.fontFileId, importedFonts), todoFontExpanded, { todoFontExpanded = it }) {
                 SettingsPanel {
                     FontFamilyRow("Font family", settings.fontFamily, settings.fontFileId, importedFonts, onFontFamily, onTodoImportedFont)
@@ -1601,8 +1538,21 @@ private data class ColorPickTarget(val key: String, val label: String, val value
                 ColorSettingRow("Task title", settings.taskTitle) { pickTarget = ColorPickTarget("task_title", "Task title", settings.taskTitle, false) }
               }
             }
+            CollapsibleSettingsSection("Size & layout", "${settings.paddingDp} dp padding · ${settings.rowSpacingDp} dp row spacing", todoLayoutExpanded, { todoLayoutExpanded = it }) {
+                SettingsPanel {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf("Compact" to (4 to 0), "Comfortable" to (8 to 2), "Spacious" to (14 to 6)).forEach { (label, v) ->
+                            com.example.darktodo.ui.OutlineChip(label, settings.paddingDp == v.first && settings.rowSpacingDp == v.second, { onTodoLayout(v.first, v.second) }, Modifier.weight(1f))
+                        }
+                    }
+                    SettingSlider("Widget padding", "${settings.paddingDp} dp", settings.paddingDp.toFloat(), 0f..20f, { onTodoLayout(it.toInt(), settings.rowSpacingDp) })
+                    SettingSlider("Row spacing", "${settings.rowSpacingDp} dp", settings.rowSpacingDp.toFloat(), 0f..12f, { onTodoLayout(settings.paddingDp, it.toInt()) })
+                }
+            }
+            DefaultStyleActions(isTodo = true, onSave = onSaveDefault, onRestore = onRestoreDefault)
             ResetAction("Reset To-Do settings") { confirmTodoReset = true }
         } else SettingsSection("Calendar Widget", "Independent calendar appearance and task indicators") {
+            WallpaperRow(com.example.darktodo.data.WidgetBackgrounds.CALENDAR, "Calendar widget wallpaper", onOpenWallpaper)
             CollapsibleSettingsSection("Font", selectedFontLabel(calendarSettings.fontFamily, calendarSettings.fontFileId, importedFonts), calendarFontExpanded, { calendarFontExpanded = it }) {
                 SettingsPanel {
                     FontFamilyRow("Font family", calendarSettings.fontFamily, calendarSettings.fontFileId, importedFonts, onCalendarFontFamily, onCalendarImportedFont)
@@ -1644,6 +1594,7 @@ private data class ColorPickTarget(val key: String, val label: String, val value
             SettingsPanel {
                 SettingsSwitchRow("Show task-status dots", "Mark dates with completed or open tasks", calendarSettings.showDots, onCalendarDots)
             }
+            DefaultStyleActions(isTodo = false, onSave = onSaveDefault, onRestore = onRestoreDefault)
             ResetAction("Reset Calendar settings") { confirmCalendarReset = true }
         }
     }
@@ -1960,3 +1911,26 @@ private fun colorFromHex(hex: String): Color = try { Color(AndroidColor.parseCol
 
 private fun Color.isBlackOrGray(): Boolean =
     maxOf(red, green, blue) - minOf(red, green, blue) <= 0.10f
+
+@Composable private fun WallpaperRow(key: String, label: String, onOpen: (String) -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val status = if (com.example.darktodo.data.WidgetBackgrounds.has(context, key)) "${com.example.darktodo.data.WidgetBackgrounds.fade(context, key)}% fade" else "Not set"
+    SettingsNavRow(ClarityIcons.Wallpapers, label, "", status) { onOpen(key) }
+}
+
+
+@Composable private fun DefaultStyleActions(isTodo: Boolean, onSave: (Boolean) -> Unit, onRestore: (Boolean) -> Boolean) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val calendar = !isTodo
+    var saved by remember { mutableStateOf(if (calendar) CalendarWidgetSettings.hasSavedDefault(context) else WidgetSettings.hasSavedDefault(context)) }
+    var message by remember { mutableStateOf<String?>(null) }
+    SettingsPanel {
+        Text("Default style", color = Ink, fontSize = UiTokens.SectionTitleSp.sp, fontWeight = FontWeight.SemiBold)
+        Text("Save the current look, then restore it any time after experimenting.", color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            TextButton(onClick = { onSave(calendar); saved = true; message = "Saved as default style." }) { Text("Save As Default Style", color = Accent) }
+            TextButton(onClick = { message = if (onRestore(calendar)) "Default style restored." else "No default style saved yet." }, enabled = saved) { Text("Restore default", color = if (saved) Accent else UiTokens.Subdued) }
+        }
+        message?.let { Text(it, color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp) }
+    }
+}

@@ -70,7 +70,6 @@ object ClarityIcons {
 
     fun forModule(id: String): ImageVector = when (id) {
         ModuleNavigation.TASKS -> Tasks
-        ModuleNavigation.HISTORY -> History
         ModuleNavigation.CALENDAR -> Calendar
         ModuleNavigation.VAULT -> Vault
         ModuleNavigation.QUOTES -> Quotes
@@ -106,6 +105,13 @@ object ClarityIcons {
                 }
             }
         }
+    }
+}
+
+/** The one gear used to open settings from every module, so size, spacing and alignment never drift. */
+@Composable fun SettingsGearButton(label: String, onClick: () -> Unit) {
+    Surface(onClick = onClick, color = Color.Transparent, shape = RoundedCornerShape(12.dp), modifier = Modifier.size(44.dp).semantics { contentDescription = label }) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { ClarityGlyph(Icons.Outlined.Settings, tint = UiTokens.Accent, size = 24.dp) }
     }
 }
 

@@ -34,9 +34,9 @@ object StickerOps {
     fun display(stickers: List<Sticker>): List<Sticker> =
         stickers.sortedWith(compareByDescending<Sticker> { it.pinned }.thenByDescending { it.updatedAt })
 
-    fun create(title: String, content: String, color: StickerColor, now: Long, id: String = UUID.randomUUID().toString()): Sticker? {
+    fun create(title: String, content: String, color: StickerColor, now: Long, id: String = UUID.randomUUID().toString(), style: StickerStyle? = null): Sticker? {
         if (title.isBlank() && content.isBlank()) return null
-        return Sticker(id, title.trim(), content.trim(), color, false, now, now)
+        return Sticker(id, title.trim(), content.trim(), color, false, now, now, style)
     }
 
     fun edit(stickers: List<Sticker>, id: String, title: String, content: String, color: StickerColor, now: Long): List<Sticker> {
@@ -47,12 +47,15 @@ object StickerOps {
     fun setPinned(stickers: List<Sticker>, id: String, pinned: Boolean): List<Sticker> =
         stickers.map { if (it.id == id && it.pinned != pinned) it.copy(pinned = pinned) else it }
 
+    fun setStyle(stickers: List<Sticker>, id: String, style: StickerStyle?): List<Sticker> =
+        stickers.map { if (it.id == id) it.copy(style = style) else it }
+
     fun delete(stickers: List<Sticker>, id: String): List<Sticker> = stickers.filterNot { it.id == id }
 
     fun encode(stickers: List<Sticker>): String = JSONArray().also { array ->
         stickers.forEach {
             array.put(JSONObject().put("id", it.id).put("title", it.title).put("content", it.content)
-                .put("color", it.color.name).put("pinned", it.pinned).put("createdAt", it.createdAt).put("updatedAt", it.updatedAt))
+                .put("color", it.color.name).put("pinned", it.pinned).put("createdAt", it.createdAt).put("updatedAt", it.updatedAt).also { o -> it.style?.let { s -> o.put("style", s.toJson()) } })
         }
     }.toString()
 
@@ -64,7 +67,7 @@ object StickerOps {
                 val o = array.optJSONObject(i) ?: return@mapNotNull null
                 val id = o.optString("id").ifBlank { return@mapNotNull null }
                 Sticker(id, o.optString("title"), o.optString("content"), StickerColor.fromName(o.optString("color")),
-                    o.optBoolean("pinned"), o.optLong("createdAt"), o.optLong("updatedAt"))
+                    o.optBoolean("pinned"), o.optLong("createdAt"), o.optLong("updatedAt"), StickerStyle.fromJson(o.optJSONObject("style")))
             }
         }.getOrDefault(emptyList())
     }
@@ -73,6 +76,9 @@ object StickerOps {
 object StickerStore {
     private const val PREFS = "sticker_store"
     private const val KEY = "stickers_v1"
+    private const val KEY_STYLE = "sticker_style_v1"
+    private const val KEY_SAVE_DEFAULT = "sticker_save_default"
+    private const val KEY_COLORS = "sticker_color_book"
     private val lock = Any()
     private fun prefs(context: Context) = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
@@ -80,11 +86,13 @@ object StickerStore {
 
     private fun save(context: Context, stickers: List<Sticker>) {
         check(prefs(context).edit().putString(KEY, StickerOps.encode(stickers)).commit()) { "Could not persist stickers" }
+        runCatching { com.example.darktodo.widget.StickerWidget.updateAll(context) }
     }
 
     fun add(context: Context, title: String, content: String, color: StickerColor): List<Sticker> = synchronized(lock) {
         val current = load(context)
-        val sticker = StickerOps.create(title, content, color, System.currentTimeMillis()) ?: return current
+        val inherited = if (saveAsDefault(context)) globalStyle(context) else null
+        val sticker = StickerOps.create(title, content, color, System.currentTimeMillis(), style = inherited) ?: return current
         (current + sticker).also { save(context, it) }
     }
 
@@ -98,5 +106,31 @@ object StickerStore {
 
     fun delete(context: Context, id: String): List<Sticker> = synchronized(lock) {
         StickerOps.delete(load(context), id).also { save(context, it) }
+    }
+
+    fun setStyle(context: Context, id: String, style: StickerStyle?): List<Sticker> = synchronized(lock) {
+        StickerOps.setStyle(load(context), id, style?.sanitized()).also { save(context, it) }
+    }
+
+    fun globalStyle(context: Context): StickerStyle = StickerStyle.fromJson(
+        prefs(context).getString(KEY_STYLE, null)?.let { runCatching { JSONObject(it) }.getOrNull() }
+    ) ?: StickerStyle.DEFAULT
+
+    fun saveGlobalStyle(context: Context, style: StickerStyle) {
+        prefs(context).edit().putString(KEY_STYLE, style.sanitized().toJson().toString()).apply()
+        runCatching { com.example.darktodo.widget.StickerWidget.updateAll(context) }
+    }
+
+    /** When true, new stickers copy the global style (colours included) instead of using a preset colour. */
+    fun saveAsDefault(context: Context): Boolean = prefs(context).getBoolean(KEY_SAVE_DEFAULT, false)
+
+    fun setSaveAsDefault(context: Context, enabled: Boolean) {
+        prefs(context).edit().putBoolean(KEY_SAVE_DEFAULT, enabled).apply()
+    }
+
+    fun colorBook(context: Context): StickerColorBook = StickerColorBook.decode(prefs(context).getString(KEY_COLORS, null))
+
+    fun saveColorBook(context: Context, book: StickerColorBook) {
+        prefs(context).edit().putString(KEY_COLORS, book.encode()).apply()
     }
 }

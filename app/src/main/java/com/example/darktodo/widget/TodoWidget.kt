@@ -95,6 +95,9 @@ object TodoWidget {
         val incompleteColor = parseColor(settings.incomplete)
         val completeColor = parseColor(settings.complete)
         val cardColor = parseColor(settings.taskCard)
+        val density = context.resources.displayMetrics.density
+        val pad = (settings.paddingDp * density).toInt()
+        views.setViewPadding(R.id.widget_content, pad, pad, pad, pad)
         views.setInt(R.id.widget_root_background, "setColorFilter", parseColor(settings.widgetBackground))
         views.setInt(R.id.widget_count_panel_background, "setColorFilter", parseColor(settings.countPanel))
         views.setInt(R.id.widget_task_card_background, "setColorFilter", cardColor)
@@ -145,6 +148,8 @@ object TodoWidget {
         val settings = WidgetSettings.load(context)
         val importedFont = settings.fontFileId != null
         val row = RemoteViews(context.packageName, WidgetFontLayouts.taskRow(settings.fontFamily, importedFont))
+        val spacingPx = (settings.rowSpacingDp * context.resources.displayMetrics.density).toInt()
+        row.setViewPadding(R.id.widget_task_row, 0, spacingPx, 0, spacingPx)
         val titleColor = parseColor(settings.taskTitle)
         val incompleteColor = parseColor(settings.incomplete)
         val completeColor = parseColor(settings.complete)
