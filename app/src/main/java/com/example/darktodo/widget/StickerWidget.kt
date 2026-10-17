@@ -22,7 +22,8 @@ import com.example.darktodo.MainActivity
 import com.example.darktodo.R
 import com.example.darktodo.data.Sticker
 import com.example.darktodo.data.LocalWidgetFonts
-import com.example.darktodo.data.WidgetBackgroundsimport com.example.darktodo.data.StickerHex
+import com.example.darktodo.data.WidgetBackgrounds
+import com.example.darktodo.data.StickerHex
 import com.example.darktodo.data.StickerOps
 import com.example.darktodo.data.StickerStore
 import com.example.darktodo.data.StickerStyle

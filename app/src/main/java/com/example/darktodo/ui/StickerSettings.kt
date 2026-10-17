@@ -104,12 +104,12 @@ fun stickerFontFamily(key: String, custom: Typeface? = null): FontFamily = if (c
                 .clip(shape)
                 .background(Color(StickerHex.toArgb(style.background)), shape)
                 .then(if (wallpaper == null) Modifier else Modifier.drawBehind {
-                    val scale = maxOf(size.width / wallpaper.width, size.height / wallpaper.height)
-                    val srcW = (size.width / scale).toInt().coerceIn(1, wallpaper.width)
-                    val srcH = (size.height / scale).toInt().coerceIn(1, wallpaper.height)
+                    val scale = maxOf(this.size.width / wallpaper.width, this.size.height / wallpaper.height)
+                    val srcW = (this.size.width / scale).toInt().coerceIn(1, wallpaper.width)
+                    val srcH = (this.size.height / scale).toInt().coerceIn(1, wallpaper.height)
                     drawImage(
                         wallpaper, IntOffset((wallpaper.width - srcW) / 2, (wallpaper.height - srcH) / 2), IntSize(srcW, srcH),
-                        dstSize = IntSize(size.width.toInt(), size.height.toInt())
+                        dstSize = IntSize(this.size.width.toInt(), this.size.height.toInt())
                     )
                     drawRect(Color.Black.copy(alpha = wallpaperFade))
                 })
@@ -278,7 +278,6 @@ private val fieldColors @Composable get() = OutlinedTextFieldDefaults.colors(
         StyleSlider("Elevation / shadow", "${style.elevationDp} dp", style.elevationDp.toFloat(), 0f..16f) { onChange(style.copy(elevationDp = it.toInt())) }
     }
 }
-Stickers without their own style also use these colours, font
 @Composable fun StickerSettingsScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     var style by remember { mutableStateOf(StickerStore.globalStyle(context)) }
@@ -308,7 +307,7 @@ Stickers without their own style also use these colours, font
                 Row(Modifier.padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text("Save As Default Style", color = UiTokens.Ink, fontSize = UiTokens.LabelSp.sp, fontWeight = FontWeight.Medium)
-                        Text("New stickers inherit this font, colours, radius and padding.", color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp)
+                        Text("Stickers without their own style also use these colours, font, radius and padding.", color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp)
                     }
                     Spacer(Modifier.width(8.dp))
                     Switch(saveDefault, { saveDefault = it; StickerStore.setSaveAsDefault(context, it) }, colors = SwitchDefaults.colors(checkedTrackColor = UiTokens.Accent))
