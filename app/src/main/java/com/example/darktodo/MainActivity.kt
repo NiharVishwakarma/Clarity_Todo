@@ -92,6 +92,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -333,7 +334,7 @@ class MainActivity : FragmentActivity() {
             val swipeThresholdPx = with(androidx.compose.ui.platform.LocalDensity.current) { 96.dp.toPx() }
             Column(Modifier.weight(1f).fillMaxWidth().pointerInput(currentModule) {
                 var drag = 0f
-                androidx.compose.foundation.gestures.detectHorizontalDragGestures(
+                detectHorizontalDragGestures(
                     onDragStart = { drag = 0f },
                     onDragEnd = {
                         if (kotlin.math.abs(drag) > swipeThresholdPx) ModuleNavigation.adjacent(currentModule, forward = drag < 0f)?.let(::openModule)
