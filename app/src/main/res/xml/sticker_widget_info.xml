@@ -10,6 +10,8 @@
     android:previewImage="@drawable/widget_preview_sticker"
     android:previewLayout="@layout/sticker_widget_preview"
     android:description="@string/sticker_widget_description"
+    android:configure="com.example.darktodo.widget.StickerWidgetConfigActivity"
+    android:widgetFeatures="reconfigurable"
     android:resizeMode="horizontal|vertical"
     android:widgetCategory="home_screen"
     android:updatePeriodMillis="0" />

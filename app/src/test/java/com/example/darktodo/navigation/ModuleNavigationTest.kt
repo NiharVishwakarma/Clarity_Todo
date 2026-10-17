@@ -8,7 +8,7 @@ import org.junit.Test
 class ModuleNavigationTest {
     @Test fun registryContainsPlannedModulesInOrder() {
         assertEquals(
-            listOf("Tasks", "Calendar", "Vault", "Quotes", "Stickers", "Wallpapers", "Settings"),
+            listOf("Tasks", "Calendar", "Vault", "Quotes", "Notes \uD83D\uDCDD", "Wallpapers", "Settings"),
             ModuleNavigation.modules.map { it.label }
         )
     }

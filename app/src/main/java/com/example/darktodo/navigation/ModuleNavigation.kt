@@ -30,7 +30,7 @@ object ModuleNavigation {
         ModuleSpec(CALENDAR, "Calendar"),
         ModuleSpec(VAULT, "Vault"),
         ModuleSpec(QUOTES, "Quotes"),
-        ModuleSpec(STICKERS, "Stickers"),
+        ModuleSpec(STICKERS, "Notes \uD83D\uDCDD"),
         ModuleSpec(WALLPAPERS, "Wallpapers"),
         ModuleSpec(SETTINGS, "Settings")
     )

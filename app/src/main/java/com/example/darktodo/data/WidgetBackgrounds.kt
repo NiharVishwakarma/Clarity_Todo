@@ -22,6 +22,10 @@ object WidgetBackgrounds {
     const val TODO = "todo"
     const val CALENDAR = "calendar"
     const val STICKER = "sticker"
+    const val NOTE_PREFIX = "note_"
+
+    /** Image key for one note; the id is made filename-safe. */
+    fun noteKey(noteId: String): String = NOTE_PREFIX + noteId.replace(Regex("[^A-Za-z0-9-]"), "_")
     const val DEFAULT_FADE = 25
     const val MAX_SIDE_PX = 560
     val presets = listOf("Default" to DEFAULT_FADE, "Slightly faded" to 40, "Medium fade" to 60, "Strong fade" to 80)
@@ -33,21 +37,68 @@ object WidgetBackgrounds {
 
     fun has(context: Context, key: String): Boolean = file(context, key).isFile
 
-    private class CachedSource(val modified: Long, val length: Long, val bitmap: Bitmap)
-    private val sources = HashMap<String, CachedSource>()
+    private class CachedSource(val modified: Long, val length: Long, val bitmap: Bitmap) { var luminance: Float? = null }
+    // A handful of decoded images is enough: widgets and the open Notes screen reuse the same few notes.
+    private val sources = object : LinkedHashMap<String, CachedSource>(8, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, CachedSource>?): Boolean = size > 8
+    }
 
-    /** Decoded source image, reused until the saved file changes. Never recycle the returned bitmap. */
-    private fun source(context: Context, key: String): Bitmap? {
+    private fun cachedSource(context: Context, key: String): CachedSource? {
         val file = file(context, key)
         if (!file.isFile) return null
         val modified = file.lastModified()
         val length = file.length()
         synchronized(sources) {
-            sources[key]?.takeIf { it.modified == modified && it.length == length }?.let { return it.bitmap }
+            sources[key]?.takeIf { it.modified == modified && it.length == length }?.let { return it }
             val decoded = runCatching { BitmapFactory.decodeFile(file.absolutePath) }.getOrNull() ?: return null
-            sources[key] = CachedSource(modified, length, decoded)
-            return decoded
+            return CachedSource(modified, length, decoded).also { sources[key] = it }
         }
+    }
+
+    /** Decoded source image, reused until the saved file changes. Never recycle the returned bitmap. */
+    private fun source(context: Context, key: String): Bitmap? = cachedSource(context, key)?.bitmap
+
+    /** Same cached image for UI code (Compose previews). Never recycle it. */
+    fun image(context: Context, key: String): Bitmap? = source(context, key)
+
+    /** Average relative luminance (0..1) of the saved image before any fade, or null when there is none. */
+    fun averageLuminance(context: Context, key: String): Float? {
+        val cached = cachedSource(context, key) ?: return null
+        cached.luminance?.let { return it }
+        val small = Bitmap.createScaledBitmap(cached.bitmap, 16, 16, true)
+        val pixels = IntArray(16 * 16)
+        small.getPixels(pixels, 0, 16, 0, 0, 16, 16)
+        if (small !== cached.bitmap) small.recycle()
+        val value = pixels.map { NoteContrast.relativeLuminance(Color.red(it), Color.green(it), Color.blue(it)) }.average().toFloat()
+        cached.luminance = value
+        return value
+    }
+
+    /** Draws the image to cover [area] and then its dark fade, without any rounding; callers clip with their own shape. */
+    fun drawCover(canvas: Canvas, context: Context, key: String, area: RectF): Boolean {
+        val image = source(context, key) ?: return false
+        val scale = max(area.width() / image.width, area.height() / image.height)
+        canvas.save()
+        canvas.clipRect(area)
+        canvas.translate(area.centerX() - image.width * scale / 2f, area.centerY() - image.height * scale / 2f)
+        canvas.scale(scale, scale)
+        canvas.drawBitmap(image, 0f, 0f, Paint(Paint.FILTER_BITMAP_FLAG))
+        canvas.restore()
+        canvas.drawRect(area, Paint().apply { color = Color.argb(fade(context, key) * 255 / 100, 0, 0, 0) })
+        return true
+    }
+
+    /** Copies an image and its fade to another key (used when duplicating a note). */
+    fun copy(context: Context, fromKey: String, toKey: String): Boolean {
+        val from = file(context, fromKey)
+        if (!from.isFile) return false
+        val copied = runCatching { from.copyTo(file(context, toKey), overwrite = true) }.isSuccess
+        if (copied) {
+            synchronized(sources) { sources.remove(toKey) }
+            saveFade(context, toKey, fade(context, fromKey))
+            com.example.darktodo.backup.BackupScheduler.requestBackup(context)
+        }
+        return copied
     }
     fun fade(context: Context, key: String): Int = prefs(context).getInt("${key}_fade", DEFAULT_FADE).coerceIn(0, 100)
     fun saveFade(context: Context, key: String, percent: Int) { prefs(context).edit().putInt("${key}_fade", percent.coerceIn(0, 100)).apply() }

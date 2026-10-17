@@ -173,6 +173,8 @@ class MainActivity : FragmentActivity() {
     companion object {
         const val ACTION_CREATE_TASK = "com.example.darktodo.action.CREATE_TASK"
         const val ACTION_OPEN_VAULT = "com.example.darktodo.action.OPEN_VAULT"
+        const val ACTION_OPEN_NOTE = "com.example.darktodo.action.OPEN_NOTE"
+        const val EXTRA_NOTE_ID = "note_id"
     }
 
     private val screenOnReceiver = object : BroadcastReceiver() {
@@ -205,7 +207,8 @@ class MainActivity : FragmentActivity() {
             var welcome by remember { mutableStateOf(com.example.darktodo.backup.BackupManager.needsWelcome(this@MainActivity)) }
             if (welcome) WelcomeBackGate { restored ->
                 if (restored) recreate() else welcome = false
-            } else TodoApp(intent.getStringExtra("edit_task_id"), intent.getStringExtra("task_date"), intent.action == ACTION_CREATE_TASK, intent.action == ACTION_OPEN_VAULT)
+            } else TodoApp(intent.getStringExtra("edit_task_id"), intent.getStringExtra("task_date"), intent.action == ACTION_CREATE_TASK, intent.action == ACTION_OPEN_VAULT,
+                if (intent.action == ACTION_OPEN_NOTE) intent.getStringExtra(EXTRA_NOTE_ID) else null)
         } } }
     }
 
@@ -214,7 +217,7 @@ class MainActivity : FragmentActivity() {
 }
 
 @OptIn(ExperimentalFoundationApi::class)
-@Composable private fun TodoApp(openTaskId: String? = null, openTaskDate: String? = null, startCreateTask: Boolean = false, openVault: Boolean = false) {
+@Composable private fun TodoApp(openTaskId: String? = null, openTaskDate: String? = null, startCreateTask: Boolean = false, openVault: Boolean = false, openNoteId: String? = null) {
     val context = LocalContext.current
     var tasks by remember { mutableStateOf(TaskStore.tasks(context)) }
     var events by remember { mutableStateOf(TaskStore.history(context)) }
@@ -222,6 +225,7 @@ class MainActivity : FragmentActivity() {
     val startRoute = remember {
         when {
             openVault -> ModuleNavigation.routeFor(ModuleNavigation.VAULT)
+            openNoteId != null -> ModuleNavigation.routeFor(ModuleNavigation.STICKERS)
             openTaskId != null || openTaskDate != null || startCreateTask -> ModuleNavigation.home
             else -> ModulePrefs.last(context)?.let { ModuleNavigation.routeFor(it) } ?: ModuleNavigation.routeFor(ModuleNavigation.CALENDAR)
         }
@@ -229,6 +233,8 @@ class MainActivity : FragmentActivity() {
     var page by remember { mutableStateOf(startRoute.page) }
     var todoPage by remember { mutableStateOf(startRoute.todoPage) }
     var wallpaperTarget by remember { mutableStateOf(com.example.darktodo.data.WidgetBackgrounds.TODO) }
+    var noteSettingsId by remember { mutableStateOf<String?>(null) }
+    var pendingNoteId by remember { mutableStateOf(openNoteId) }
     var title by remember { mutableStateOf("") }
     var timeTick by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var editing by remember { mutableStateOf<Task?>(null) }
@@ -486,8 +492,8 @@ class MainActivity : FragmentActivity() {
                 )
                 page == "Quotes" -> com.example.darktodo.ui.ComingSoonScreen(com.example.darktodo.ui.ClarityIcons.Quotes, "Quotes", "Browse and save motivational quotes here in a future update.")
                 page == "Wallpapers" -> com.example.darktodo.ui.ComingSoonScreen(com.example.darktodo.ui.ClarityIcons.Wallpapers, "Wallpapers", "A wallpaper library is planned. Widget backgrounds can be set today in Settings, under Personalization.")
-                page == "Stickers" -> com.example.darktodo.ui.StickersScreen(onOpenSettings = { page = "StickerSettings" })
-                page == "StickerSettings" -> com.example.darktodo.ui.StickerSettingsScreen(onBack = { page = "Stickers" })
+                page == "Stickers" -> com.example.darktodo.ui.NotesScreen(initialEditId = pendingNoteId, onInitialEditHandled = { pendingNoteId = null }, onOpenNoteSettings = { id -> noteSettingsId = id; page = "StickerSettings" })
+                page == "StickerSettings" -> com.example.darktodo.ui.NoteSettingsScreen(noteSettingsId.orEmpty(), onBack = { page = "Stickers" })
                 page == "SupportClarity" -> com.example.darktodo.ui.SupportClarityScreen { page = "Settings" }
                 page == "About" -> com.example.darktodo.ui.AboutScreen({ page = "Settings" }, runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull() ?: "")
             }

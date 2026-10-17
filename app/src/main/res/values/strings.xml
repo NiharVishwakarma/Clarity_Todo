@@ -2,8 +2,8 @@
     <string name="app_name">Clarity</string>
     <string name="calendar_widget_description">Clarity Calendar</string>
     <string name="todo_widget_description">Clarity To-Do</string>
-    <string name="sticker_widget_label">Clarity Sticker</string>
-    <string name="sticker_widget_description">A sticker note on your home screen. Tap to flip to the next one.</string>
+    <string name="sticker_widget_label">Clarity Note</string>
+    <string name="sticker_widget_description">A note on your home screen. Tap it to open and edit the note.</string>
     <string name="vault_widget_label">Clarity Vault</string>
     <string name="vault_widget_description">A locked shortcut to your private password vault</string>
 </resources>

@@ -1,5 +1,6 @@
 package com.example.darktodo.data
 
+import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -23,15 +24,15 @@ class StickerStyleTest {
         assertEquals(StickerStyle.DEFAULT.fontFamily, s.fontFamily)
     }
 
-    @Test fun styleRoundTripsThroughStickerJson() {
+    @Test fun styleRoundTripsThroughNoteJson() {
         val style = StickerStyle(background = "#000000", text = "#FFFFFF", fontWeight = 700, widgetSize = StickerWidgetSize.Large, cornerRadiusDp = 8)
-        val sticker = Sticker("1", "t", "c", StickerColor.Blue, style = style)
-        val decoded = StickerOps.decode(StickerOps.encode(listOf(sticker, sticker.copy(id = "2", style = null))))
+        val note = Sticker("1", "t", "c", StickerColor.Blue, style = style)
+        val decoded = StickerOps.decode(StickerOps.encode(listOf(note, note.copy(id = "2", style = null))))
         assertEquals(style, decoded[0].style)
         assertNull(decoded[1].style)
     }
 
-    @Test fun stickerWithoutOverrideKeepsPresetColoursButUsesGlobalTypography() {
+    @Test fun noteWithoutStyleKeepsPresetColoursButUsesGlobalTypography() {
         val global = StickerStyle(fontSizeSp = 20f, cornerRadiusDp = 4)
         val resolved = StickerStyle.resolve(Sticker("1", "t", "c", StickerColor.Blue), global)
         assertEquals(20f, resolved.fontSizeSp)
@@ -39,28 +40,32 @@ class StickerStyleTest {
         assertEquals("#9CCBFF", resolved.background)
     }
 
-    @Test fun customisedGlobalColoursApplyToStickersWithoutTheirOwn() {
+    @Test fun customisedGlobalColoursApplyToNotesWithoutStyle() {
         val global = StickerStyle(background = "#101010", text = "#EEEEEE")
         val resolved = StickerStyle.resolve(Sticker("1", "t", "c", StickerColor.Blue), global)
         assertEquals("#101010", resolved.background)
         assertEquals("#EEEEEE", resolved.text)
     }
 
-    @Test fun perStickerColoursOverrideButTypographyStaysGlobal() {
+    @Test fun aNotesOwnStyleIsUsedAsIs() {
         val global = StickerStyle(fontFileId = "f.ttf", borderWidthDp = 4, background = "#101010")
-        val own = StickerStyle(background = "#222222", text = "#333333", pin = "#444444", fontSizeSp = 27f, borderWidthDp = 0)
+        val own = StickerStyle(background = "#222222", text = "#333333", fontSizeSp = 27f, borderWidthDp = 0)
         val resolved = StickerStyle.resolve(Sticker("1", "t", "c", style = own), global)
-        assertEquals("#222222", resolved.background)
-        assertEquals("#333333", resolved.text)
-        assertEquals("f.ttf", resolved.fontFileId)
-        assertEquals(4, resolved.borderWidthDp)
-        assertEquals(StickerStyle.DEFAULT.fontSizeSp, resolved.fontSizeSp)
+        assertEquals(own, resolved)
     }
 
-    @Test fun fontFileAndBorderRoundTripThroughJson() {
-        val style = StickerStyle(fontFileId = "abc.ttf", borderWidthDp = 3, borderColor = "#112233")
+    @Test fun fontFileBorderAndReadabilityRoundTripThroughJson() {
+        val style = StickerStyle(fontFileId = "abc.ttf", borderWidthDp = 3, borderColor = "#112233", autoContrast = false, textShadow = true, glow = true)
         assertEquals(style, StickerStyle.fromJson(style.toJson()))
         assertNull(StickerStyle.fromJson(StickerStyle().toJson())!!.fontFileId)
+    }
+
+    @Test fun stylesSavedBeforeReadabilityOptionsKeepTheirLook() {
+        val legacy = StickerStyle.fromJson(JSONObject("""{"background":"#FFE680","text":"#3B3200","pin":"#000000"}"""))!!
+        assertEquals(false, legacy.autoContrast)
+        assertEquals(false, legacy.textShadow)
+        assertEquals(false, legacy.glow)
+        assertEquals("#3B3200", legacy.text)
     }
 
     @Test fun colourBookKeepsNewestRecentsAndTogglesFavourites() {

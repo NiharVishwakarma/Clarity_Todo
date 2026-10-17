@@ -3,6 +3,7 @@ package com.example.darktodo.backup
 import android.content.Context
 import android.util.Base64
 import com.example.darktodo.data.LocalVaultStore
+import com.example.darktodo.data.StickerStore
 import com.example.darktodo.data.TaskStore
 import com.example.darktodo.data.WidgetBackgrounds
 import com.google.android.gms.auth.api.identity.AuthorizationRequest
@@ -70,12 +71,18 @@ object BackupManager {
     }
 
     /** Fixed allow-list of backed up files, so a backup can never write outside these locations. */
-    private fun blobFiles(context: Context): Map<String, File> = mapOf(
-        "vault" to LocalVaultStore.file(context),
-        "wallpaper_todo" to WidgetBackgrounds.file(context, WidgetBackgrounds.TODO),
-        "wallpaper_calendar" to WidgetBackgrounds.file(context, WidgetBackgrounds.CALENDAR),
-        "wallpaper_sticker" to WidgetBackgrounds.file(context, WidgetBackgrounds.STICKER)
-    )
+    private fun blobFiles(context: Context): Map<String, File> {
+        val files = linkedMapOf(
+            "vault" to LocalVaultStore.file(context),
+            "wallpaper_todo" to WidgetBackgrounds.file(context, WidgetBackgrounds.TODO),
+            "wallpaper_calendar" to WidgetBackgrounds.file(context, WidgetBackgrounds.CALENDAR)
+        )
+        // One image per note. Names are built from stored note ids, never taken from the backup file.
+        StickerStore.load(context).forEach { note ->
+            files["wallpaper_note_${note.id}"] = WidgetBackgrounds.file(context, WidgetBackgrounds.noteKey(note.id))
+        }
+        return files
+    }
 
     /** Replaces local data with the snapshot. Returns true when the snapshot contained a vault. */
     @Suppress("UNCHECKED_CAST")

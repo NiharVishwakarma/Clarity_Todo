@@ -115,6 +115,16 @@ This log begins with the repository snapshot available when these project notes 
 - Removed the Recent colours row; sticker settings groups now carry headings that say what they change.
 - Added an optional Background image for stickers (Sticker settings > Background image), reusing `WidgetBackgroundEditor` and `WidgetBackgrounds` (key `sticker`, new `renderPx`): gallery/device/generated source, zoom/rotate, and a 0-100% dark fade for text legibility. Applies to all stickers in the app and the widget; not included in Drive backup. Not compiled or device-tested.
 
+## 2026-10-18 - Stickers become per-note Notes (not compiled or device-tested)
+
+- Renamed the user-facing feature to "Notes" (tab "Notes", widget "Clarity Note", "Create note", "No Notes Yet"); code, storage keys and JSON names keep the "sticker" names for data safety.
+- Removed pins (`Sticker.pinned`, `StickerStyle.pin`, pin glyph, pin colour setting) and the global Sticker settings screen/icon and "Save As Default Style". Old stored `pinned`/`pin` fields are ignored.
+- Per-note styling: each note stores a full `StickerStyle` plus its own background image (`WidgetBackgrounds.noteKey`); settings open from a gear on each note card (`NoteSettingsScreen`) and save only that note, debounced, refreshing its widget. New options: auto contrast, text shadow, glow. Long-press a card for Rename / Duplicate / Delete.
+- Migration (`StickerStore.migrate`, flag `notes_per_note_v1`): every existing note keeps its current look as its own style with auto contrast off; the old shared image is copied to each note and removed.
+- Auto contrast: `NoteContrast` / `NoteAppearance.effectiveStyle` choose light or dark text from the background colour or image after fade; used by both the app and the widget.
+- Widget: fill, image and fade are drawn through one rounded rectangle (no black corners; border uses the same bounds). Tapping the widget opens the note in the editor (`MainActivity.ACTION_OPEN_NOTE`, note id, focus and keyboard on open). A configuration activity (`StickerWidgetConfigActivity`) picks which note a widget shows; the old tap-to-cycle behaviour was removed.
+- Backup now includes each note's image (`wallpaper_note_<id>`). Tests updated/added (`StickerOpsTest`, `StickerStyleTest`, `NoteContrastTest`, `ModuleNavigationTest`).
+
 ## 2026-10-17 - Sticker backup, tests and docs (not compiled or device-tested)
 
 - Added `sticker_store` and the sticker wallpaper to the Drive backup snapshot (`BackupManager.PREF_FILES`/`blobFiles`); restore refreshes the sticker widget. Backups made earlier do not contain them, so restoring one leaves local stickers as they are (the sticker wallpaper file is removed, as for the other wallpapers).

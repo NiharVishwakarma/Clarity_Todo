@@ -30,9 +30,4 @@
             <corners android:radius="3dp" />
         </shape>
     </item>
-    <item android:gravity="top|end" android:top="24dp" android:right="26dp" android:width="12dp" android:height="12dp">
-        <shape android:shape="oval">
-            <solid android:color="#3B3200" />
-        </shape>
-    </item>
 </layer-list>
