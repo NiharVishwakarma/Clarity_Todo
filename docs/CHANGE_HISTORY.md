@@ -13,6 +13,12 @@ This log begins with the repository snapshot available when these project notes 
 
 ## Current version summary
 
+### 2026-10-18 — Refreshed Tasks and Notes widget previews
+
+- Reworked the Tasks widget picker layout to show a 5-task count, realistic task titles, completed/in-progress/pending status marks, and the existing refresh/add actions.
+- Reworked the Notes widget picker layout into a readable yellow note card with a title, four example note lines, and a note icon; improved both widgets' `previewImage` fallback artwork.
+- Kept these as native Android preview resources because widget pickers consume provider `previewLayout` and `previewImage`, rather than the app's Compose UI. Not compiled or device-tested.
+
 ### 2026-10-17 — Fix second CI compile failure (sticker style wiring)
 
 - Added the missing `style` field to `Sticker`; gave `StickerEditor` its `globalStyle`/`book`/`onBook` parameters and a 5-arg `onSave`; renamed the local `override` to `customStyle` and added the missing imports. Not yet re-verified by CI.

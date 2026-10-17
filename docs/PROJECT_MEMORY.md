@@ -29,6 +29,7 @@ The Android application is branded **Clarity** in its UI and widget labels; Grad
 Common widget details:
 
 - Widget layouts and provider sizing/previews are in `app/src/main/res/layout/` and `app/src/main/res/xml/`; widget backgrounds and icons are in `app/src/main/res/drawable/`.
+- Tasks and Notes picker previews are static Android resources (`todo_widget_preview.xml` / `sticker_widget_preview.xml`, with `widget_preview_todo.xml` / `widget_preview_sticker.xml` as drawable fallbacks), not Compose screens. They show representative task states and sample note content; this keeps the picker preview compatible with the widget provider's `previewLayout` and `previewImage` contracts.
 - The To-Do widget uses `WidgetRefreshScheduler` to set one inexact alarm for the next visible countdown-label transition. Android may delay alarms; widget periodic updates cannot be more frequent than every 30 minutes.
 - The Calendar widget stores per-instance selected date/month state separately from task storage. Monday is the fixed first weekday in the current date-grid helper.
 - `WidgetFontLayouts` maps five Android system font families to RemoteViews-compatible layouts. Imported fonts use separate imported-font layouts and text bitmaps because a launcher cannot resolve an app-process `Typeface`.
