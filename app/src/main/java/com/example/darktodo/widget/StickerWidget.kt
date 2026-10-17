@@ -164,7 +164,8 @@ object StickerWidget {
             val imagePaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG).apply { alpha = (255 * style.opacityPercent / 100f).toInt() }
             canvas.drawBitmap(wallpaper, null, card, imagePaint)
             wallpaper.recycle()
-        }        if (style.borderWidthDp > 0) {
+        }
+        if (style.borderWidthDp > 0) {
             val stroke = style.borderWidthDp * d
             val line = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 this.style = Paint.Style.STROKE
