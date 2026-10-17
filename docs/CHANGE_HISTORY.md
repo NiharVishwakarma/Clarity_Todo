@@ -13,6 +13,12 @@ This log begins with the repository snapshot available when these project notes 
 
 ## Current version summary
 
+### 2026-10-17 — Improved reminder delivery reliability and diagnostics
+
+- Reminder channel is now `task_reminders_v2` with `IMPORTANCE_HIGH` (old `task_reminders` channel deleted); notifications use high priority and `CATEGORY_REMINDER`.
+- `ReminderScheduler.setAlarm` no longer rethrows on registration failure; inexact fallback is logged as a warning.
+- Added `ReminderTiming` helper, lateness/zone/battery-optimization/exact-alarm logging in `schedule`/`handle`, and `ReminderTimingTest`.
+
 ### 2026-10-17 — Added project context and agent instructions
 
 - Added [`.github/copilot-instructions.md`](../.github/copilot-instructions.md) with incremental-analysis, relevant-file loading, and project-memory/change-log maintenance rules.

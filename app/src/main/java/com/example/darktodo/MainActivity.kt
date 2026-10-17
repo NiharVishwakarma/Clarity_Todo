@@ -389,7 +389,7 @@ class MainActivity : FragmentActivity() {
                     remindersEnabled = tasks.any { !it.completed && it.reminderType != "none" },
                     notificationGranted = Build.VERSION.SDK_INT < 33 || ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED,
                     notificationsEnabled = androidx.core.app.NotificationManagerCompat.from(context).areNotificationsEnabled(),
-                    channelImportance = if (Build.VERSION.SDK_INT >= 26) context.getSystemService(android.app.NotificationManager::class.java).getNotificationChannel("task_reminders")?.importance else null,
+                    channelImportance = if (Build.VERSION.SDK_INT >= 26) context.getSystemService(android.app.NotificationManager::class.java).getNotificationChannel(com.example.darktodo.reminders.ReminderScheduler.CHANNEL)?.importance else null,
                     onOpenWallpaper = { wallpaperTarget = it; page = "WidgetBackground" },
                     onOpenVaultSecurity = { page = "VaultSecurity" },
                     onResetBackgrounds = {
@@ -406,7 +406,7 @@ class MainActivity : FragmentActivity() {
                     remindersEnabled = tasks.any { !it.completed && it.reminderType != "none" },
                     notificationGranted = Build.VERSION.SDK_INT < 33 || ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED,
                     notificationsEnabled = androidx.core.app.NotificationManagerCompat.from(context).areNotificationsEnabled(),
-                    channelImportance = if (Build.VERSION.SDK_INT >= 26) context.getSystemService(android.app.NotificationManager::class.java).getNotificationChannel("task_reminders")?.importance else null,
+                    channelImportance = if (Build.VERSION.SDK_INT >= 26) context.getSystemService(android.app.NotificationManager::class.java).getNotificationChannel(com.example.darktodo.reminders.ReminderScheduler.CHANNEL)?.importance else null,
                     exactAlarmsEnabled = com.example.darktodo.reminders.ReminderScheduler.canScheduleExactly(context),
                     onBack = { page = "Settings" },
                     onRequestNotifications = { if (Build.VERSION.SDK_INT >= 33) notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) else permissionRevision++ },

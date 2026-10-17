@@ -23,7 +23,10 @@ import kotlin.random.Random
 
 object ReminderScheduler {
     private const val TAG = "ReminderScheduler"
-    private const val CHANNEL = "task_reminders"
+    // Channel importance is immutable after creation, so the old DEFAULT-importance "task_reminders"
+    // channel is replaced by a HIGH-importance one (heads-up + sound).
+    const val CHANNEL = "task_reminders_v2"
+    private const val LEGACY_CHANNEL = "task_reminders"
     private const val EXTRA_TASK = "reminder_task"
     private const val EXTRA_KIND = "reminder_kind"
     private const val EXTRA_TIME = "reminder_time"
@@ -36,6 +39,10 @@ object ReminderScheduler {
         return runCatching { context.getSystemService(AlarmManager::class.java).canScheduleExactAlarms() }
             .getOrDefault(false)
     }
+
+    fun isBatteryOptimized(context: Context): Boolean = runCatching {
+        !context.getSystemService(android.os.PowerManager::class.java).isIgnoringBatteryOptimizations(context.packageName)
+    }.getOrDefault(false)
 
     fun schedule(context: Context, task: Task) {
         if (task.completed || task.reminderType == "none") {
@@ -61,7 +68,7 @@ object ReminderScheduler {
             Log.w(TAG, "schedule invalid trigger task=${task.id} kind=$kind trigger=$whenAt")
             return
         }
-        Log.d(TAG, "schedule task=${task.id} kind=$kind event=${if (task.reminderType == "duration") "deadline:${task.id}:${task.deadlineAt}" else "specific:${task.id}:${task.reminderAt}"} trigger=$whenAt clock=${if (elapsedAlarm) "elapsedRealtime" else "wallClock"}")
+        Log.d(TAG, "schedule now=${ReminderTiming.describe(now)} zone=${java.util.TimeZone.getDefault().id} trigger=${ReminderTiming.describe(whenAt)} task=${task.id} kind=$kind event=${if (task.reminderType == "duration") "deadline:${task.id}:${task.deadlineAt}" else "specific:${task.id}:${task.reminderAt}"} trigger=$whenAt clock=${if (elapsedAlarm) "elapsedRealtime" else "wallClock"}")
         setAlarm(context, task.id, kind, whenAt, elapsedAlarm)
     }
 
@@ -101,10 +108,10 @@ object ReminderScheduler {
         }
         try {
             if (Build.VERSION.SDK_INT >= 23) manager.setAndAllowWhileIdle(type, at, pi) else manager.set(type, at, pi)
-            Log.i(TAG, "registered inexact task=$id kind=$kind trigger=$at alarmType=$type exactAccess=${canScheduleExactly(context)}")
+            Log.w(TAG, "registered INEXACT task=$id kind=$kind trigger=${ReminderTiming.describe(at)} alarmType=$type exactAccess=${canScheduleExactly(context)}; delivery may be delayed by minutes (grant 'Alarms & reminders')")
         } catch (e: RuntimeException) {
+            // Never crash the caller (task is already persisted); recovery re-registers on next start.
             Log.e(TAG, "alarm registration failed task=$id kind=$kind trigger=$at", e)
-            throw e
         }
     }
 
@@ -140,7 +147,9 @@ object ReminderScheduler {
 
     @Synchronized
     internal fun handle(context: Context, id: String, kind: String, scheduledAt: Long = 0L) {
-        Log.i(TAG, "handle task=$id kind=$kind scheduledAt=$scheduledAt elapsedNow=${SystemClock.elapsedRealtime()} wallNow=${System.currentTimeMillis()}")
+        val wallNow = System.currentTimeMillis()
+        Log.i(TAG, "handle task=$id kind=$kind scheduledAt=${ReminderTiming.describe(scheduledAt)} now=${ReminderTiming.describe(wallNow)} zone=${java.util.TimeZone.getDefault().id} latenessMs=${if (scheduledAt > 0L && kind == "specific") ReminderTiming.latenessMs(scheduledAt, wallNow) else "n/a"} elapsedNow=${SystemClock.elapsedRealtime()} batteryOptimized=${isBatteryOptimized(context)} exactAccess=${canScheduleExactly(context)}")
+        if (kind == "specific" && ReminderTiming.isLate(scheduledAt, wallNow)) Log.w(TAG, "LATE delivery task=$id lateByMs=${ReminderTiming.latenessMs(scheduledAt, wallNow)}")
         val task = TaskStore.tasks(context).firstOrNull { it.id == id } ?: run {
             Log.i(TAG, "ignore missing task=$id kind=$kind")
             return
@@ -152,7 +161,7 @@ object ReminderScheduler {
         val now = System.currentTimeMillis()
         if (kind == "specific") {
             if (scheduledAt > 0L && scheduledAt != task.reminderAt) { Log.i(TAG, "stale specific alarm task=$id scheduled=$scheduledAt current=${task.reminderAt}"); schedule(context, task); return }
-            if (task.reminderType != "time" || task.reminderAt > now + 60_000L) { Log.i(TAG, "specific alarm not due task=$id trigger=${task.reminderAt}"); schedule(context, task); return }
+            if (task.reminderType != "time" || !ReminderTiming.isDue(task.reminderAt, now)) { Log.i(TAG, "specific alarm not due task=$id trigger=${task.reminderAt}"); schedule(context, task); return }
             if (notify(context, task, task.title, quote(context, "specific:${task.id}:${task.reminderAt}"), false)) {
                 TaskStore.consumeReminder(context, id)
             }
@@ -200,14 +209,15 @@ object ReminderScheduler {
             return false
         }
         if (Build.VERSION.SDK_INT >= 26) {
-            manager.createNotificationChannel(NotificationChannel(CHANNEL, "Task Reminders", NotificationManager.IMPORTANCE_DEFAULT))
+            manager.createNotificationChannel(NotificationChannel(CHANNEL, "Task Reminders", NotificationManager.IMPORTANCE_HIGH).apply { description = "Task reminders and deadlines" })
+            manager.deleteNotificationChannel(LEGACY_CHANNEL)
             if (manager.getNotificationChannel(CHANNEL)?.importance == NotificationManager.IMPORTANCE_NONE) {
                 Log.w(TAG, "notification skipped task=${task.id}: channel disabled")
                 return false
             }
         }
         val open = PendingIntent.getActivity(context, task.id.hashCode(), Intent(context, MainActivity::class.java).putExtra("edit_task_id", task.id).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-        val builder = NotificationCompat.Builder(context, CHANNEL).setSmallIcon(R.mipmap.ic_launcher).setContentTitle(title).setContentText(body).setStyle(NotificationCompat.BigTextStyle().bigText(body)).setContentIntent(open).setAutoCancel(true).setPriority(NotificationCompat.PRIORITY_DEFAULT)
+        val builder = NotificationCompat.Builder(context, CHANNEL).setSmallIcon(R.mipmap.ic_launcher).setContentTitle(title).setContentText(body).setStyle(NotificationCompat.BigTextStyle().bigText(body)).setContentIntent(open).setAutoCancel(true).setPriority(NotificationCompat.PRIORITY_HIGH).setCategory(NotificationCompat.CATEGORY_REMINDER)
         if (reschedule) {
             val action = PendingIntent.getActivity(context, task.id.hashCode() xor 0x51A, Intent(context, MainActivity::class.java).putExtra("edit_task_id", task.id).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
             builder.addAction(0, "Reschedule", action)
