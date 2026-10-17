@@ -118,6 +118,14 @@ import com.example.darktodo.data.LocalWidgetFonts
 import com.example.darktodo.data.LocalVaultStore
 import com.example.darktodo.data.VaultEntry
 import com.example.darktodo.ui.ColorPickerDialog
+import com.example.darktodo.navigation.BackStep
+import com.example.darktodo.navigation.ModuleNavigation
+import com.example.darktodo.navigation.ModulePrefs
+import androidx.activity.compose.BackHandler
+import com.example.darktodo.ui.ClarityIcons
+import com.example.darktodo.ui.ModuleTabBar
+import com.example.darktodo.ui.SettingsCategoryHeader
+import com.example.darktodo.ui.SettingsNavRow
 import com.example.darktodo.widget.TodoWidget
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
@@ -128,7 +136,7 @@ import java.time.LocalDateTime
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
-private object UiTokens {
+internal object UiTokens {
     val Background = Color(0xFF0D0D10)
     val Surface = Color(0xFF19191E)
     val SurfaceRaised = Color(0xFF222228)
@@ -156,12 +164,6 @@ private object UiTokens {
     const val LabelSp = 14f
     const val DetailSp = 12f
 }
-private data class WidgetDestination(val label: String, val route: String, val icon: String)
-private val widgetDestinations = listOf(
-    WidgetDestination("Calendar", "Calendar", "calendar"),
-    WidgetDestination("To-Do", "To-Do", "todo"),
-    WidgetDestination("Vault", "Vault", "lock")
-)
 private val Bg = UiTokens.Background
 private val Card = UiTokens.Surface
 private val Accent = UiTokens.Accent
@@ -212,8 +214,15 @@ class MainActivity : FragmentActivity() {
     var tasks by remember { mutableStateOf(TaskStore.tasks(context)) }
     var events by remember { mutableStateOf(TaskStore.history(context)) }
     var settings by remember { mutableStateOf(WidgetSettings.load(context)) }
-    var page by remember { mutableStateOf(if (openVault) "Vault" else "Calendar") }
-    var todoPage by remember { mutableStateOf("Tasks") }
+    val startRoute = remember {
+        when {
+            openVault -> ModuleNavigation.routeFor(ModuleNavigation.VAULT)
+            openTaskId != null || openTaskDate != null || startCreateTask -> ModuleNavigation.home
+            else -> ModulePrefs.last(context)?.let { ModuleNavigation.routeFor(it) } ?: ModuleNavigation.routeFor(ModuleNavigation.CALENDAR)
+        }
+    }
+    var page by remember { mutableStateOf(startRoute.page) }
+    var todoPage by remember { mutableStateOf(startRoute.todoPage) }
     var wallpaperTarget by remember { mutableStateOf(com.example.darktodo.data.WidgetBackgrounds.TODO) }
     var title by remember { mutableStateOf("") }
     var timeTick by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -301,19 +310,38 @@ class MainActivity : FragmentActivity() {
     val caretColor = if (iconColor.isBlackOrGray()) Color.White else iconColor
     ProvideTextStyle(TextStyle(fontFamily = appUiFontFamily)) {
         Column(Modifier.fillMaxSize().background(Bg).windowInsetsPadding(WindowInsets.safeDrawing).padding(UiTokens.PageMargin)) {
-            Row(Modifier.fillMaxWidth().padding(bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("Clarity", color = Ink, fontSize = 22.sp, fontWeight = FontWeight.Bold, maxLines = 1, modifier = Modifier.weight(1f))
-                IconAction("Open app settings", "settings") { page = "Settings"; refreshSettings() }
+            Text("Clarity", color = Ink, fontSize = 22.sp, fontWeight = FontWeight.Bold, maxLines = 1, modifier = Modifier.padding(bottom = 12.dp))
+            val currentModule = ModuleNavigation.moduleFor(page, todoPage)
+            fun openModule(id: String) {
+                val target = ModuleNavigation.routeFor(id)
+                page = target.page; todoPage = target.todoPage; route = emptyList()
+                if (target.page == "To-Do") refresh()
+                if (target.page == "Settings") refreshSettings()
             }
-            Row(Modifier.fillMaxWidth().padding(bottom = 14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                widgetDestinations.forEach { destination ->
-                    val selected = page == destination.route || (destination.route == "To-Do" && page == "TodoSettings") || (destination.route == "Calendar" && page == "CalendarSettings")
-                    IconNavigationItem(destination.label, destination.icon, selected, Modifier.weight(1f)) {
-                        page = destination.route
-                        if (destination.route == "To-Do") refresh()
-                    }
+            LaunchedEffect(currentModule) { ModulePrefs.save(context, currentModule) }
+            var exitArmed by remember { mutableStateOf(false) }
+            LaunchedEffect(exitArmed) { if (exitArmed) { delay(2_000L); exitArmed = false } }
+            val backStep = ModuleNavigation.backStep(page, todoPage, route.size)
+            BackHandler(enabled = !(backStep is BackStep.AtHome && exitArmed)) {
+                when (backStep) {
+                    is BackStep.PopRoute -> route = route.dropLast(1)
+                    is BackStep.GoTo -> { page = backStep.route.page; todoPage = backStep.route.todoPage; route = emptyList(); if (page == "To-Do") refresh() }
+                    is BackStep.AtHome -> { exitArmed = true; android.widget.Toast.makeText(context, "Press back again to exit", android.widget.Toast.LENGTH_SHORT).show() }
                 }
             }
+            ModuleTabBar(ModuleNavigation.modules, currentModule, ::openModule, Modifier.padding(bottom = 16.dp))
+            val swipeThresholdPx = with(androidx.compose.ui.platform.LocalDensity.current) { 96.dp.toPx() }
+            Column(Modifier.weight(1f).fillMaxWidth().pointerInput(currentModule) {
+                var drag = 0f
+                androidx.compose.foundation.gestures.detectHorizontalDragGestures(
+                    onDragStart = { drag = 0f },
+                    onDragEnd = {
+                        if (kotlin.math.abs(drag) > swipeThresholdPx) ModuleNavigation.adjacent(currentModule, forward = drag < 0f)?.let(::openModule)
+                    },
+                    onDragCancel = { drag = 0f },
+                    onHorizontalDrag = { _, amount -> drag += amount }
+                )
+            }) {
             when {
                 page == "To-Do" && todoPage == "Tasks" -> {
                     Row(Modifier.fillMaxWidth().padding(bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -392,6 +420,8 @@ class MainActivity : FragmentActivity() {
                     channelImportance = if (Build.VERSION.SDK_INT >= 26) context.getSystemService(android.app.NotificationManager::class.java).getNotificationChannel(com.example.darktodo.reminders.ReminderScheduler.CHANNEL)?.importance else null,
                     onOpenWallpaper = { wallpaperTarget = it; page = "WidgetBackground" },
                     onOpenVaultSecurity = { page = "VaultSecurity" },
+                    onOpenSupport = { page = "SupportClarity" },
+                    onOpenAbout = { page = "About" },
                     onResetBackgrounds = {
                         com.example.darktodo.data.WidgetBackgrounds.clear(context, com.example.darktodo.data.WidgetBackgrounds.TODO)
                         com.example.darktodo.data.WidgetBackgrounds.clear(context, com.example.darktodo.data.WidgetBackgrounds.CALENDAR)
@@ -442,6 +472,12 @@ class MainActivity : FragmentActivity() {
                     onCalendarDots = { CalendarWidgetSettings.saveDots(context, it); refreshSettings(); com.example.darktodo.widget.CalendarWidget.updateAll(context) },
                     onCalendarReset = { CalendarWidgetSettings.reset(context); refreshSettings(); com.example.darktodo.widget.CalendarWidget.updateAll(context) }
                 )
+                page == "Quotes" -> com.example.darktodo.ui.ComingSoonScreen(com.example.darktodo.ui.ClarityIcons.Quotes, "Quotes", "Browse and save motivational quotes here in a future update.")
+                page == "Wallpapers" -> com.example.darktodo.ui.ComingSoonScreen(com.example.darktodo.ui.ClarityIcons.Wallpapers, "Wallpapers", "A wallpaper library is planned. Widget backgrounds can be set today in Settings, under Personalization.")
+                page == "Stickers" -> com.example.darktodo.ui.StickersScreen()
+                page == "SupportClarity" -> com.example.darktodo.ui.SupportClarityScreen { page = "Settings" }
+                page == "About" -> com.example.darktodo.ui.AboutScreen({ page = "Settings" }, runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull() ?: "")
+            }
             }
         }
     }
@@ -1186,6 +1222,8 @@ private fun biometricUnavailableMessage(status: Int): String = when (status) {
     channelImportance: Int?,
     onOpenWallpaper: (String) -> Unit,
     onOpenVaultSecurity: () -> Unit,
+    onOpenSupport: () -> Unit,
+    onOpenAbout: () -> Unit,
     onResetBackgrounds: () -> Unit
 ) {
     var typographyExpanded by remember { mutableStateOf(false) }
@@ -1195,43 +1233,22 @@ private fun biometricUnavailableMessage(status: Int): String = when (status) {
     val notificationsOkay = notificationGranted && notificationsEnabled && channelEnabled
     val permissionNeeded = remindersEnabled && !notificationsOkay
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(UiTokens.ControlGap)) {
-        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            Text("Settings", color = Ink, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-            Text("App preferences", color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp)
-        }
-        Text("APP PREFERENCES", color = UiTokens.Subdued, fontSize = UiTokens.DetailSp.sp, modifier = Modifier.padding(top = 8.dp))
+        com.example.darktodo.ui.ScreenHeader(ClarityIcons.Settings, "Settings", "App preferences", Modifier.padding(bottom = 0.dp))
+        SettingsCategoryHeader(ClarityIcons.Personalization, "Personalization")
         CollapsibleSettingsSection("Typography", selectedFontLabel(appFontSettings.family, appFontSettings.fontFileId, importedFonts), typographyExpanded, { typographyExpanded = it }) {
             SettingsPanel {
                 FontFamilyRow("App font", appFontSettings.family, appFontSettings.fontFileId, importedFonts, onAppFontFamily, onAppImportedFont)
                 LocalFontImportRow(importedFonts.size, onImportAppFont)
             }
         }
-        Text("BACKUP & RESTORE", color = UiTokens.Subdued, fontSize = UiTokens.DetailSp.sp, modifier = Modifier.padding(top = 8.dp))
-        BackupSettingsSection()
-        Text("VAULT SECURITY", color = UiTokens.Subdued, fontSize = UiTokens.DetailSp.sp, modifier = Modifier.padding(top = 8.dp))
-        Surface(onClick = onOpenVaultSecurity, color = UiTokens.SurfaceRaised, shape = RoundedCornerShape(UiTokens.RowRadius), modifier = Modifier.fillMaxWidth()) {
-            Row(Modifier.fillMaxWidth().heightIn(min = UiTokens.ControlHeight).padding(horizontal = 14.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Column(Modifier.weight(1f)) {
-                    Text("Vault Security", color = Ink, fontSize = UiTokens.LabelSp.sp, fontWeight = FontWeight.Medium)
-                    Text("Master password, biometrics, auto lock, audit", color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp)
-                }
-                Text("›", color = UiTokens.Muted, fontSize = 22.sp)
-            }
-        }
-        Text("WIDGET CUSTOMIZATION", color = UiTokens.Subdued, fontSize = UiTokens.DetailSp.sp, modifier = Modifier.padding(top = 8.dp))
+        Text("Widget Customization", color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp, modifier = Modifier.padding(top = UiTokens.SmallGap))
         Column(verticalArrangement = Arrangement.spacedBy(UiTokens.ControlGap)) {
             listOf(
                 Triple(com.example.darktodo.data.WidgetBackgrounds.TODO, "To-Do widget wallpaper", "To-Do"),
                 Triple(com.example.darktodo.data.WidgetBackgrounds.CALENDAR, "Calendar widget wallpaper", "Calendar")
             ).forEach { (key, label, _) ->
                 val status = if (com.example.darktodo.data.WidgetBackgrounds.has(backgroundContext, key)) "${com.example.darktodo.data.WidgetBackgrounds.fade(backgroundContext, key)}% fade" else "Not set"
-                Surface(onClick = { onOpenWallpaper(key) }, color = UiTokens.SurfaceRaised, shape = RoundedCornerShape(UiTokens.RowRadius), modifier = Modifier.fillMaxWidth()) {
-                    Row(Modifier.fillMaxWidth().heightIn(min = UiTokens.ControlHeight).padding(horizontal = 14.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text(label, color = Ink, fontSize = UiTokens.LabelSp.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
-                        Text(status, color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp)
-                        Text("›", color = UiTokens.Muted, fontSize = 22.sp)
-                    }
-                }
+                SettingsNavRow(ClarityIcons.Wallpapers, label, "", status) { onOpenWallpaper(key) }
             }
             ResetAction("Reset widget backgrounds") { confirmResetBackgrounds = true }
         }
@@ -1242,16 +1259,20 @@ private fun biometricUnavailableMessage(status: Int): String = when (status) {
             confirmButton = { TextButton(onClick = { confirmResetBackgrounds = false; onResetBackgrounds() }) { Text("Reset", color = Accent) } },
             dismissButton = { TextButton(onClick = { confirmResetBackgrounds = false }) { Text("Cancel") } }
         )
-        Text("SYSTEM", color = UiTokens.Subdued, fontSize = UiTokens.DetailSp.sp, modifier = Modifier.padding(top = 8.dp))
-        Column(verticalArrangement = Arrangement.spacedBy(UiTokens.ControlGap)) {
-            Surface(onClick = onOpenPermissions, color = UiTokens.SurfaceRaised, shape = RoundedCornerShape(UiTokens.RowRadius), modifier = Modifier.fillMaxWidth()) {
-                Row(Modifier.fillMaxWidth().heightIn(min = UiTokens.ControlHeight).padding(horizontal = 14.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("Permissions", color = Ink, fontSize = UiTokens.LabelSp.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
-                    if (permissionNeeded) Text("●", color = Accent, fontSize = 12.sp, modifier = Modifier.semantics { contentDescription = "Required reminder permission is missing" })
-                    Text("›", color = UiTokens.Muted, fontSize = 22.sp)
-                }
-            }
-        }
+        Spacer(Modifier.height(UiTokens.CompactGap))
+        SettingsCategoryHeader(ClarityIcons.Security, "Privacy & Security")
+        SettingsNavRow(ClarityIcons.Vault, "Vault Security", "Master password, biometrics, auto lock, audit", onClick = onOpenVaultSecurity)
+        SettingsNavRow(ClarityIcons.Security, "Permissions", "Notifications and exact alarms", alert = permissionNeeded, onClick = onOpenPermissions)
+        Spacer(Modifier.height(UiTokens.CompactGap))
+        SettingsCategoryHeader(ClarityIcons.Backup, "Data")
+        BackupSettingsSection()
+        Spacer(Modifier.height(UiTokens.CompactGap))
+        SettingsCategoryHeader(ClarityIcons.Support, "Support Clarity")
+        SettingsNavRow(ClarityIcons.Support, "Support Clarity", "Optional, nothing is unlocked", onClick = onOpenSupport)
+        Spacer(Modifier.height(UiTokens.CompactGap))
+        SettingsCategoryHeader(ClarityIcons.About, "About")
+        SettingsNavRow(ClarityIcons.About, "About Clarity", "Version information", onClick = onOpenAbout)
+        Spacer(Modifier.height(UiTokens.SectionGap))
     }
 }
 
@@ -1669,14 +1690,6 @@ private data class ColorPickTarget(val key: String, val label: String, val value
     }
 }
 
-@Composable private fun IconNavigationItem(label: String, icon: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    Surface(onClick = onClick, color = if (selected) Accent.copy(alpha = .16f) else UiTokens.Surface, shape = RoundedCornerShape(UiTokens.CardRadius), modifier = modifier.heightIn(min = 72.dp)) {
-        Column(Modifier.fillMaxWidth().padding(vertical = 10.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            ClarityIcon(icon, if (selected) Accent else UiTokens.Muted, Modifier.size(23.dp))
-            Text(label, color = if (selected) Accent else UiTokens.Muted, fontSize = UiTokens.DetailSp.sp, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium)
-        }
-    }
-}
 
 @Composable private fun ClarityIcon(name: String, color: Color, modifier: Modifier = Modifier) {
     Canvas(modifier) {

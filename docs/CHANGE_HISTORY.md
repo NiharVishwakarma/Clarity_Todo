@@ -13,6 +13,13 @@ This log begins with the repository snapshot available when these project notes 
 
 ## Current version summary
 
+### 2026-10-17 — Phase 1: scrollable navigation, icons, Stickers, settings refactor
+
+- Replaced the top navigation with a floating scrollable module tab bar, swipe between modules, remembered last tab, and hierarchical back handling with double-back-to-exit.
+- Added Outlined icon system (`material-icons-extended`), Stickers module, Support Clarity placeholder screen, About screen, and Quotes/Wallpapers "coming soon" placeholders.
+- Regrouped Settings into Personalization, Privacy & Security, Data, Support Clarity and About; all existing controls kept.
+- Added `ModuleNavigationTest` and `StickerOpsTest`. Not compiled locally (no Android SDK); verify via GitHub Actions.
+
 ### 2026-10-17 — Improved reminder delivery reliability and diagnostics
 
 - Reminder channel is now `task_reminders_v2` with `IMPORTANCE_HIGH` (old `task_reminders` channel deleted); notifications use high priority and `CATEGORY_REMINDER`.
