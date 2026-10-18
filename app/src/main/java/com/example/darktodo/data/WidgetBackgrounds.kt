@@ -13,6 +13,7 @@ import android.graphics.RectF
 import android.graphics.Shader
 import java.io.File
 import kotlin.math.max
+import kotlin.math.sqrt
 
 /**
  * Optional per-widget wallpapers. The edited image is stored as a private JPEG; the dark fade
@@ -41,6 +42,29 @@ object WidgetBackgrounds {
     // A handful of decoded images is enough: widgets and the open Notes screen reuse the same few notes.
     private val sources = object : LinkedHashMap<String, CachedSource>(8, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, CachedSource>?): Boolean = size > 8
+    }
+
+    private data class ColorKey(val width: Int, val height: Int, val radius: Float, val color: Int)
+    private val colorFills = object : LinkedHashMap<ColorKey, Bitmap>(8, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<ColorKey, Bitmap>?): Boolean = size > 8
+    }
+
+    /** Bounded, reusable color-only depth fills for RemoteViews; alpha is never flattened. */
+    fun renderColor(context: Context, color: Int, widthDp: Int, heightDp: Int, radiusDp: Float): Bitmap {
+        val density = context.resources.displayMetrics.density
+        val width = widthDp.coerceAtLeast(1) * density
+        val height = heightDp.coerceAtLeast(1) * density
+        val shrink = max(1f, max(max(width, height) / MAX_SIDE_PX, sqrt(width * height / 80_000f)))
+        val w = (width / shrink).toInt().coerceAtLeast(1)
+        val h = (height / shrink).toInt().coerceAtLeast(1)
+        val key = ColorKey(w, h, radiusDp * density / shrink, color)
+        synchronized(colorFills) {
+            return colorFills.getOrPut(key) {
+                Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888).also {
+                    ColorDepth.draw(Canvas(it), RectF(0f, 0f, w.toFloat(), h.toFloat()), key.radius, color)
+                }
+            }
+        }
     }
 
     private fun cachedSource(context: Context, key: String): CachedSource? {

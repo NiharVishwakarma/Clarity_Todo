@@ -6,6 +6,33 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 class StickerStyleTest {
+    @Test fun backgroundDepthIsOptInForNewAndLegacyStyles() {
+        assertEquals(false, StickerStyle().backgroundDepth)
+        assertEquals(false, StickerStyle.DEFAULT.backgroundDepth)
+        assertEquals(false, StickerStyle.fromJson(JSONObject())!!.backgroundDepth)
+        assertEquals(false, StickerStyle.fromJson(JSONObject("""{"background":"#112233"}"""))!!.backgroundDepth)
+    }
+
+    @Test fun backgroundDepthRoundTripsAndSurvivesSanitization() {
+        listOf(false, true).forEach { enabled ->
+            val style = StickerStyle(backgroundDepth = enabled)
+            assertEquals(enabled, style.toJson().getBoolean("backgroundDepth"))
+            assertEquals(style, StickerStyle.fromJson(style.toJson()))
+            assertEquals(enabled, style.copy(paddingDp = -1).sanitized().backgroundDepth)
+        }
+    }
+
+    @Test fun notesKeepIndependentDepthFlagsAcrossJsonAndStyleResolution() {
+        val depth = StickerStyle(backgroundDepth = true)
+        val flat = StickerStyle(backgroundDepth = false)
+        val notes = listOf(Sticker("a", "Depth", "text", style = depth), Sticker("b", "Flat", "text", style = flat))
+        val decoded = StickerOps.decode(StickerOps.encode(notes))
+        assertEquals(true, StickerStyle.resolve(decoded[0], flat).backgroundDepth)
+        assertEquals(false, StickerStyle.resolve(decoded[1], depth).backgroundDepth)
+        assertEquals(depth, decoded[0].style)
+        assertEquals(flat, decoded[1].style)
+    }
+
     @Test fun hexIsNormalizedFromPastedValues() {
         assertEquals("#FFD700", StickerHex.normalize("ffd700"))
         assertEquals("#C4B5FD", StickerHex.normalize("  #c4b5fd "))

@@ -90,8 +90,13 @@ object CalendarWidget {
             ?: currentDate.also { state.edit().putString(KEY_SELECTED + widgetId, it.toString()).apply() }
         views.setImageViewResource(R.id.calendar_background, radiusDrawable(prefs.cornerRadius))
         views.setInt(R.id.calendar_background, "setColorFilter", color(prefs.background))
-        WidgetBackgrounds.render(context, WidgetBackgrounds.CALENDAR, widgetWidthDp,
-            options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 250).coerceAtLeast(1), prefs.cornerRadius.toFloat())?.let {
+        val widgetHeightDp = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 250).coerceAtLeast(1)
+        val background = WidgetBackgrounds.render(context, WidgetBackgrounds.CALENDAR, widgetWidthDp,
+            widgetHeightDp, prefs.cornerRadius.toFloat())
+            ?: if (prefs.backgroundDepth) WidgetBackgrounds.renderColor(
+                context, color(prefs.background), widgetWidthDp, widgetHeightDp, prefs.cornerRadius.toFloat()
+            ) else null
+        background?.let {
             views.setImageViewBitmap(R.id.calendar_background, it)
             views.setInt(R.id.calendar_background, "setColorFilter", Color.TRANSPARENT)
         }

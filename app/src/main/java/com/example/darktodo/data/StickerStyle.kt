@@ -34,7 +34,8 @@ data class StickerStyle(
     val borderColor: String = "#000000",
     val autoContrast: Boolean = true,
     val textShadow: Boolean = false,
-    val glow: Boolean = false
+    val glow: Boolean = false,
+    val backgroundDepth: Boolean = false
 ) {
     /** Stored values are clamped so a hand-edited or old file can never produce an unreadable sticker. */
     fun sanitized() = copy(
@@ -61,6 +62,7 @@ data class StickerStyle(
         .put("elevation", elevationDp).put("widgetSize", widgetSize.name)
         .put("fontFileId", fontFileId ?: JSONObject.NULL).put("borderWidth", borderWidthDp).put("borderColor", borderColor)
         .put("autoContrast", autoContrast).put("textShadow", textShadow).put("glow", glow)
+        .put("backgroundDepth", backgroundDepth)
 
     companion object {
         val DEFAULT = StickerStyle()
@@ -87,7 +89,8 @@ data class StickerStyle(
                 // Notes saved before these options existed keep their exact look.
                 autoContrast = o.optBoolean("autoContrast", false),
                 textShadow = o.optBoolean("textShadow", false),
-                glow = o.optBoolean("glow", false)
+                glow = o.optBoolean("glow", false),
+                backgroundDepth = o.optBoolean("backgroundDepth", false)
             ).sanitized()
         }
 

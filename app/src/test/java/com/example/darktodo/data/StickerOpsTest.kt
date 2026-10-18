@@ -43,7 +43,7 @@ class StickerOpsTest {
     }
 
     @Test fun duplicateAppendsAnIndependentCopyWithItsStyle() {
-        val style = StickerStyle(background = "#102030", borderWidthDp = 3)
+        val style = StickerStyle(background = "#102030", borderWidthDp = 3, backgroundDepth = true)
         val list = listOf(Sticker("a", "Ideas", "text", StickerColor.Blue, 1L, 2L, style))
         val result = StickerOps.duplicate(list, "a", "copy-id", 10L)
         assertEquals(2, result.size)
@@ -53,6 +53,16 @@ class StickerOpsTest {
         assertEquals(style, copy.style)
         assertEquals(10L, copy.createdAt)
         assertEquals(list, StickerOps.duplicate(list, "missing", "x", 10L))
+    }
+
+    @Test fun changingDuplicateDepthDoesNotChangeOriginal() {
+        val original = Sticker("a", "Ideas", "text", style = StickerStyle(backgroundDepth = true))
+        val duplicated = StickerOps.duplicate(listOf(original), "a", "copy", 10L)
+        val copy = duplicated.first { it.id == "copy" }
+        val changed = StickerOps.setStyle(duplicated, "copy", copy.style!!.copy(backgroundDepth = false))
+        val decoded = StickerOps.decode(StickerOps.encode(changed))
+        assertEquals(true, decoded.first { it.id == "a" }.style!!.backgroundDepth)
+        assertEquals(false, decoded.first { it.id == "copy" }.style!!.backgroundDepth)
     }
 
     @Test fun deleteRemovesOnlyTarget() =

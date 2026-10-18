@@ -17,7 +17,8 @@ data class WidgetPrefs(
     val taskTitleSizeSp: Float = 16f,
     val paddingDp: Int = 8,
     val rowSpacingDp: Int = 2,
-    val taskCardTransparencyPercent: Int = 0
+    val taskCardTransparencyPercent: Int = 0,
+    val backgroundDepth: Boolean = false
 ) {
     val taskCardAlpha: Int
         get() = (255 * (100 - taskCardTransparencyPercent.coerceIn(0, 100)) / 100f).roundToInt()
@@ -43,6 +44,7 @@ object WidgetSettings {
             widgetBackground = p.getString(PREFIX + "background", defaults.widgetBackground)!!,
             taskCard = p.getString(PREFIX + "task_card", defaults.taskCard)!!,
             taskCardTransparencyPercent = p.getInt(PREFIX + "task_card_transparency", defaults.taskCardTransparencyPercent).coerceIn(0, 100),
+            backgroundDepth = p.getBoolean(PREFIX + "background_depth", false),
             taskTitle = p.getString(PREFIX + "task_title", defaults.taskTitle)!!,
             fadePercent = p.getInt(PREFIX + "fade", defaults.fadePercent).coerceIn(0, 100),
             fontFamily = family,
@@ -68,6 +70,11 @@ object WidgetSettings {
     fun saveTaskCardTransparency(context: Context, value: Int) {
         context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
             .putInt(PREFIX + "task_card_transparency", value.coerceIn(0, 100)).apply()
+    }
+
+    fun saveBackgroundDepth(context: Context, enabled: Boolean) {
+        context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putBoolean(PREFIX + "background_depth", enabled).apply()
     }
 
     fun saveFontFamily(context: Context, family: WidgetFontFamily) {
@@ -99,7 +106,7 @@ object WidgetSettings {
 
     fun reset(context: Context) {
         context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().apply {
-            listOf("incomplete", "complete", "count_panel", "background", "task_card", "task_card_transparency", "task_title", "fade", "font_weight", "font_family", "font_file_id", "font_italic", "font_style", "task_title_size_sp", "padding_dp", "row_spacing_dp").forEach { remove(PREFIX + it) }
+            listOf("incomplete", "complete", "count_panel", "background", "background_depth", "task_card", "task_card_transparency", "task_title", "fade", "font_weight", "font_family", "font_file_id", "font_italic", "font_style", "task_title_size_sp", "padding_dp", "row_spacing_dp").forEach { remove(PREFIX + it) }
         }.apply()
     }
 }

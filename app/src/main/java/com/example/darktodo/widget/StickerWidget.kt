@@ -24,6 +24,7 @@ import android.util.Log
 import android.widget.RemoteViews
 import com.example.darktodo.MainActivity
 import com.example.darktodo.R
+import com.example.darktodo.data.ColorDepth
 import com.example.darktodo.data.LocalWidgetFonts
 import com.example.darktodo.data.NoteAppearance
 import com.example.darktodo.data.Sticker
@@ -154,7 +155,12 @@ object StickerWidget {
         val layerH = max(1, card.height().toInt() + 1)
         val layer = Bitmap.createBitmap(layerW, layerH, Bitmap.Config.ARGB_8888)
         val layerCanvas = Canvas(layer)
-        layerCanvas.drawColor(background)
+        val hasImage = context != null && imageKey != null && WidgetBackgrounds.has(context, imageKey)
+        if (hasImage) layerCanvas.drawColor(background)
+        else ColorDepth.draw(
+            layerCanvas, RectF(0f, 0f, layerW.toFloat(), layerH.toFloat()), 0f, background,
+            enabled = style.backgroundDepth
+        )
         if (context != null && imageKey != null) {
             WidgetBackgrounds.drawCover(layerCanvas, context, imageKey, RectF(0f, 0f, layerW.toFloat(), layerH.toFloat()))
         }

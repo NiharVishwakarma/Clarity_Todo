@@ -70,8 +70,11 @@ import kotlinx.coroutines.withContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.StrokeCap
@@ -109,6 +112,7 @@ import com.example.darktodo.data.TimeZoneOption
 import com.example.darktodo.data.WidgetPrefs
 import com.example.darktodo.data.WidgetFontFamily
 import com.example.darktodo.data.WidgetSettings
+import com.example.darktodo.data.WidgetBackgrounds
 import com.example.darktodo.data.AppFontSettings
 import com.example.darktodo.data.AppTypographySettings
 import com.example.darktodo.data.CalendarWidgetSettings
@@ -127,6 +131,7 @@ import com.example.darktodo.ui.ClarityIcons
 import com.example.darktodo.ui.ModuleTabBar
 import com.example.darktodo.ui.SettingsCategoryHeader
 import com.example.darktodo.ui.SettingsNavRow
+import com.example.darktodo.ui.depthBackground
 import com.example.darktodo.widget.TodoWidget
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
@@ -482,6 +487,7 @@ class MainActivity : FragmentActivity() {
                     onColor = { key, value -> WidgetSettings.saveColor(context, key, value); refreshSettings(); TodoWidget.updateAll(context) },
                     onFade = { WidgetSettings.saveFade(context, it); refreshSettings(); TodoWidget.updateAll(context) },
                     onTaskCardTransparency = { WidgetSettings.saveTaskCardTransparency(context, it); refreshSettings(); TodoWidget.updateAll(context) },
+                    onBackgroundDepth = { WidgetSettings.saveBackgroundDepth(context, it); refreshSettings(); TodoWidget.updateAll(context) },
                     onFontFamily = { WidgetSettings.saveFontFamily(context, it); refreshSettings(); TodoWidget.updateAll(context) },
                     onTodoImportedFont = { font -> WidgetSettings.saveImportedFont(context, font.id); refreshSettings(); TodoWidget.updateAll(context) },
                     onCalendarFontFamily = { CalendarWidgetSettings.saveFontFamily(context, it); refreshSettings(); com.example.darktodo.widget.CalendarWidget.updateAll(context) },
@@ -495,6 +501,7 @@ class MainActivity : FragmentActivity() {
                     onCalendarColor = { key, value -> CalendarWidgetSettings.saveColor(context, key, value); refreshSettings(); com.example.darktodo.widget.CalendarWidget.updateAll(context) },
                     onCalendarInt = { key, value -> CalendarWidgetSettings.saveInt(context, key, value); refreshSettings(); com.example.darktodo.widget.CalendarWidget.updateAll(context) },
                     onCalendarDots = { CalendarWidgetSettings.saveDots(context, it); refreshSettings(); com.example.darktodo.widget.CalendarWidget.updateAll(context) },
+                    onCalendarBackgroundDepth = { CalendarWidgetSettings.saveBackgroundDepth(context, it); refreshSettings(); com.example.darktodo.widget.CalendarWidget.updateAll(context) },
                     onCalendarReset = { CalendarWidgetSettings.reset(context); refreshSettings(); com.example.darktodo.widget.CalendarWidget.updateAll(context) }
                 )
                 page == "Quotes" -> com.example.darktodo.ui.ComingSoonScreen(com.example.darktodo.ui.ClarityIcons.Quotes, "Quotes", "Browse and save motivational quotes here in a future update.")
@@ -1143,6 +1150,7 @@ private fun biometricUnavailableMessage(status: Int): String = when (status) {
     settings: com.example.darktodo.data.CalendarWidgetPrefs,
     onDate: (LocalDate) -> Unit
 ) {
+    val context = LocalContext.current
     var month by remember { mutableStateOf(java.time.YearMonth.now()) }
     var selected by remember(month) { mutableStateOf(LocalDate.now().takeIf { it.month == month.month && it.year == month.year } ?: month.atDay(1)) }
     val cells = remember(month) { CalendarDates.monthCells(month, java.util.Locale.getDefault()).chunked(7) }
@@ -1150,7 +1158,14 @@ private fun biometricUnavailableMessage(status: Int): String = when (status) {
     val tasksByDate = remember(tasks) { tasks.groupBy { it.taskDate } }
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Surface(color = colorFromHex(settings.background), shape = RoundedCornerShape(settings.cornerRadius.dp), modifier = Modifier.fillMaxWidth()) {
-            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(
+                Modifier.fillMaxWidth().then(
+                    if (settings.backgroundDepth && !WidgetBackgrounds.has(context, WidgetBackgrounds.CALENDAR))
+                        Modifier.depthBackground(colorFromHex(settings.background), true)
+                    else Modifier
+                ).padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(month.format(DateTimeFormatter.ofPattern("LLLL yyyy", java.util.Locale.getDefault())), color = colorFromHex(settings.heading), fontSize = settings.headingSize.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                     IconAction("Previous month", "chevron_left", colorFromHex(settings.navigationArrows)) { month = month.minusMonths(1) }
@@ -1513,6 +1528,7 @@ private data class ColorPickTarget(val key: String, val label: String, val value
     onColor: (String, String) -> Unit,
     onFade: (Int) -> Unit,
     onTaskCardTransparency: (Int) -> Unit,
+    onBackgroundDepth: (Boolean) -> Unit,
     onFontFamily: (WidgetFontFamily) -> Unit,
     onTodoImportedFont: (ImportedWidgetFont) -> Unit,
     onCalendarFontFamily: (WidgetFontFamily) -> Unit,
@@ -1522,6 +1538,7 @@ private data class ColorPickTarget(val key: String, val label: String, val value
     onCalendarColor: (String, String) -> Unit,
     onCalendarInt: (String, Int) -> Unit,
     onCalendarDots: (Boolean) -> Unit,
+    onCalendarBackgroundDepth: (Boolean) -> Unit,
     onCalendarReset: () -> Unit,
     onOpenWallpaper: (String) -> Unit,
     onTodoLayout: (Int, Int) -> Unit,
@@ -1551,6 +1568,10 @@ private data class ColorPickTarget(val key: String, val label: String, val value
         }
         if (isTodo) SettingsSection("To-Do Widget", "Independent task widget appearance") {
             WallpaperRow(com.example.darktodo.data.WidgetBackgrounds.TODO, "To-Do widget wallpaper", onOpenWallpaper)
+            SettingsPanel {
+                SettingsSwitchRow("3D background effect", "Applies to color backgrounds only; wallpaper images stay unchanged. Task card transparency is kept.", settings.backgroundDepth, onBackgroundDepth)
+                TodoAppearancePreview(settings)
+            }
             CollapsibleSettingsSection("Font", selectedFontLabel(settings.fontFamily, settings.fontFileId, importedFonts), todoFontExpanded, { todoFontExpanded = it }) {
                 SettingsPanel {
                     FontFamilyRow("Font family", settings.fontFamily, settings.fontFileId, importedFonts, onFontFamily, onTodoImportedFont)
@@ -1589,6 +1610,10 @@ private data class ColorPickTarget(val key: String, val label: String, val value
             ResetAction("Reset To-Do settings") { confirmTodoReset = true }
         } else SettingsSection("Calendar Widget", "Independent calendar appearance and task indicators") {
             WallpaperRow(com.example.darktodo.data.WidgetBackgrounds.CALENDAR, "Calendar widget wallpaper", onOpenWallpaper)
+            SettingsPanel {
+                SettingsSwitchRow("3D background effect", "Applies to color backgrounds only; wallpaper images stay unchanged.", calendarSettings.backgroundDepth, onCalendarBackgroundDepth)
+                CalendarAppearancePreview(calendarSettings)
+            }
             CollapsibleSettingsSection("Font", selectedFontLabel(calendarSettings.fontFamily, calendarSettings.fontFileId, importedFonts), calendarFontExpanded, { calendarFontExpanded = it }) {
                 SettingsPanel {
                     FontFamilyRow("Font family", calendarSettings.fontFamily, calendarSettings.fontFileId, importedFonts, onCalendarFontFamily, onCalendarImportedFont)
@@ -1669,6 +1694,79 @@ private data class ColorPickTarget(val key: String, val label: String, val value
             text = { Text(message, color = UiTokens.Muted) },
             confirmButton = { TextButton(onClick = onDismissFontImportMessage) { Text("OK", color = Accent) } }
         )
+    }
+}
+
+@Composable private fun widgetAppearanceBackground(key: String, color: Color, depth: Boolean): Modifier {
+    val context = LocalContext.current
+    val hasImage = WidgetBackgrounds.image(context, key) != null
+    return if (!hasImage) Modifier.depthBackground(color, depth) else Modifier.drawBehind {
+        drawIntoCanvas { canvas ->
+            WidgetBackgrounds.drawCover(canvas.nativeCanvas, context, key, android.graphics.RectF(0f, 0f, size.width, size.height))
+        }
+    }
+}
+
+@Composable private fun TodoAppearancePreview(settings: WidgetPrefs) {
+    val context = LocalContext.current
+    val family = composeFontFamily(context, settings.fontFamily, settings.fontFileId)
+    Text("Widget preview", color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp)
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+            .then(widgetAppearanceBackground(WidgetBackgrounds.TODO, colorFromHex(settings.widgetBackground), settings.backgroundDepth))
+            .padding(settings.paddingDp.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text("1  Tasks", color = Color.White, fontFamily = family,
+            modifier = Modifier.background(colorFromHex(settings.countPanel), RoundedCornerShape(8.dp)).padding(8.dp))
+        Row(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
+                .depthBackground(colorFromHex(settings.taskCard).copy(alpha = settings.taskCardAlpha / 255f), settings.backgroundDepth)
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text("\u25cb", color = colorFromHex(settings.incomplete), fontSize = 22.sp, fontFamily = family)
+            Text("Sample task", color = colorFromHex(settings.taskTitle), fontSize = settings.taskTitleSizeSp.sp, fontFamily = family)
+        }
+    }
+}
+
+@Composable private fun CalendarAppearancePreview(settings: com.example.darktodo.data.CalendarWidgetPrefs) {
+    val context = LocalContext.current
+    val family = composeFontFamily(context, settings.fontFamily, settings.fontFileId)
+    val month = java.time.YearMonth.now()
+    val weekdays = CalendarDates.weekdays(java.util.Locale.getDefault())
+    Text("Widget preview", color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp)
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(settings.cornerRadius.dp))
+            .then(widgetAppearanceBackground(WidgetBackgrounds.CALENDAR, colorFromHex(settings.background), settings.backgroundDepth))
+            .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy((8 + settings.rowSpacing).dp)
+    ) {
+        Text(month.format(DateTimeFormatter.ofPattern("LLLL yyyy", java.util.Locale.getDefault())), color = colorFromHex(settings.heading), fontSize = settings.headingSize.sp, fontFamily = family)
+        Row(Modifier.fillMaxWidth()) {
+            weekdays.forEach { day ->
+                Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                    Text(day.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.getDefault()).take(2), color = colorFromHex(settings.weekday), fontSize = settings.weekdaySize.sp, fontFamily = family)
+                }
+            }
+        }
+        Row(Modifier.fillMaxWidth()) {
+            (1..7).forEach { day ->
+                Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                    Column(
+                        Modifier.size(34.dp).clip(RoundedCornerShape(50))
+                            .background(if (day == 3) colorFromHex(settings.selectedBackground) else Color.Transparent),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Text(day.toString(), color = colorFromHex(if (day == 3) settings.selectedText else settings.date), fontSize = settings.dateSize.sp, fontFamily = family)
+                        if (settings.showDots && day == 3) Box(Modifier.size(4.dp).background(colorFromHex(settings.openDot), RoundedCornerShape(50)))
+                    }
+                }
+            }
+        }
     }
 }
 
