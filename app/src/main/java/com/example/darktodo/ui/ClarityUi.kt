@@ -2,12 +2,17 @@ package com.example.darktodo.ui
 
 import com.example.darktodo.UiTokens
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.clipToBounds
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -16,6 +21,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -24,6 +30,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.CloudSync
+import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.FormatQuote
 import androidx.compose.material.icons.outlined.History
@@ -34,6 +41,8 @@ import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material.icons.outlined.StickyNote2
 import androidx.compose.material.icons.outlined.TaskAlt
+import androidx.compose.material.icons.outlined.TextFields
+import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material.icons.outlined.Wallpaper
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
@@ -44,9 +53,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.darktodo.navigation.ModuleNavigation
@@ -68,6 +82,10 @@ object ClarityIcons {
     val Support = Icons.Outlined.FavoriteBorder
     val Personalization = Icons.Outlined.Palette
     val About = Icons.Outlined.Info
+    val Fonts = Icons.Outlined.TextFields
+    val Colors = Icons.Outlined.Palette
+    val Background = Icons.Outlined.Wallpaper
+    val Layout = Icons.Outlined.Tune
 
     fun forModule(id: String): ImageVector = when (id) {
         ModuleNavigation.TASKS -> Tasks
@@ -79,6 +97,76 @@ object ClarityIcons {
         ModuleNavigation.WALLPAPERS -> Wallpapers
         ModuleNavigation.SETTINGS -> Settings
         else -> Tasks
+    }
+}
+
+@Composable
+fun CollapsibleSettingsSection(
+    title: String,
+    summary: String? = null,
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+    icon: ImageVector? = null,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    val focusManager = LocalFocusManager.current
+    val chevronRotation by animateFloatAsState(
+        targetValue = if (expanded) 180f else 0f,
+        animationSpec = tween(180),
+        label = "settingsSectionChevron"
+    )
+    Surface(
+        color = UiTokens.SurfaceRaised,
+        shape = RoundedCornerShape(UiTokens.CardRadius),
+        border = BorderStroke(1.dp, UiTokens.Subdued.copy(alpha = .65f)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(Modifier.animateContentSize(animationSpec = tween(200))) {
+            Surface(
+                onClick = {
+                    if (expanded) focusManager.clearFocus()
+                    onExpandedChange(!expanded)
+                },
+                color = Color.Transparent,
+                shape = RoundedCornerShape(UiTokens.CardRadius),
+                modifier = Modifier.fillMaxWidth().semantics {
+                    role = Role.Button
+                    stateDescription = if (expanded) "Expanded" else "Collapsed"
+                }
+            ) {
+                Row(
+                    Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(horizontal = 16.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    if (icon != null) ClarityGlyph(icon, tint = UiTokens.Accent)
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(title, color = UiTokens.Ink, fontSize = UiTokens.LabelSp.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium)
+                        summary?.takeIf { it.isNotBlank() }?.let {
+                            Text(it, color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp)
+                        }
+                    }
+                    Icon(
+                        Icons.Outlined.ExpandMore,
+                        contentDescription = null,
+                        tint = UiTokens.Muted,
+                        modifier = Modifier.size(24.dp).graphicsLayer { rotationZ = chevronRotation }
+                    )
+                }
+            }
+            Box(
+                Modifier.fillMaxWidth()
+                    .then(if (expanded) Modifier.wrapContentHeight() else Modifier.height(0.dp))
+                    .clipToBounds()
+                    .then(if (expanded) Modifier else Modifier.clearAndSetSemantics {})
+            ) {
+                Column(
+                    Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    content = content
+                )
+            }
+        }
     }
 }
 
@@ -167,7 +255,13 @@ object ClarityIcons {
         modifier = modifier.clickable(onClick = onClick)
     ) {
         Box(Modifier.heightIn(min = UiTokens.ControlHeight).padding(horizontal = 16.dp), contentAlignment = Alignment.Center) {
-            Text(label, color = if (selected) UiTokens.Accent else UiTokens.Ink, fontSize = UiTokens.SectionTitleSp.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
+            Text(
+                label,
+                color = if (selected) UiTokens.Accent else UiTokens.Ink,
+                fontSize = UiTokens.SectionTitleSp.sp,
+                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
         }
     }
 }

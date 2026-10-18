@@ -26,6 +26,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -55,6 +56,9 @@ fun VaultAppearanceScreen(onBack: () -> Unit) {
     var fonts by remember { mutableStateOf(LocalWidgetFonts.list(context)) }
     var book by remember { mutableStateOf(StickerColorBook()) }
     var importing by remember { mutableStateOf(false) }
+    var fontsExpanded by rememberSaveable { mutableStateOf(true) }
+    var colorsExpanded by rememberSaveable { mutableStateOf(true) }
+    var backgroundExpanded by rememberSaveable { mutableStateOf(false) }
     val importScope = rememberCoroutineScope()
     fun update(value: VaultAppearance) {
         style = value.sanitized()
@@ -101,37 +105,61 @@ fun VaultAppearanceScreen(onBack: () -> Unit) {
         Text("Live preview · all Vault widgets", color = UiTokens.Muted)
         VaultAppearancePreview(style)
         Text("Sliders preview while dragging and save on release. Other changes save immediately. This shortcut never displays passwords. Appearance is local to this device.", color = UiTokens.Muted)
-        Text("Font family", color = UiTokens.Ink)
-        Row(Modifier.horizontalScroll(rememberScrollState())) {
-            WidgetFontFamily.entries.forEach { family ->
-                TextButton(onClick = { update(style.copy(fontFamily = family.key, fontFileId = null)) }) {
-                    Text(
-                        (if (style.fontFileId == null && style.fontFamily == family.key) "✓ " else "") + family.label,
-                        color = UiTokens.Accent
-                    )
+        CollapsibleSettingsSection(
+            title = "Fonts",
+            summary = "Font family · Font size and weight (title/status)",
+            expanded = fontsExpanded,
+            onExpandedChange = { fontsExpanded = it },
+            icon = ClarityIcons.Fonts
+        ) {
+            Text("Font family", color = UiTokens.Ink)
+            Row(Modifier.horizontalScroll(rememberScrollState())) {
+                WidgetFontFamily.entries.forEach { family ->
+                    TextButton(onClick = { update(style.copy(fontFamily = family.key, fontFileId = null)) }) {
+                        Text(
+                            (if (style.fontFileId == null && style.fontFamily == family.key) "✓ " else "") + family.label,
+                            color = UiTokens.Accent
+                        )
+                    }
                 }
             }
-        }
-        fonts.forEach { font ->
-            TextButton(onClick = { update(style.copy(fontFileId = font.id)) }) {
-                Text((if (style.fontFileId == font.id) "✓ " else "") + font.name, color = UiTokens.Accent)
+            fonts.forEach { font ->
+                TextButton(onClick = { update(style.copy(fontFileId = font.id)) }) {
+                    Text((if (style.fontFileId == font.id) "✓ " else "") + font.name, color = UiTokens.Accent)
+                }
             }
+            TextButton(onClick = { importer.launch(arrayOf("*/*")) }, enabled = !importing) {
+                Text(if (importing) "Importing font…" else "Import font (.ttf, .otf, .ttc)", color = UiTokens.Accent)
+            }
+            VaultSlider("Font size (title)", style.titleSizeSp, 12f..28f, "sp", onFinished = ::commitPreview) { preview(style.copy(titleSizeSp = it)) }
+            VaultSlider("Font size (status)", style.statusSizeSp, 10f..22f, "sp", onFinished = ::commitPreview) { preview(style.copy(statusSizeSp = it)) }
+            VaultSlider("Font weight (title)", style.titleWeight.toFloat(), 100f..900f, "", onFinished = ::commitPreview) { preview(style.copy(titleWeight = it.toInt())) }
+            VaultSlider("Font weight (status)", style.statusWeight.toFloat(), 100f..900f, "", onFinished = ::commitPreview) { preview(style.copy(statusWeight = it.toInt())) }
+            Text("On Android 8, weights use normal/bold equivalents.", color = UiTokens.Muted)
         }
-        TextButton(onClick = { importer.launch(arrayOf("*/*")) }, enabled = !importing) {
-            Text(if (importing) "Importing font…" else "Import font (.ttf, .otf, .ttc)", color = UiTokens.Accent)
+        CollapsibleSettingsSection(
+            title = "Colors",
+            summary = "Title · Status · Accent/outline",
+            expanded = colorsExpanded,
+            onExpandedChange = { colorsExpanded = it },
+            icon = ClarityIcons.Colors
+        ) {
+            HexColorField("Title color", style.titleColor, book, { book = it }) { update(style.copy(titleColor = it)) }
+            HexColorField("Status color", style.statusColor, book, { book = it }) { update(style.copy(statusColor = it)) }
+            HexColorField("Accent / outline color", style.accentColor, book, { book = it }) { update(style.copy(accentColor = it)) }
+            Text("Accent colors the card outline; the original Vault artwork is never tinted.", color = UiTokens.Muted)
         }
-        VaultSlider("Title size", style.titleSizeSp, 12f..28f, "sp", onFinished = ::commitPreview) { preview(style.copy(titleSizeSp = it)) }
-        VaultSlider("Status size", style.statusSizeSp, 10f..22f, "sp", onFinished = ::commitPreview) { preview(style.copy(statusSizeSp = it)) }
-        VaultSlider("Title weight", style.titleWeight.toFloat(), 100f..900f, "", onFinished = ::commitPreview) { preview(style.copy(titleWeight = it.toInt())) }
-        VaultSlider("Status weight", style.statusWeight.toFloat(), 100f..900f, "", onFinished = ::commitPreview) { preview(style.copy(statusWeight = it.toInt())) }
-        Text("On Android 8, weights use normal/bold equivalents.", color = UiTokens.Muted)
-        HexColorField("Title colour", style.titleColor, book, { book = it }) { update(style.copy(titleColor = it)) }
-        HexColorField("Status colour", style.statusColor, book, { book = it }) { update(style.copy(statusColor = it)) }
-        HexColorField("Background colour", style.backgroundColor, book, { book = it }) { update(style.copy(backgroundColor = it)) }
-        HexColorField("Accent / outline colour", style.accentColor, book, { book = it }) { update(style.copy(accentColor = it)) }
-        Text("Accent colours the card outline; the original Vault artwork is never tinted.", color = UiTokens.Muted)
-        VaultSlider("Background opacity", style.backgroundOpacityPercent.toFloat(), 0f..100f, "%", onFinished = ::commitPreview) {
-            preview(style.copy(backgroundOpacityPercent = it.toInt()))
+        CollapsibleSettingsSection(
+            title = "Background",
+            summary = "Background color · Background opacity",
+            expanded = backgroundExpanded,
+            onExpandedChange = { backgroundExpanded = it },
+            icon = ClarityIcons.Background
+        ) {
+            HexColorField("Background color", style.backgroundColor, book, { book = it }) { update(style.copy(backgroundColor = it)) }
+            VaultSlider("Background opacity", style.backgroundOpacityPercent.toFloat(), 0f..100f, "%", onFinished = ::commitPreview) {
+                preview(style.copy(backgroundOpacityPercent = it.toInt()))
+            }
         }
         VaultSlider("Rounded corners", style.cornerRadiusDp.toFloat(), 0f..40f, "dp", onFinished = ::commitPreview) { preview(style.copy(cornerRadiusDp = it.toInt())) }
         val lowContrast = minOf(style.contrastRatio(style.titleColor), style.contrastRatio(style.statusColor)) < 4.5f
