@@ -59,6 +59,7 @@ object ClarityIcons {
     val Calendar = Icons.Outlined.CalendarMonth
     val Vault = Icons.Outlined.Lock
     val Quotes = Icons.Outlined.FormatQuote
+    val Info = Icons.Outlined.Info
     val Stickers = Icons.Outlined.StickyNote2
     val Wallpapers = Icons.Outlined.Wallpaper
     val Settings = Icons.Outlined.Settings
@@ -73,6 +74,7 @@ object ClarityIcons {
         ModuleNavigation.CALENDAR -> Calendar
         ModuleNavigation.VAULT -> Vault
         ModuleNavigation.QUOTES -> Quotes
+        ModuleNavigation.INFO -> Info
         ModuleNavigation.STICKERS -> Stickers
         ModuleNavigation.WALLPAPERS -> Wallpapers
         ModuleNavigation.SETTINGS -> Settings

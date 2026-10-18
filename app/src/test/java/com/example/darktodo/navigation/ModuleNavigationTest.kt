@@ -8,7 +8,7 @@ import org.junit.Test
 class ModuleNavigationTest {
     @Test fun registryContainsPlannedModulesInOrder() {
         assertEquals(
-            listOf("Tasks", "Calendar", "Vault", "Quotes", "Notes", "Wallpapers", "Settings"),
+            listOf("Tasks", "Calendar", "Vault", "Info", "Notes", "Wallpapers", "Settings"),
             ModuleNavigation.modules.map { it.label }
         )
     }
@@ -81,5 +81,27 @@ class ModuleNavigationTest {
 
     @Test fun unknownModuleFallsBackToHome() {
         assertEquals(ModuleNavigation.home, ModuleNavigation.routeFor("habits"))
+    }
+
+    @Test fun oldQuotesSelectionRestoresInfoWithoutRemovingLegacyRoute() {
+        assertEquals(ModuleNavigation.INFO, ModuleNavigation.restoredModule(ModuleNavigation.QUOTES))
+        assertEquals(ModuleRoute("Quotes"), ModuleNavigation.routeFor(ModuleNavigation.QUOTES))
+        assertNull(ModuleNavigation.restoredModule("unknown"))
+        assertNull(ModuleNavigation.restoredModule(null))
+        assertEquals(ModuleNavigation.INFO, ModuleNavigation.restoredModule(ModuleNavigation.INFO))
+    }
+
+    @Test fun infoNavigationUsesTheSharedSlotAndReturnsHome() {
+        assertEquals(ModuleNavigation.INFO, ModuleNavigation.adjacent(ModuleNavigation.VAULT, true))
+        assertEquals(ModuleNavigation.STICKERS, ModuleNavigation.adjacent(ModuleNavigation.INFO, true))
+        assertEquals(BackStep.GoTo(ModuleNavigation.home), ModuleNavigation.backStep("Info", "Tasks", 0))
+        assertEquals(ModuleNavigation.INFO, ModuleNavigation.intentModule(ModuleNavigation.ACTION_OPEN_INFO))
+        assertNull(ModuleNavigation.intentModule("other"))
+        assertNull(ModuleNavigation.intentModule(null))
+    }
+
+    @Test fun vaultAppearanceBelongsToVaultNotAuthenticationSettings() {
+        assertEquals(ModuleNavigation.VAULT, ModuleNavigation.moduleFor("VaultAppearance", "Tasks"))
+        assertEquals(BackStep.GoTo(ModuleRoute("Vault")), ModuleNavigation.backStep("VaultAppearance", "Tasks", 0))
     }
 }

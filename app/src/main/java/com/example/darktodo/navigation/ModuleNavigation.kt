@@ -21,6 +21,7 @@ object ModuleNavigation {
     const val CALENDAR = "calendar"
     const val VAULT = "vault"
     const val QUOTES = "quotes"
+    const val INFO = "info"
     const val STICKERS = "stickers"
     const val WALLPAPERS = "wallpapers"
     const val SETTINGS = "settings"
@@ -29,7 +30,7 @@ object ModuleNavigation {
         ModuleSpec(TASKS, "Tasks"),
         ModuleSpec(CALENDAR, "Calendar"),
         ModuleSpec(VAULT, "Vault"),
-        ModuleSpec(QUOTES, "Quotes"),
+        ModuleSpec(INFO, "Info"),
         ModuleSpec(STICKERS, "Notes"),
         ModuleSpec(WALLPAPERS, "Wallpapers"),
         ModuleSpec(SETTINGS, "Settings")
@@ -43,6 +44,7 @@ object ModuleNavigation {
         CALENDAR -> ModuleRoute("Calendar")
         VAULT -> ModuleRoute("Vault")
         QUOTES -> ModuleRoute("Quotes")
+        INFO -> ModuleRoute("Info")
         STICKERS -> ModuleRoute("Stickers")
         WALLPAPERS -> ModuleRoute("Wallpapers")
         SETTINGS -> ModuleRoute("Settings")
@@ -55,7 +57,8 @@ object ModuleNavigation {
         "TodoSettings", "TodoWallpaper" -> TASKS
         "Calendar", "CalendarSettings", "CalendarWallpaper" -> CALENDAR
         "StickerSettings" -> STICKERS
-        "Vault" -> VAULT
+        "Vault", "VaultAppearance" -> VAULT
+        "Info" -> INFO
         "Quotes" -> QUOTES
         "Stickers" -> STICKERS
         "Wallpapers" -> WALLPAPERS
@@ -74,6 +77,7 @@ object ModuleNavigation {
         page == "CalendarWallpaper" -> BackStep.GoTo(ModuleRoute("CalendarSettings"))
         page == "CalendarSettings" -> BackStep.GoTo(ModuleRoute("Calendar"))
         page == "StickerSettings" -> BackStep.GoTo(ModuleRoute("Stickers"))
+        page == "VaultAppearance" -> BackStep.GoTo(ModuleRoute("Vault"))
         page == "To-Do" && todoPage == "Tasks" -> BackStep.AtHome
         else -> BackStep.GoTo(home)
     }
@@ -83,5 +87,15 @@ object ModuleNavigation {
         val index = modules.indexOfFirst { it.id == moduleId }
         if (index < 0) return null
         return modules.getOrNull(if (forward) index + 1 else index - 1)?.id
+    }
+
+    fun restoredModule(id: String?): String? =
+        (if (id == QUOTES) INFO else id)?.takeIf { saved -> modules.any { it.id == saved } }
+
+    const val ACTION_OPEN_INFO = "com.example.darktodo.action.OPEN_INFO"
+
+    fun intentModule(action: String?): String? = when (action) {
+        ACTION_OPEN_INFO -> INFO
+        else -> null
     }
 }
