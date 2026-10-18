@@ -39,6 +39,11 @@ Tests listed are related JVM coverage, not end-to-end guarantees.
 | Vault, authentication, audit | `MainActivity.kt`, `VaultSecurityScreen.kt`, `data/LocalVaultStore.kt`, `data/VaultAudit.kt`, `widget/VaultWidget.kt` | `data/VaultAuditTest.kt`; no crypto/biometric/UI integration tests |
 | Appearance, fonts, backgrounds | `data/WidgetPrefs.kt`, `data/CalendarWidgetPrefs.kt`, `data/AppTypographySettings.kt`, `data/WidgetTypography.kt`, `data/LocalWidgetFonts.kt`, `data/WidgetBackgrounds.kt`, `data/StyleSnapshot.kt`, `WidgetBackgroundEditor.kt`, `ui/ColorPickerDialog.kt`, `widget/WidgetFontLayouts.kt` | `widget/WidgetFontLayoutsTest.kt`, `data/WidgetCardTransparencyTest.kt` |
 | Navigation | `navigation/ModuleNavigation.kt`, `navigation/ModulePrefs.kt`, `MainActivity.kt` | `navigation/ModuleNavigationTest.kt` |
+
+Launcher icon resources under `app/src/main/`: `AndroidManifest.xml` →
+`res/mipmap-anydpi-v26/ic_clarity_suite*.xml` → `res/drawable/ic_clarity_suite_foreground.xml` →
+`res/drawable/clarity_suite_icon.png`. Related test: `LauncherIconResourceContractTest.kt`
+(relative to the test prefix above). Keep only one artwork variant.
 | Google Drive backup/restore | `BackupScreens.kt`, `backup/BackupManager.kt`, `backup/BackupCodec.kt`, `backup/BackupScheduler.kt`, `backup/DriveClient.kt` | `backup/BackupCodecTest.kt`; no Drive/restore integration tests |
 
 Widget resources: `app/src/main/res/layout/` (live/preview RemoteViews),
