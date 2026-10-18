@@ -4,7 +4,7 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
-    <application android:name=".ClarityApplication" android:theme="@style/Theme.DarkTodo" android:label="@string/app_name" android:icon="@mipmap/ic_clarity_vault" android:roundIcon="@mipmap/ic_clarity_vault_round" android:allowBackup="${clarityAllowBackup}">
+    <application android:name=".ClarityApplication" android:theme="@style/Theme.DarkTodo" android:label="@string/app_name" android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher_round" android:allowBackup="${clarityAllowBackup}">
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -24,19 +24,19 @@
             android:theme="@android:style/Theme.Translucent.NoTitleBar">
             <intent-filter><action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" /></intent-filter>
         </activity>
-        <receiver android:name=".widget.TodoWidgetReceiver" android:exported="true">
+        <receiver android:name=".widget.TodoWidgetReceiver" android:label="@string/todo_widget_label" android:exported="true">
             <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/todo_widget_info" />
         </receiver>
-        <receiver android:name=".widget.CalendarWidgetReceiver" android:exported="true">
+        <receiver android:name=".widget.CalendarWidgetReceiver" android:label="@string/calendar_widget_label" android:exported="true">
             <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/calendar_widget_info" />
         </receiver>
-        <receiver android:name=".widget.VaultWidgetReceiver" android:exported="true">
+        <receiver android:name=".widget.VaultWidgetReceiver" android:label="@string/vault_widget_label" android:exported="true">
             <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/vault_widget_info" />
         </receiver>
-        <receiver android:name=".widget.StickerWidgetReceiver" android:exported="true">
+        <receiver android:name=".widget.StickerWidgetReceiver" android:label="@string/notes_widget_label" android:exported="true">
             <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/sticker_widget_info" />
         </receiver>

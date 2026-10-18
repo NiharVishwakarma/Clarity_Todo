@@ -45,10 +45,15 @@ import java.util.Date
  * and then calls [onAuthorized] with the token and account email.
  */
 @Composable
-internal fun rememberDriveAuthorizer(onError: (String) -> Unit, onAuthorized: (token: String, email: String?) -> Unit): () -> Unit {
+internal fun rememberDriveAuthorizer(
+    onError: (String) -> Unit,
+    onCancelled: () -> Unit = {},
+    onAuthorized: (token: String, email: String?) -> Unit
+): () -> Unit {
     val context = LocalContext.current
     val authorized by rememberUpdatedState(onAuthorized)
     val failed by rememberUpdatedState(onError)
+    val cancelled by rememberUpdatedState(onCancelled)
     fun handle(result: AuthorizationResult) {
         val token = result.accessToken
         if (token == null) failed("Google did not return access. Please try again.")
@@ -58,7 +63,8 @@ internal fun rememberDriveAuthorizer(onError: (String) -> Unit, onAuthorized: (t
         if (result.resultCode == Activity.RESULT_OK && result.data != null) {
             runCatching { Identity.getAuthorizationClient(context).getAuthorizationResultFromIntent(result.data) }
                 .fold({ handle(it) }, { failed(it.message ?: "Google sign-in failed.") })
-        } else failed("Google sign-in was cancelled.")
+        } else if (result.resultCode == Activity.RESULT_CANCELED) cancelled()
+        else failed("Google sign-in did not complete.")
     }
     return {
         Identity.getAuthorizationClient(context).authorize(BackupManager.authorizationRequest())
@@ -87,6 +93,7 @@ internal fun BackupSettingsSection() {
     var pending by remember { mutableStateOf<((String, String?) -> Unit)?>(null) }
     val authorize = rememberDriveAuthorizer(
         onError = { message = it; busy = false },
+        onCancelled = { message = null; busy = false },
         onAuthorized = { token, email -> pending?.invoke(token, email) }
     )
     val email = remember(revision) { BackupManager.email(context) }
@@ -212,6 +219,7 @@ internal fun WelcomeBackGate(onFinished: (restored: Boolean) -> Unit) {
     var pending by remember { mutableStateOf<((String, String?) -> Unit)?>(null) }
     val authorize = rememberDriveAuthorizer(
         onError = { message = it; stage = WelcomeStage.ASK },
+        onCancelled = { message = null; stage = WelcomeStage.ASK },
         onAuthorized = { value, email -> pending?.invoke(value, email) }
     )
 

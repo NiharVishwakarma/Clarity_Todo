@@ -54,7 +54,7 @@ class StickerWidgetReceiver : AppWidgetProvider() {
 object StickerWidget {
     private const val PREFS = "sticker_widget_selection"
     private const val TAG = "StickerWidget"
-    private const val MAX_PIXELS = 600_000
+    private const val MAX_PIXELS = 120_000
 
     fun updateAll(context: Context) {
         val manager = AppWidgetManager.getInstance(context)

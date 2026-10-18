@@ -204,7 +204,9 @@ class MainActivity : FragmentActivity() {
                 .onFailure { android.util.Log.e("MainActivity", "Reminder recovery failed", it) }
         }
         setContent { MaterialTheme { Surface(color = Bg) {
-            var welcome by remember { mutableStateOf(com.example.darktodo.backup.BackupManager.needsWelcome(this@MainActivity)) }
+            var welcome by remember {
+                mutableStateOf(intent.action != ACTION_OPEN_VAULT && com.example.darktodo.backup.BackupManager.needsWelcome(this@MainActivity))
+            }
             if (welcome) WelcomeBackGate { restored ->
                 if (restored) recreate() else welcome = false
             } else TodoApp(intent.getStringExtra("edit_task_id"), intent.getStringExtra("task_date"), intent.action == ACTION_CREATE_TASK, intent.action == ACTION_OPEN_VAULT,
@@ -212,7 +214,11 @@ class MainActivity : FragmentActivity() {
         } } }
     }
 
-    override fun onNewIntent(intent: android.content.Intent) { super.onNewIntent(intent); setIntent(intent) }
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent.action == ACTION_OPEN_VAULT) recreate()
+    }
 
 }
 

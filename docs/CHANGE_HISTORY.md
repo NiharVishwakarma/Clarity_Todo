@@ -13,6 +13,31 @@ This log begins with the repository snapshot available when these project notes 
 
 ## Current version summary
 
+### 2026-10-18 — Use supplied source art for launcher and Vault widget
+
+- Copied the supplied 1254×1254 transparent PNGs unchanged to Android-valid resource names: `clarity_suite_icon.png` and `vault_icon.png`.
+- Wired `vault_icon.png` to the actual Vault widget ImageView and static `previewImage`; the provider's `previewLayout` already uses that same live layout. Kept the title, lock-state text, click path, and widget behavior unchanged.
+- Wired the suite PNG into a centered, 82dp adaptive foreground used by both launcher icon variants; restored the main Clarity suite icon without altering the Vault widget art.
+- Source PNGs are RGBA with transparent top-left corners. Resource diagnostics only; Android build, launcher masking, and on-device rendering remain unverified.
+
+### 2026-10-18 — Keep Vault widget branding separate from app launcher
+
+- Restored the main app manifest to the existing Clarity launcher icon resources; the Vault widget remains independently branded.
+- The newly attached Vault image is not present as a source file in the workspace, so no substitute artwork was added. The Vault widget and preview still need the exact supplied raster before this request can be completed.
+
+### 2026-10-18 — Suite launcher icon
+
+- Replaced the manifest-referenced adaptive launcher foreground with a safe-zone-centered 2x2 Clarity suite mark for To-Do, Calendar, Vault, and Notes. Retained the near-black/crimson adaptive background and left Vault widget art, labels, and behavior unchanged.
+- The inline reference image was not present as a source file in the workspace; the adaptive foreground is a hand-authored vector based on the attached reference, not a re-used PNG. Verified resource diagnostics only; no Android build/device check yet.
+
+### 2026-10-18 — Fix Notes widget delivery and Vault widget navigation
+
+- Added explicit widget receiver labels in addition to provider metadata labels to improve picker naming across launcher implementations.
+- Reduced the Notes widget bitmap payload cap from 600,000 to 120,000 pixels to keep `RemoteViews` image updates comfortably below Binder transaction limits; Notes continues to render the selected real note.
+- Vault widget launches now bypass the first-run backup gate and open the existing Vault screen. A warm MainActivity is recreated for a fresh intent route; no authentication is bypassed and no vault state is reset.
+- Google authorization cancellation now clears busy/error state without presenting a failure message; genuine authorization failures remain visible.
+- Source diagnostics only; no local Android toolchain/device is available, so CI and launcher verification remain pending.
+
 ### 2026-10-18 — Keep routine CI debug-only
 
 - Removed the sequential minified release build, signing-secret requirement, signature verification, and release artifact upload from the routine workflow. Debug unit tests/build and the 14-day debug APK artifact are unchanged; release build configuration remains in the app module for launch preparation.
