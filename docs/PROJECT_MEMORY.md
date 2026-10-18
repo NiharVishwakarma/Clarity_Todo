@@ -44,6 +44,8 @@ Result: failed during plugin resolution in 7 seconds, before compilation, test e
 `Plugin [id: 'com.android.application', version: '8.7.3', apply: false] was not found`.
 Google/Maven Central/Plugin Portal were searched; Google Maven DNS was unavailable.
 
+CI history (2026-10-18): GitHub Actions does resolve AGP and reached Kotlin compilation on `main` commit `aabc90f`, where `:app:compileDebugKotlin` failed on incorrect `clipToBounds`/missing `semantics.role` imports in `ui/ClarityUi.kt`. Those imports are now fixed; the sandbox still cannot reach Google Maven, so CI is the authoritative compile/test/assemble check.
+
 | Widget | Provider / implementation | Behavior and refresh |
 |---|---|---|
 | To-Do | [`TodoWidget.kt`](../app/src/main/java/com/example/darktodo/widget/TodoWidget.kt), [`TodoWidgetService.kt`](../app/src/main/java/com/example/darktodo/widget/TodoWidgetService.kt), [`todo_widget_info.xml`](../app/src/main/res/xml/todo_widget_info.xml) | Shows open-task count and a scrollable collection of all tasks, completion controls, refresh, and add action. Rows wrap titles to two lines (ellipsis only after that, no marquee). Tapping the check circle or a title that fits toggles completion; tapping a title longer than two lines opens a dialog with the full title (via the non-exported `TaskActionActivity`, the widget's click template). Supports horizontal and vertical resizing. Declares a 30-minute platform update period; task changes and alarm paths also refresh it. |

@@ -1,5 +1,11 @@
 # Change History
 
+## 2026-10-18 — Fix settings-section compilation imports
+
+- Fixed the `:app:compileDebugKotlin` failure on `main` (Android APK Build job 117694452019, commit `aabc90f`) in [`ClarityUi.kt`](../app/src/main/java/com/example/darktodo/ui/ClarityUi.kt): `clipToBounds` now comes from `androidx.compose.ui.draw` instead of the nonexistent `androidx.compose.foundation.clipToBounds`, and the missing `androidx.compose.ui.semantics.role` import was added for `role = Role.Button`. The remaining reported errors around the collapsed-content `Box` were cascades from the unresolved `clipToBounds`.
+- No behavior, visuals, semantics, retained-content mechanism, preferences, dependencies or checks changed. Updated the verification note in `PROJECT_MEMORY.md` and added this entry.
+- Validation: `git diff --check` passed. Local `gradle wrapper --gradle-version 8.9` (system Gradle 9.8.1) failed during plugin resolution because `dl.google.com` does not resolve in the sandbox (AGP `8.7.3` unavailable), so compilation, unit tests, `assembleDebug` and `lintDebug` could not run locally; the pull-request Android APK Build run is the compile/test check. No device checks were performed.
+
 ## 2026-10-18 — Organize appearance settings
 
 - Added a shared outlined, animated settings-section card with a 56dp accessible header, optional wrapping subtitle, decorative accent icon, expanded/collapsed semantics, and saveable expansion state. Section contents remain composed but clipped and absent from accessibility semantics while collapsed; collapse clears focus to dismiss the keyboard without discarding drafts, dialogs, or import launchers.
