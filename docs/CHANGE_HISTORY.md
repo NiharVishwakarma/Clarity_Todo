@@ -13,11 +13,16 @@ This log begins with the repository snapshot available when these project notes 
 
 ## Current version summary
 
+### 2026-10-18 — Keep routine CI debug-only
+
+- Removed the sequential minified release build, signing-secret requirement, signature verification, and release artifact upload from the routine workflow. Debug unit tests/build and the 14-day debug APK artifact are unchanged; release build configuration remains in the app module for launch preparation.
+
 ### 2026-10-18 — Distinct widget labels and Vault identity
 
 - Assigned string-resource picker labels to To-Do, Calendar, Notes, and Vault; confirmed Notes already has a registered provider, selectable note storage, configuration activity, preview resources, and real RemoteViews rendering.
 - Replaced the Vault wheel/spoke graphic with a metallic safe-door shield and keyhole. Added adaptive icon resources referenced by the manifest; preserved the existing general Clarity task-list icon artwork.
 - Refined the Vault RemoteViews layout and preview; it shows a setup prompt when no vault exists and the locked tap-to-unlock prompt when one does. Authentication continues through MainActivity.
+- Added a Notes visual fallback to the initial widget layout and retained its metadata-referenced configuration activity name through R8 repackaging.
 - Source inspection did not identify which provider/device condition caused the reported "Couldn't add widget" message; no relevant launcher exception log was supplied. No speculative provider lifecycle change was made.
 
 ### 2026-10-18 — Release security hardening

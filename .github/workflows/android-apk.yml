@@ -41,34 +41,6 @@ jobs:
           ./gradlew --no-daemon testDebugUnitTest assembleDebug
           cp app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/dark_todo.apk
 
-      # Pull requests build this unsigned because GitHub does not expose repository secrets to forked PRs.
-      - name: Build minified release APK
-        env:
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-        run: |
-          if [ "$GITHUB_EVENT_NAME" != "pull_request" ]; then
-            for name in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_PASSWORD ANDROID_KEY_ALIAS; do
-              if [ -z "${!name}" ]; then
-                echo "Missing GitHub Actions secret: $name"
-                exit 1
-              fi
-            done
-          fi
-          if [ -n "$ANDROID_KEYSTORE_BASE64" ]; then
-            echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/clarity-signing.jks"
-            export ANDROID_KEYSTORE_PATH="$RUNNER_TEMP/clarity-signing.jks"
-            export ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_PASSWORD ANDROID_KEY_ALIAS
-          fi
-          ./gradlew --no-daemon assembleRelease
-          if [ "$GITHUB_EVENT_NAME" != "pull_request" ]; then
-            release_apk=app/build/outputs/apk/release/app-release.apk
-            "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$release_apk"
-            cp "$release_apk" app/build/outputs/apk/release/dark_todo_release.apk
-          fi
-
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
@@ -77,11 +49,3 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-      - name: Upload signed release APK
-        if: github.event_name != 'pull_request'
-        uses: actions/upload-artifact@v4
-        with:
-          name: dark-todo-release-apk
-          path: app/build/outputs/apk/release/dark_todo_release.apk
-          if-no-files-found: error
-          retention-days: 14

@@ -14,3 +14,5 @@
 -keep class com.example.darktodo.backup.BackupWorker {
     public <init>(android.content.Context, androidx.work.WorkerParameters);
 }
+
+-keep class com.example.darktodo.widget.StickerWidgetConfigActivity { *; }
