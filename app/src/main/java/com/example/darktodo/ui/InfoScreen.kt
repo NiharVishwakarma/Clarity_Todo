@@ -16,14 +16,19 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.Surface
+import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -39,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
+import com.example.darktodo.UiTokens
 import com.example.darktodo.monitor.CacheResult
 import com.example.darktodo.monitor.DiscoveryResult
 import com.example.darktodo.monitor.MonitorCache
@@ -54,17 +60,36 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-private val dashboardKeys = listOf("Model", "Android", "Available RAM", "Available internal storage", "Battery", "Charging", "Security patch")
+private val securityKeys = setOf("Security patch", "OS build time (not install date)", "OS install date", "OS update availability",
+    "Device lock configured", "Storage encryption status")
 
 @Composable
 fun InfoScreen(onSnapshotUpdated: () -> Unit = {}) {
+    MaterialTheme(colorScheme = darkColorScheme(
+        primary = UiTokens.Accent, onPrimary = UiTokens.Ink,
+        primaryContainer = UiTokens.SurfaceRaised, onPrimaryContainer = UiTokens.Ink,
+        secondary = UiTokens.Muted, onSecondary = UiTokens.Background,
+        secondaryContainer = UiTokens.SurfaceRaised, onSecondaryContainer = UiTokens.Ink,
+        background = UiTokens.Background, onBackground = UiTokens.Ink,
+        surface = UiTokens.Surface, onSurface = UiTokens.Ink,
+        surfaceVariant = UiTokens.SurfaceRaised, onSurfaceVariant = UiTokens.Muted,
+        outline = UiTokens.Subdued
+    )) {
+        Surface(color = UiTokens.Background, contentColor = UiTokens.Ink, modifier = Modifier.fillMaxSize()) {
+            InfoMonitorContent(onSnapshotUpdated)
+        }
+    }
+}
+
+@Composable
+private fun InfoMonitorContent(onSnapshotUpdated: () -> Unit) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val scope = rememberCoroutineScope()
     val updatedCallback by rememberUpdatedState(onSnapshotUpdated)
     var snapshot by remember { mutableStateOf<MonitorSnapshot?>(null) }
     var message by remember { mutableStateOf("Loading local snapshot…") }
-    var section by rememberSaveable { mutableStateOf("Dashboard") }
+    var section by rememberSaveable { mutableStateOf("Device") }
     var working by remember { mutableStateOf(false) }
     var pickerPending by rememberSaveable { mutableStateOf(false) }
     var operation by remember { mutableStateOf<Job?>(null) }
@@ -96,6 +121,7 @@ fun InfoScreen(onSnapshotUpdated: () -> Unit = {}) {
     }
     fun selected(uri: Uri?, tree: Boolean) {
         pickerPending = false
+        if (uri == null) message = if (tree) "Folder selection cancelled." else "Document selection cancelled."
         if (uri != null) work {
             discovery = MonitorDocuments.discover(context, uri, tree)
             message = discovery!!.notes
@@ -105,6 +131,7 @@ fun InfoScreen(onSnapshotUpdated: () -> Unit = {}) {
     val folderPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { selected(it, true) }
     fun export(uri: Uri?, format: String) {
         pickerPending = false
+        if (uri == null) message = "${format.uppercase()} export cancelled; no report written."
         if (uri != null) work {
             val fresh = refresh()
             MonitorReports.export(context, uri, format, fresh)
@@ -127,10 +154,9 @@ fun InfoScreen(onSnapshotUpdated: () -> Unit = {}) {
             }
         }
     }
-    val sections = listOf("Dashboard", "Device & OS", "RAM & storage", "Battery", "Downloads", "Reports", "Maintenance")
+    val sections = listOf("Device", "Memory", "Storage", "Battery", "Security and updates", "Downloads and reports", "Maintenance")
     LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
-            Text("Info", style = MaterialTheme.typography.headlineMedium)
             Text("Local device monitor · no root · no cloud upload", style = MaterialTheme.typography.bodySmall)
             sections.chunked(2).forEach { pair ->
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -151,23 +177,32 @@ fun InfoScreen(onSnapshotUpdated: () -> Unit = {}) {
             Text(section, style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 12.dp))
         }
         when (section) {
-            "Dashboard", "Device & OS", "RAM & storage", "Battery" -> {
+            "Device", "Memory", "Storage", "Battery", "Security and updates" -> {
                 val values = snapshot?.values.orEmpty()
+                fun memoryKey(key: String) = key.contains("RAM")
+                fun storageKey(key: String) = key.contains("storage", ignoreCase = true) && key !in securityKeys
+                fun batteryKey(key: String) = key.startsWith("Battery") || key == "Charging" || key.startsWith("Per-app battery")
                 val keys = when (section) {
-                    "Dashboard" -> dashboardKeys
-                    "RAM & storage" -> values.keys.filter { it.contains("RAM") || it.contains("storage", true) || it == "Low RAM threshold" }
-                    "Battery" -> values.keys.filter { it.startsWith("Battery") || it == "Charging" || it.startsWith("Per-app battery") }
-                    else -> values.keys.filter { key -> key !in values.keys.filter {
-                        it.contains("RAM") || it.contains("storage", true) || it.startsWith("Battery") ||
-                            it == "Charging" || it.startsWith("Per-app battery")
-                    } }
+                    "Memory" -> values.keys.filter(::memoryKey)
+                    "Storage" -> values.keys.filter(::storageKey)
+                    "Battery" -> values.keys.filter(::batteryKey)
+                    "Security and updates" -> values.keys.filter { it in securityKeys }
+                    else -> values.keys.filter { !memoryKey(it) && !storageKey(it) && !batteryKey(it) && it !in securityKeys }
+                }
+                if (section == "Memory") item { InfoProgress("RAM utilization", values["RAM utilization"]) }
+                if (section == "Storage") item {
+                    InfoProgress("Internal storage utilization", values["internal storage utilization"])
                 }
                 items(keys) { key -> InfoMetric(key, values[key] ?: "Unavailable") }
-                if (section == "Device & OS") item {
+                if (section == "Device") item {
                     OutlinedButton(onClick = { open(Intent(Settings.ACTION_DEVICE_INFO_SETTINGS)) }) { Text("About device") }
+                }
+                if (section == "Security and updates") item {
+                    Text("The build timestamp is not the OS install date. Android does not expose reliable OS install dates or universal update availability to ordinary apps.")
+                    OutlinedButton(onClick = { open(Intent(Settings.ACTION_SECURITY_SETTINGS)) }) { Text("Android security settings") }
                     OutlinedButton(onClick = { open(Intent("android.settings.SYSTEM_UPDATE_SETTINGS")) }) { Text("Check updates in Settings") }
                 }
-                if (section == "RAM & storage") item {
+                if (section == "Storage") item {
                     OutlinedButton(onClick = { open(Intent(Settings.ACTION_INTERNAL_STORAGE_SETTINGS)) }) { Text("Android storage settings") }
                 }
                 if (section == "Battery") item {
@@ -176,9 +211,9 @@ fun InfoScreen(onSnapshotUpdated: () -> Unit = {}) {
                     OutlinedButton(onClick = { open(Intent(Settings.ACTION_BATTERY_SAVER_SETTINGS)) }) { Text("Battery saver settings") }
                 }
             }
-            "Downloads" -> {
+            "Downloads and reports" -> {
                 item {
-                    Text("Android scoped storage does not expose every download. Select one file or a permitted folder; no broad storage access is requested. Access is session-only. Android 11+ can restrict selecting the Downloads root.")
+                    Text("Android scoped storage does not expose every download. Select one file or a permitted folder; no broad storage access is requested. Access is session-only. Android 11+ can restrict selecting the Downloads root. An 8-second deadline requests provider cancellation; providers may ignore it, so response time cannot be guaranteed.")
                     OutlinedButton(enabled = !working && !pickerPending, onClick = {
                         pickerPending = true
                         try { documentPicker.launch(arrayOf("*/*")) } catch (_: Exception) { pickerPending = false; message = "No document picker available." }
@@ -204,6 +239,15 @@ fun InfoScreen(onSnapshotUpdated: () -> Unit = {}) {
                         TextButton(onClick = { largestFirst = !largestFirst }) { Text(if (largestFirst) "Sort: largest known size" else "Sort: name") }
                     }
                 }
+                item {
+                    Text("Reports", style = MaterialTheme.typography.titleMedium)
+                    Text("Export a newly collected, coherent snapshot with its UTC timestamp. Reports contain device/build details but no unique device IDs, task data, passwords, or download names. Choose the destination yourself. PDF uses Android's native PDF renderer; font glyph coverage depends on Android.")
+                    val filename = "clarity-info-${snapshot?.capturedAt ?: System.currentTimeMillis()}"
+                    OutlinedButton(enabled = !working && !pickerPending, onClick = { pickerPending = true; try { textExport.launch("$filename.txt") } catch (_: Exception) { pickerPending = false; message = "No export picker available." } }) { Text("Save TXT") }
+                    OutlinedButton(enabled = !working && !pickerPending, onClick = { pickerPending = true; try { csvExport.launch("$filename.csv") } catch (_: Exception) { pickerPending = false; message = "No export picker available." } }) { Text("Save CSV") }
+                    OutlinedButton(enabled = !working && !pickerPending, onClick = { pickerPending = true; try { pdfExport.launch("$filename.pdf") } catch (_: Exception) { pickerPending = false; message = "No export picker available." } }) { Text("Save PDF") }
+                    Text("A failed or cancelled export can leave an incomplete destination document; delete it using your file manager.")
+                }
                 val documents = discovery?.files.orEmpty().filter { file ->
                     file.name.contains(documentSearch, ignoreCase = true) && when (documentFilter) {
                         "APK" -> file.kind.startsWith("APK")
@@ -212,7 +256,8 @@ fun InfoScreen(onSnapshotUpdated: () -> Unit = {}) {
                     }
                 }.let { files -> if (largestFirst) files.sortedByDescending { it.size ?: -1 } else files.sortedBy { it.name.lowercase(java.util.Locale.ROOT) } }
                 items(documents, key = { it.uri.toString() }) { file ->
-                    Card(Modifier.fillMaxWidth()) {
+                    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(UiTokens.CardRadius),
+                        colors = CardDefaults.cardColors(containerColor = UiTokens.Surface, contentColor = UiTokens.Ink)) {
                         Column(Modifier.padding(12.dp)) {
                             Text(file.name, style = MaterialTheme.typography.titleSmall)
                             Text("${file.kind} · ${MonitorFormats.bytes(file.size)}")
@@ -225,14 +270,6 @@ fun InfoScreen(onSnapshotUpdated: () -> Unit = {}) {
                         }
                     }
                 }
-            }
-            "Reports" -> item {
-                Text("Export a newly collected, coherent snapshot with its UTC timestamp. Reports contain device details but no identifiers, task data, passwords, or download names. Choose the destination yourself. PDF uses Android's native PDF renderer; font glyph coverage depends on Android.")
-                val filename = "clarity-info-${snapshot?.capturedAt ?: System.currentTimeMillis()}"
-                OutlinedButton(enabled = !working && !pickerPending, onClick = { pickerPending = true; try { textExport.launch("$filename.txt") } catch (_: Exception) { pickerPending = false; message = "No export picker available." } }) { Text("Save TXT") }
-                OutlinedButton(enabled = !working && !pickerPending, onClick = { pickerPending = true; try { csvExport.launch("$filename.csv") } catch (_: Exception) { pickerPending = false; message = "No export picker available." } }) { Text("Save CSV") }
-                OutlinedButton(enabled = !working && !pickerPending, onClick = { pickerPending = true; try { pdfExport.launch("$filename.pdf") } catch (_: Exception) { pickerPending = false; message = "No export picker available." } }) { Text("Save PDF") }
-                Text("A failed or cancelled export can leave an incomplete destination document; delete it using your file manager.")
             }
             "Maintenance" -> item {
                 Text("Only Clarity's cacheDir and codeCacheDir are eligible. Tasks, notes, vault, settings, imports, reports and other apps are not cleared. No RAM boosting, task killing or device-wide cache cleaning.")
@@ -261,10 +298,22 @@ fun InfoScreen(onSnapshotUpdated: () -> Unit = {}) {
 
 @Composable
 private fun InfoMetric(label: String, value: String) {
-    Card(Modifier.fillMaxWidth()) {
+    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(UiTokens.CardRadius),
+        colors = CardDefaults.cardColors(containerColor = UiTokens.Surface, contentColor = UiTokens.Ink)) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(label, style = MaterialTheme.typography.labelLarge)
             Text(value, style = MaterialTheme.typography.bodyMedium)
+        }
+    }
+}
+
+@Composable
+private fun InfoProgress(label: String, value: String?) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("$label: ${value ?: "Unavailable"}", color = UiTokens.Muted)
+        MonitorFormats.percentFraction(value)?.let { fraction ->
+            LinearProgressIndicator(progress = { fraction }, color = UiTokens.Accent,
+                trackColor = UiTokens.SurfaceRaised, modifier = Modifier.fillMaxWidth())
         }
     }
 }

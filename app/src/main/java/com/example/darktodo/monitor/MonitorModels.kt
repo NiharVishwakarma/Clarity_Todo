@@ -28,6 +28,14 @@ object MonitorFormats {
 
     fun batteryPercent(level: Int, scale: Int): String = percent(level.toLong(), scale.toLong())
 
+    fun percentFraction(formatted: String?): Float? = formatted?.takeIf { it.endsWith("%") }
+        ?.dropLast(1)?.toFloatOrNull()?.takeIf { it.isFinite() && it in 0f..100f }?.div(100f)
+
+    fun batteryTemperature(tenthsCelsius: Int?): String =
+        if (tenthsCelsius == null || tenthsCelsius == Int.MIN_VALUE ||
+            tenthsCelsius == Int.MAX_VALUE || tenthsCelsius == -1 || tenthsCelsius < -2731) UNAVAILABLE
+        else String.format(Locale.US, "%.1f °C", tenthsCelsius / 10.0)
+
     fun timestamp(time: Long): String = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).apply {
         timeZone = TimeZone.getTimeZone("UTC")
     }.format(Date(time))
@@ -37,8 +45,11 @@ object MonitorFormats {
         return "\"" + safe.replace("\"", "\"\"") + "\""
     }
 
-    fun report(snapshot: MonitorSnapshot, csv: Boolean): String {
-        val entries = linkedMapOf("Captured at (UTC)" to timestamp(snapshot.capturedAt)).apply {
+    fun report(snapshot: MonitorSnapshot, csv: Boolean, generatedAt: Long = System.currentTimeMillis()): String {
+        val entries = linkedMapOf(
+            "Generated at (UTC)" to timestamp(generatedAt),
+            "Captured at (UTC)" to timestamp(snapshot.capturedAt)
+        ).apply {
             putAll(snapshot.values)
         }
         return if (csv) "Metric,Value\r\n" + entries.entries.joinToString("\r\n", postfix = "\r\n") {

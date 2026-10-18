@@ -6,10 +6,15 @@ import android.os.CancellationSignal
 import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.LinkOption
@@ -43,6 +48,23 @@ internal class DiscoveryDirectories(private val maxDepth: Int = 12, private val 
         depth <= maxDepth && seen.size < maxDirectories && seen.add(id)
 }
 
+internal suspend fun runDiscoveryWithinDeadline(
+    timeoutMillis: Long,
+    cancelProvider: () -> Unit = {},
+    block: suspend () -> Unit
+): Boolean = coroutineScope {
+    // Register before synchronous provider work; cancellation can be signalled from another thread.
+    val watchdog = launch(Dispatchers.IO, start = CoroutineStart.UNDISPATCHED) {
+        try { delay(timeoutMillis) }
+        finally { cancelProvider() }
+    }
+    try {
+        withTimeoutOrNull(timeoutMillis) { block(); true } ?: false
+    } finally {
+        watchdog.cancel()
+    }
+}
+
 object MonitorDocuments {
     private const val DIRECTORY = DocumentsContract.Document.MIME_TYPE_DIR
     private val columns = arrayOf(
@@ -55,8 +77,10 @@ object MonitorDocuments {
     suspend fun discover(context: Context, uri: Uri, tree: Boolean): DiscoveryResult = withContext(Dispatchers.IO) {
         val found = mutableListOf<DiscoveredDocument>()
         var partial = false
+        var timedOut = false
         var inspected = 0
         val started = System.nanoTime()
+        val scanSignal = CancellationSignal()
         val directories = DiscoveryDirectories()
         val pending = ArrayDeque<Pair<String, Int>>()
         if (tree) {
@@ -67,11 +91,10 @@ object MonitorDocuments {
         suspend fun read(queryUri: Uri, depth: Int, single: Boolean) {
             currentCoroutineContext().ensureActive()
             val cursor = suspendCancellableCoroutine<android.database.Cursor?> { continuation ->
-                val signal = CancellationSignal()
-                continuation.invokeOnCancellation { signal.cancel() }
+                continuation.invokeOnCancellation { scanSignal.cancel() }
                 try {
                     val projection = if (single) arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE) else columns
-                    val result = context.contentResolver.query(queryUri, projection, null, null, null, signal)
+                    val result = context.contentResolver.query(queryUri, projection, null, null, null, scanSignal)
                     continuation.resume(result) { result?.close() }
                 } catch (error: Exception) {
                     if (continuation.isActive) continuation.resumeWithException(error)
@@ -107,22 +130,32 @@ object MonitorDocuments {
                 }
             }
         }
-        try {
-            if (!tree) read(uri, 0, true)
-            while (pending.isNotEmpty() && inspected < 2000 && System.nanoTime() - started <= 8_000_000_000L) {
-                currentCoroutineContext().ensureActive()
-                val (id, depth) = pending.removeFirst()
-                try {
-                    read(DocumentsContract.buildChildDocumentsUriUsingTree(uri, id), depth, false)
-                } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
-                catch (_: Exception) { partial = true }
-            }
-        } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
-        catch (_: Exception) { partial = true }
+        val completed = runDiscoveryWithinDeadline(8_000, scanSignal::cancel) {
+            try {
+                if (!tree) read(uri, 0, true)
+                while (pending.isNotEmpty() && inspected < 2000 && System.nanoTime() - started <= 8_000_000_000L) {
+                    currentCoroutineContext().ensureActive()
+                    val (id, depth) = pending.removeFirst()
+                    try {
+                        read(DocumentsContract.buildChildDocumentsUriUsingTree(uri, id), depth, false)
+                    } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                    catch (_: Exception) { partial = true }
+                }
+            } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+            catch (_: Exception) { partial = true }
+        }
+        if (!completed || System.nanoTime() - started >= 8_000_000_000L) {
+            partial = true
+            timedOut = true
+        }
         if (pending.isNotEmpty()) partial = true
         DiscoveryResult(found.distinctBy { it.uri }, partial,
-            if (partial) "Partial results: access revoked, provider error, cycle, or scan limit reached. Select again to retry."
-            else "Only your selected document/folder was inspected. Sizes may be unknown; this is not a device-wide Downloads inventory.")
+            when {
+                timedOut -> "Partial results: the 8-second deadline expired and provider cancellation was requested. Providers may ignore cancellation or block while reading cursor rows; no hard response-time guarantee is possible."
+                partial -> "Partial results: access revoked, provider error, cycle, or scan limit reached. Select again to retry."
+                else -> "Only your selected document/folder was inspected. Sizes may be unknown; this is not a device-wide Downloads inventory."
+            }
+        )
     }
 }
 

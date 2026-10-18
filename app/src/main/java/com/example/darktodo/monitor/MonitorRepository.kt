@@ -1,6 +1,9 @@
 package com.example.darktodo.monitor
 
 import android.app.ActivityManager
+import android.app.KeyguardManager
+import android.app.admin.DevicePolicyManager
+import android.app.usage.StorageStatsManager
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -9,6 +12,8 @@ import android.os.Build
 import android.os.Environment
 import android.os.StatFs
 import android.os.SystemClock
+import android.os.Process
+import android.os.storage.StorageManager
 import android.util.AtomicFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
@@ -18,7 +23,6 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.File
-import java.util.Locale
 
 object MonitorRepository {
     private val refreshLock = Mutex()
@@ -73,7 +77,25 @@ object MonitorRepository {
         value("Display density") { "${context.resources.displayMetrics.densityDpi} dpi" }
         value("Android") { "${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})" }
         value("Build") { Build.DISPLAY }
+        value("Build fingerprint") { Build.FINGERPRINT }
         value("Security patch") { Build.VERSION.SECURITY_PATCH }
+        value("Device lock configured") {
+            (context.getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager)?.isDeviceSecure?.let {
+                if (it) "Yes — PIN, password or pattern configured" else "No secure device lock configured"
+            }
+        }
+        value("Storage encryption status") {
+            val policy = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as? DevicePolicyManager
+            when (policy?.storageEncryptionStatus) {
+                DevicePolicyManager.ENCRYPTION_STATUS_ACTIVE -> "Active"
+                DevicePolicyManager.ENCRYPTION_STATUS_ACTIVE_PER_USER -> "Active (per-user keys)"
+                DevicePolicyManager.ENCRYPTION_STATUS_ACTIVE_DEFAULT_KEY -> "Active (default key)"
+                DevicePolicyManager.ENCRYPTION_STATUS_INACTIVE -> "Inactive"
+                DevicePolicyManager.ENCRYPTION_STATUS_ACTIVATING -> "Activating"
+                DevicePolicyManager.ENCRYPTION_STATUS_UNSUPPORTED -> "Unsupported"
+                else -> null
+            }
+        }
         value("Android base release") { Build.VERSION.BASE_OS }
         value("Bootloader") { Build.BOOTLOADER.takeUnless { it == Build.UNKNOWN } }
         value("OS build time (not install date)") {
@@ -100,6 +122,7 @@ object MonitorRepository {
             val stat = try { path?.let { StatFs(it.path) } } catch (_: Exception) { null }
             value("Total $prefix storage") { MonitorFormats.bytes(stat?.totalBytes) }
             value("Available $prefix storage") { MonitorFormats.bytes(stat?.availableBytes) }
+            value("Free $prefix storage (including reserved)") { MonitorFormats.bytes(stat?.freeBytes) }
             value("Used $prefix storage") { MonitorFormats.bytes(stat?.let { MonitorFormats.used(it.totalBytes, it.availableBytes) }) }
             value("$prefix storage utilization") { stat?.let {
                 MonitorFormats.used(it.totalBytes, it.availableBytes)?.let { used -> MonitorFormats.percent(used, it.totalBytes) }
@@ -109,7 +132,16 @@ object MonitorRepository {
         storage("app external", context.getExternalFilesDir(null)?.takeIf {
             Environment.getExternalStorageState(it) == Environment.MEDIA_MOUNTED
         })
-        value("Storage accounting") { "Filesystem total minus bytes available to apps; reserved space is included in used. App external may share internal storage; do not add totals." }
+        value("Storage accounting") { "Used = filesystem total minus bytes available to apps, including reserved space. Free includes reserved bytes unavailable to normal apps. App external may share internal storage; do not add totals." }
+        val ownStorage = try {
+            val manager = context.getSystemService(Context.STORAGE_SERVICE) as StorageManager
+            val stats = context.getSystemService(Context.STORAGE_STATS_SERVICE) as StorageStatsManager
+            stats.queryStatsForUid(manager.getUuidForPath(context.filesDir), Process.myUid())
+        } catch (_: Exception) { null }
+        value("Clarity app storage: code") { MonitorFormats.bytes(ownStorage?.appBytes) }
+        value("Clarity app storage: data (includes cache)") { MonitorFormats.bytes(ownStorage?.dataBytes) }
+        value("Clarity app storage: cache (subset of data)") { MonitorFormats.bytes(ownStorage?.cacheBytes) }
+        value("Clarity app storage source") { "Android StorageStatsManager for this app's own UID and data volume; no Usage Access needed. Code plus data is the app total; do not add cache again. Values are system estimates and may update asynchronously." }
         val battery = try { context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED)) } catch (_: Exception) { null }
         fun extra(key: String) = battery?.getIntExtra(key, -1) ?: -1
         value("Battery") { MonitorFormats.batteryPercent(extra(BatteryManager.EXTRA_LEVEL), extra(BatteryManager.EXTRA_SCALE)) }
@@ -147,12 +179,18 @@ object MonitorRepository {
             }
         }
         value("Battery temperature") {
-            if (battery?.hasExtra(BatteryManager.EXTRA_TEMPERATURE) == true)
-                String.format(Locale.US, "%.1f °C", extra(BatteryManager.EXTRA_TEMPERATURE) / 10.0) else null
+            MonitorFormats.batteryTemperature(
+                if (battery?.hasExtra(BatteryManager.EXTRA_TEMPERATURE) == true)
+                    battery.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, Int.MIN_VALUE) else null
+            )
         }
         value("Battery voltage") { extra(BatteryManager.EXTRA_VOLTAGE).takeIf { it > 0 }?.let { "$it mV" } }
         value("Battery technology") { battery?.getStringExtra(BatteryManager.EXTRA_TECHNOLOGY) }
         val manager = context.getSystemService(Context.BATTERY_SERVICE) as? BatteryManager
+        value("Battery remaining capacity (property)") {
+            manager?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
+                ?.takeIf { it in 0..100 }?.let { "$it%" }
+        }
         value("Battery charge counter") {
             manager?.getLongProperty(BatteryManager.BATTERY_PROPERTY_CHARGE_COUNTER)
                 ?.takeIf { it != Long.MIN_VALUE && it in 1..Int.MAX_VALUE.toLong() }?.let { "$it µAh" }

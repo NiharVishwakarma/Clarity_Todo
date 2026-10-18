@@ -1,7 +1,8 @@
 package com.example.darktodo.widget
 
 internal object SystemMonitorWidgetState {
-    const val EXPANDED_HEIGHT_DP = 230
+    const val COMPACT_MIN_HEIGHT_DP = 260
+    const val EXPANDED_HEIGHT_DP = 340
     const val STALE_AFTER_MS = 60 * 60 * 1000L
 
     fun expanded(minHeight: Int) = minHeight >= EXPANDED_HEIGHT_DP

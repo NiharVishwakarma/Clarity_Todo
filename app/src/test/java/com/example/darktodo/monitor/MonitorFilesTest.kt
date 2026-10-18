@@ -8,6 +8,11 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.util.UUID
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.runBlocking
 
 class MonitorFilesTest {
     private fun directory(): Path = Files.createDirectories(Paths.get("build", "monitor-test-${UUID.randomUUID()}"))
@@ -32,6 +37,37 @@ class MonitorFilesTest {
         assertFalse(directories.accept("too-deep", 3))
         assertTrue(directories.accept("grandchild", 2))
         assertFalse(directories.accept("over-budget", 1))
+    }
+
+    @Test fun discoveryTimeoutKeepsPartialRowsAndRequestsProviderCancellation() = runBlocking {
+        val found = mutableListOf("first")
+        var providerCancelled = false
+        val completed = runDiscoveryWithinDeadline(30, { providerCancelled = true }) {
+            found.add("second")
+            delay(10_000)
+        }
+        assertFalse(completed)
+        assertEquals(listOf("first", "second"), found)
+        assertTrue(providerCancelled)
+    }
+
+    @Test fun explicitDiscoveryCancellationIsNotMistakenForTimeout() = runBlocking {
+        var propagated = false
+        var providerCancelled = false
+        try {
+            runDiscoveryWithinDeadline(10_000, { providerCancelled = true }) { throw CancellationException("user cancel") }
+        } catch (_: CancellationException) { propagated = true }
+        assertTrue(propagated)
+        assertTrue(providerCancelled)
+    }
+
+    @Test fun deadlineSignalsProviderWhileCollectionThreadIsBlocked() = runBlocking {
+        val cancellation = CountDownLatch(1)
+        val completed = runDiscoveryWithinDeadline(30, cancellation::countDown) {
+            assertTrue(cancellation.await(2, TimeUnit.SECONDS))
+            delay(1_000)
+        }
+        assertFalse(completed)
     }
 
     @Test fun onlyCacheContentsAreDeletedAndRootRemains() {

@@ -12,13 +12,14 @@ import kotlinx.coroutines.withContext
 object MonitorReports {
     suspend fun export(context: Context, uri: Uri, format: String, snapshot: MonitorSnapshot): Unit = withContext(Dispatchers.IO) {
         currentCoroutineContext().ensureActive()
+        val generatedAt = System.currentTimeMillis()
         val stream = context.contentResolver.openOutputStream(uri, "wt") ?: error("Destination cannot be opened")
         stream.use { output ->
             if (format == "pdf") {
                 val pdf = PdfDocument()
                 try {
                     val paint = Paint().apply { textSize = 10f; color = android.graphics.Color.BLACK }
-                    val lines = MonitorFormats.report(snapshot, false).lines().flatMap { line ->
+                    val lines = MonitorFormats.report(snapshot, false, generatedAt).lines().flatMap { line ->
                         // Native PDF has no layout engine: wrap by measured width, not character count.
                         buildList {
                             var remaining = line
@@ -42,7 +43,7 @@ object MonitorReports {
                     pdf.close()
                 }
             } else {
-                output.write(MonitorFormats.report(snapshot, format == "csv").toByteArray(Charsets.UTF_8))
+                output.write(MonitorFormats.report(snapshot, format == "csv", generatedAt).toByteArray(Charsets.UTF_8))
             }
         }
     }

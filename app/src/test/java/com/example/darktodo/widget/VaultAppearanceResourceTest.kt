@@ -53,4 +53,26 @@ class VaultAppearanceResourceTest {
         assertTrue(widget.contains("override fun onAppWidgetOptionsChanged"))
         assertTrue(widget.contains("MainActivity.ACTION_OPEN_VAULT"))
     }
+
+    @Test fun fontImportUsesBackgroundIoAndReleasesDocumentPermission() {
+        val screen = source("ui/VaultAppearanceScreen.kt")
+        val ioStart = screen.indexOf("withContext(Dispatchers.IO)")
+        val copyStart = screen.indexOf("LocalWidgetFonts.import(context.applicationContext, uri)")
+        assertTrue(ioStart >= 0 && copyStart > ioStart)
+        assertTrue(screen.contains("finally {"))
+        assertTrue(screen.contains("releasePersistableUriPermission(uri, readPermission)"))
+        assertTrue(screen.contains("enabled = !importing"))
+    }
+
+    @Test fun sliderDragsPreviewLocallyAndOnlyCommitOnRelease() {
+        val screen = source("ui/VaultAppearanceScreen.kt")
+        val preview = screen.substringAfter("fun preview(value: VaultAppearance) {").substringBefore("}")
+        assertTrue(preview.contains("style = value.sanitized()"))
+        assertFalse(preview.contains("VaultAppearancePrefs.save"))
+        val commit = screen.substringAfter("fun commitPreview() {").substringBefore("}")
+        assertTrue(commit.contains("VaultAppearancePrefs.save(context, style)"))
+        assertEquals(6, Regex("onFinished = ::commitPreview").findAll(screen).count())
+        assertTrue(screen.contains("onValueChangeFinished = onFinished"))
+        assertFalse(Regex("VaultSlider\\([^\\n]+\\{ update\\(").containsMatchIn(screen))
+    }
 }

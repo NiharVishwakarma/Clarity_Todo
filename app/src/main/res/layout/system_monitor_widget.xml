@@ -30,6 +30,8 @@
             android:gravity="center"
             android:contentDescription="Refresh system metrics"
             android:text="Refresh"
+            android:maxLines="1"
+            android:ellipsize="end"
             android:textColor="#FF8A96"
             android:textSize="12sp" />
     </LinearLayout>
@@ -121,6 +123,8 @@
             android:layout_height="32dp"
             android:gravity="center"
             android:text="Downloads"
+            android:maxLines="1"
+            android:ellipsize="end"
             android:textColor="#FF8A96"
             android:textSize="11sp" />
     </LinearLayout>
