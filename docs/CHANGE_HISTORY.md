@@ -13,6 +13,13 @@ This log begins with the repository snapshot available when these project notes 
 
 ## Current version summary
 
+### 2026-10-18 — Use uploaded Vault widget artwork
+
+- Wired the live Vault widget and drawable picker preview to the existing `vault_widget_icon.png`, preserving sizing and locked/setup shortcut behavior without displaying vault contents.
+- Extended `WidgetResourceContractTest` to verify the uploaded PNG exists and is nonempty, the live/preview icon references match, and provider metadata selects those resources.
+- Updated project memory and the repository map to reflect the artwork and test coverage, including this history entry.
+- Validation: all four `WidgetResourceContractTest` tests passed via Kotlin/JUnit; `git diff --check` passed. Gradle targeted tests and `assembleDebug` were blocked before compilation because the sandbox could not resolve Google Maven (`dl.google.com`) to download Android Gradle Plugin 8.7.3. Device rendering remains unverified.
+
 ### 2026-10-18 — Use uploaded launcher artwork without a competing variant
 
 - Verified that the manifest's normal and round icons share the adaptive foreground and dark/red background, with API 26 matching the app's minimum SDK. Kept the existing manifest, XML, and uploaded `app/src/main/res/drawable/clarity_suite_icon.png` unchanged.
