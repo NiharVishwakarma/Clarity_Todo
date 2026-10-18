@@ -115,6 +115,10 @@
             android:layout_weight="1"
             android:divider="@android:color/transparent"
             android:dividerHeight="0dp"
+            android:cacheColorHint="@android:color/transparent"
+            android:scrollingCache="false"
+            android:requiresFadingEdge="none"
+            android:overScrollMode="never"
             android:scrollbars="none"
             android:clipToPadding="false" />
 

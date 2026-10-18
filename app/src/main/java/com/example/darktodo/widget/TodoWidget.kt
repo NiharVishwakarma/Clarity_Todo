@@ -93,7 +93,6 @@ object TodoWidget {
         val views = RemoteViews(context.packageName, WidgetFontLayouts.todo(settings.fontFamily, importedFont))
         val titleColor = parseColor(settings.taskTitle)
         val incompleteColor = parseColor(settings.incomplete)
-        val completeColor = parseColor(settings.complete)
         val cardColor = parseColor(settings.taskCard)
         val density = context.resources.displayMetrics.density
         val pad = (settings.paddingDp * density).toInt()
@@ -101,11 +100,11 @@ object TodoWidget {
         views.setInt(R.id.widget_root_background, "setColorFilter", parseColor(settings.widgetBackground))
         views.setInt(R.id.widget_count_panel_background, "setColorFilter", parseColor(settings.countPanel))
         views.setInt(R.id.widget_task_card_background, "setColorFilter", cardColor)
+        // Alpha belongs only to this background image, never to the collection or its rows.
+        views.setInt(R.id.widget_task_card_background, "setImageAlpha", settings.taskCardAlpha)
         WidgetBackgrounds.render(context, WidgetBackgrounds.TODO, widthDp, heightDp, 12f)?.let { wallpaper ->
             views.setImageViewBitmap(R.id.widget_root_background, wallpaper)
             views.setInt(R.id.widget_root_background, "setColorFilter", Color.TRANSPARENT)
-            // Let the wallpaper show through the task list while keeping text readable.
-            views.setInt(R.id.widget_task_card_background, "setImageAlpha", 150)
         }
         setText(context, views, R.id.widget_count, incompleteCount.toString(), settings.fontFileId, 22f, Color.WHITE)
         setText(context, views, R.id.widget_count_label, "Tasks", settings.fontFileId, 11f, Color.WHITE)
@@ -153,7 +152,6 @@ object TodoWidget {
         val titleColor = parseColor(settings.taskTitle)
         val incompleteColor = parseColor(settings.incomplete)
         val completeColor = parseColor(settings.complete)
-        val cardColor = parseColor(settings.taskCard)
         val opacity = if (task.completed) (255 * (100 - settings.fadePercent) / 100).coerceIn(0, 255) else 255
         val checkColor = withAlpha(if (task.completed) completeColor else incompleteColor, opacity)
         if (importedFont) {
@@ -171,8 +169,7 @@ object TodoWidget {
             row.setTextViewTextSize(R.id.widget_task_title, TypedValue.COMPLEX_UNIT_SP, rowTitleSize)
             row.setInt(R.id.widget_task_title, "setTextColor", renderedTitleColor)
         }
-        row.setInt(R.id.widget_task_row, "setBackgroundColor",
-            if (WidgetBackgrounds.has(context, WidgetBackgrounds.TODO)) Color.TRANSPARENT else withAlpha(cardColor, opacity))
+        row.setInt(R.id.widget_task_row, "setBackgroundColor", Color.TRANSPARENT)
         val toggleIntent = Intent()
             .putExtra(EXTRA_COLLECTION_ACTION, ACTION_TOGGLE_TASK)
             .putExtra(EXTRA_TASK_ID, task.id)

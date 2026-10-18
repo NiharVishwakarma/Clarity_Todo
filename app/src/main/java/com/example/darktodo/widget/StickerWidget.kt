@@ -65,14 +65,14 @@ object StickerWidget {
     fun update(context: Context, manager: AppWidgetManager, id: Int) {
         val density = context.resources.displayMetrics.density
         val options = manager.getAppWidgetOptions(id)
-        val wDp = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 250).coerceAtLeast(40)
-        val hDp = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 110).coerceAtLeast(40)
+        val wDp = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 300).coerceAtLeast(40)
+        val hDp = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 70).coerceAtLeast(40)
         val note = selected(context, id)
         val style = if (note != null) NoteAppearance.effectiveStyle(context, StickerStore.styleFor(context, note), note.id) else StickerStore.globalStyle(context)
         val customTypeface = LocalWidgetFonts.typeface(context, style.fontFileId)
         Log.d(TAG, "update id=$id note=${note?.id} family=${style.fontFamily} fontFile=${style.fontFileId} loaded=${customTypeface != null} size=${style.fontSizeSp} weight=${style.fontWeight}")
         val bitmap = render(
-            title = note?.title ?: "No notes yet \uD83D\uDCDD",
+            title = note?.title?.ifBlank { "Untitled note" } ?: "No notes yet \uD83D\uDCDD",
             content = note?.content ?: "Open Clarity and create a note to see it here.",
             style = style,
             widthPx = (wDp * density).toInt(),
@@ -86,10 +86,11 @@ object StickerWidget {
         views.setImageViewBitmap(R.id.sticker_widget_image, bitmap)
         views.setContentDescription(R.id.sticker_widget_image, note?.let { "${it.title}. ${it.content}. Opens the note for editing" } ?: "No notes yet")
         val open = Intent(context, MainActivity::class.java)
+            .setAction(MainActivity.ACTION_OPEN_NOTE)
+            .setData(android.net.Uri.parse("clarity://notes/open/$id"))
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
         if (note != null) {
-            open.setAction(MainActivity.ACTION_OPEN_NOTE)
-                .putExtra(MainActivity.EXTRA_NOTE_ID, note.id)
+            open.putExtra(MainActivity.EXTRA_NOTE_ID, note.id)
                 .setData(android.net.Uri.parse("clarity://note/open/${note.id}"))
         }
         val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
@@ -141,8 +142,8 @@ object StickerWidget {
         val canvas = Canvas(bitmap)
 
         val shadow = style.elevationDp * d
-        val inset = style.marginDp * d + shadow + 2f * d
-        val card = RectF(inset, inset, w - inset, h - inset - shadow / 2f)
+        val inset = min(style.marginDp * d + shadow + 2f * d, min(w, h) / 4f)
+        val card = RectF(inset, inset, w - inset, (h - inset - shadow / 2f).coerceAtLeast(inset + 1f))
         val radius = style.cornerRadiusDp * d
         val opacity = (255 * style.opacityPercent / 100f).toInt()
         val background = StickerHex.toArgb(style.background)
@@ -183,9 +184,11 @@ object StickerWidget {
             canvas.drawRoundRect(RectF(card.left + half, card.top + half, card.right - half, card.bottom - half), inner, inner, line)
         }
 
-        val pad = style.paddingDp * d
+        val compact = w >= h * 2 && h / d <= 120f
+        val pad = min(style.paddingDp * d, min(card.width(), card.height()) / 4f)
+        val verticalPad = if (compact) min(pad, 8f * d) else pad
         val textWidth = (card.width() - pad * 2).toInt().coerceAtLeast(10)
-        val availHeight = (card.height() - pad * 2).coerceAtLeast(10f)
+        val availHeight = (card.height() - verticalPad * 2).coerceAtLeast(10f)
         val ink = StickerHex.toArgb(style.text)
         val baseSize = style.fontSizeSp * style.textScalePercent / 100f * d
 
@@ -215,8 +218,8 @@ object StickerWidget {
         var gap = 0f
         while (true) {
             val (hp, bp) = paints(s)
-            head = if (title.isBlank()) null else layoutFor(title, hp, textWidth, style.lineHeight, 3)
-            body = if (content.isBlank()) null else layoutFor(content, bp, textWidth, style.lineHeight)
+            head = if (title.isBlank()) null else layoutFor(title, hp, textWidth, style.lineHeight, if (compact) 1 else 3)
+            body = if (content.isBlank()) null else layoutFor(content, bp, textWidth, style.lineHeight, if (compact) 1 else Int.MAX_VALUE)
             gap = if (head != null && body != null) 4f * d else 0f
             val total = (head?.height ?: 0) + gap + (body?.height ?: 0)
             if (total <= availHeight || s <= minScale) break
@@ -235,7 +238,7 @@ object StickerWidget {
 
         canvas.save()
         canvas.clipRect(card)
-        canvas.translate(card.left + pad, card.top + pad)
+        canvas.translate(card.left + pad, card.top + verticalPad)
         head?.draw(canvas)
         if (body != null) {
             canvas.translate(0f, headHeight + gap)

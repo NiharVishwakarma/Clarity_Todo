@@ -13,6 +13,16 @@ This log begins with the repository snapshot available when these project notes 
 
 ## Current version summary
 
+### 2026-10-18 — Repair Notes picker and refine widget presentation
+
+- Removed the unsupported plain `View` divider from the Notes `previewLayout`; rebuilt the preview as a compact two-line card using only RemoteViews-supported classes. Existing provider, manifest metadata and configuration activity registration were already correct. Earlier label and bitmap-size fixes did not address preview inflation.
+- Changed Notes default sizing to a launcher-controlled 4x1 request (`300dp` x `70dp`) with horizontal/vertical resizing. Compact live notes use one title/body line with bounded spacing; note selection, editing, style, contrast and private background images stay on the existing store/rendering path. Empty widgets now route to Notes, and warm note intents refresh the activity route.
+- Enlarged the existing Vault widget artwork from 52dp to 62dp (19.2%), proportionally fitted/centered in live and picker resources; kept enough minimum resize height for padding. No launcher icon changes.
+- Made the To-Do card the sole task-area color layer, behind transparent task rows; disabled ListView edge fading, overscroll and opaque scroll caches in all system/imported font layouts. Preserved completed-task text/status fade and wallpaper-only darkening.
+- Added `Task card background transparency` with percentage slider, stored independently of RGB color in `todo_store`; alpha is applied only to the card background ImageView. Removed the wallpaper-dependent hard-coded alpha. Reset and saved-default handling include the setting.
+- Removed only the Notes navigation-label emoji in `ModuleNavigation`; retained its icon, tab styling and Notes screen content.
+- Added JVM regression tests for resource contracts, transparency endpoints/independence and the plain navigation label. Updated project memory, including this change-history entry. Passed 80 static source/resource assertions, 41 resource-reference checks and whitespace validation. VS Code found no diagnostics but discovered no Kotlin tests; Android build/JUnit execution, Actions for these changes and launcher rendering remain unverified. Use the existing GitHub Actions workflow and phone checklist in project memory.
+
 ### 2026-10-18 — Handle blank optional signing secrets
 
 - Updated Gradle signing configuration to treat blank environment variables as unset before falling back to local properties. This prevents GitHub Actions' declared-but-empty optional debug secrets from triggering the partial-signing guard. Release and debug signing still require complete credential sets when any value is supplied.

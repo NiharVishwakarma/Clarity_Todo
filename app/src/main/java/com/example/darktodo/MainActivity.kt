@@ -210,20 +210,20 @@ class MainActivity : FragmentActivity() {
             if (welcome) WelcomeBackGate { restored ->
                 if (restored) recreate() else welcome = false
             } else TodoApp(intent.getStringExtra("edit_task_id"), intent.getStringExtra("task_date"), intent.action == ACTION_CREATE_TASK, intent.action == ACTION_OPEN_VAULT,
-                if (intent.action == ACTION_OPEN_NOTE) intent.getStringExtra(EXTRA_NOTE_ID) else null)
+                if (intent.action == ACTION_OPEN_NOTE) intent.getStringExtra(EXTRA_NOTE_ID) else null, intent.action == ACTION_OPEN_NOTE)
         } } }
     }
 
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        if (intent.action == ACTION_OPEN_VAULT) recreate()
+        if (intent.action == ACTION_OPEN_VAULT || intent.action == ACTION_OPEN_NOTE) recreate()
     }
 
 }
 
 @OptIn(ExperimentalFoundationApi::class)
-@Composable private fun TodoApp(openTaskId: String? = null, openTaskDate: String? = null, startCreateTask: Boolean = false, openVault: Boolean = false, openNoteId: String? = null) {
+@Composable private fun TodoApp(openTaskId: String? = null, openTaskDate: String? = null, startCreateTask: Boolean = false, openVault: Boolean = false, openNoteId: String? = null, openNotes: Boolean = false) {
     val context = LocalContext.current
     var tasks by remember { mutableStateOf(TaskStore.tasks(context)) }
     var events by remember { mutableStateOf(TaskStore.history(context)) }
@@ -231,7 +231,7 @@ class MainActivity : FragmentActivity() {
     val startRoute = remember {
         when {
             openVault -> ModuleNavigation.routeFor(ModuleNavigation.VAULT)
-            openNoteId != null -> ModuleNavigation.routeFor(ModuleNavigation.STICKERS)
+            openNotes || openNoteId != null -> ModuleNavigation.routeFor(ModuleNavigation.STICKERS)
             openTaskId != null || openTaskDate != null || startCreateTask -> ModuleNavigation.home
             else -> ModulePrefs.last(context)?.let { ModuleNavigation.routeFor(it) } ?: ModuleNavigation.routeFor(ModuleNavigation.CALENDAR)
         }
@@ -481,6 +481,7 @@ class MainActivity : FragmentActivity() {
                     },
                     onColor = { key, value -> WidgetSettings.saveColor(context, key, value); refreshSettings(); TodoWidget.updateAll(context) },
                     onFade = { WidgetSettings.saveFade(context, it); refreshSettings(); TodoWidget.updateAll(context) },
+                    onTaskCardTransparency = { WidgetSettings.saveTaskCardTransparency(context, it); refreshSettings(); TodoWidget.updateAll(context) },
                     onFontFamily = { WidgetSettings.saveFontFamily(context, it); refreshSettings(); TodoWidget.updateAll(context) },
                     onTodoImportedFont = { font -> WidgetSettings.saveImportedFont(context, font.id); refreshSettings(); TodoWidget.updateAll(context) },
                     onCalendarFontFamily = { CalendarWidgetSettings.saveFontFamily(context, it); refreshSettings(); com.example.darktodo.widget.CalendarWidget.updateAll(context) },
@@ -1511,6 +1512,7 @@ private data class ColorPickTarget(val key: String, val label: String, val value
     onImportFont: (calendar: Boolean) -> Unit,
     onColor: (String, String) -> Unit,
     onFade: (Int) -> Unit,
+    onTaskCardTransparency: (Int) -> Unit,
     onFontFamily: (WidgetFontFamily) -> Unit,
     onTodoImportedFont: (ImportedWidgetFont) -> Unit,
     onCalendarFontFamily: (WidgetFontFamily) -> Unit,
@@ -1568,6 +1570,7 @@ private data class ColorPickTarget(val key: String, val label: String, val value
                 ColorSettingRow("Task-count panel", settings.countPanel) { pickTarget = ColorPickTarget("count_panel", "Task-count panel", settings.countPanel, false) }
                 ColorSettingRow("Widget background", settings.widgetBackground) { pickTarget = ColorPickTarget("background", "Widget background", settings.widgetBackground, false) }
                 ColorSettingRow("Task card background", settings.taskCard) { pickTarget = ColorPickTarget("task_card", "Task card background", settings.taskCard, false) }
+                SettingSlider("Task card background transparency", "${settings.taskCardTransparencyPercent}%", settings.taskCardTransparencyPercent.toFloat(), 0f..100f, { onTaskCardTransparency(it.toInt()) }, intValued = true)
                 ColorSettingRow("Task title", settings.taskTitle) { pickTarget = ColorPickTarget("task_title", "Task title", settings.taskTitle, false) }
               }
             }
