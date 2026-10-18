@@ -13,11 +13,20 @@ This log begins with the repository snapshot available when these project notes 
 
 ## Current version summary
 
+### 2026-10-18 — Repair Drive backup authorization and restore safety
+
+- Confirmed the app uses Google Identity Services `AuthorizationClient` with `drive.appdata`/email scopes and Drive v3 `appDataFolder`, not Firebase. Documented the actual likely debug-build OAuth mismatch: Cloud setup is bound to the persistent certificate, while routine CI previously used an ephemeral debug certificate.
+- Added optional stable, non-production debug keystore support to Gradle/Actions; the production release key remains separate. CI reports the public APK signer fingerprints. Register an Android OAuth client for package `com.example.darktodo` and the stable debug SHA-1; external Google Cloud configuration is still required.
+- Mapped OAuth developer/network errors to actionable messages and made user cancellation a neutral, non-destructive notice. Prevented duplicate authorization launches.
+- First-launch detection now treats any backed-up local preferences as existing data. A no-backup result offers explicit Start fresh or Back choices; welcome restore explains that it replaces local state and requires a second explicit confirmation.
+- Snapshot settings and Base64 blobs are parsed before any local writes, so malformed backup payloads fail before restore mutation. Drive 403 errors now mention the API/scope configuration.
+- Not built or device-tested here; verify with the stable debug OAuth client and existing CI workflow.
+
 ### 2026-10-18 — Use supplied source art for launcher and Vault widget
 
 - Copied the supplied 1254×1254 transparent PNGs unchanged to Android-valid resource names: `clarity_suite_icon.png` and `vault_icon.png`.
 - Wired `vault_icon.png` to the actual Vault widget ImageView and static `previewImage`; the provider's `previewLayout` already uses that same live layout. Kept the title, lock-state text, click path, and widget behavior unchanged.
-- Wired the suite PNG into a centered, 82dp adaptive foreground used by both launcher icon variants; restored the main Clarity suite icon without altering the Vault widget art.
+- Wired the suite PNG into a centered, 70dp adaptive safe-area foreground used by both launcher icon variants and referenced the suite adaptive resources from the manifest; the Vault widget art remains separate.
 - Source PNGs are RGBA with transparent top-left corners. Resource diagnostics only; Android build, launcher masking, and on-device rendering remain unverified.
 
 ### 2026-10-18 — Keep Vault widget branding separate from app launcher

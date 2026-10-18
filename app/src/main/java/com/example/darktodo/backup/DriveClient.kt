@@ -13,7 +13,7 @@ object DriveClient {
     private const val FILES = "https://www.googleapis.com/drive/v3/files"
     private const val UPLOAD = "https://www.googleapis.com/upload/drive/v3/files"
 
-    class AuthExpiredException : IOException("Google access expired. Reconnect your account in Settings.")
+    class AuthExpiredException : IOException("Google authorization expired. Try signing in again to continue.")
     data class Remote(val id: String, val modifiedTime: String)
 
     fun find(token: String, name: String): Remote? {
@@ -60,6 +60,9 @@ object DriveClient {
             if (code == 401) throw AuthExpiredException()
             if (code !in 200..299) {
                 val detail = runCatching { connection.errorStream?.readBytes()?.toString(Charsets.UTF_8)?.take(200) }.getOrNull().orEmpty()
+                if (code == 403) {
+                    throw IOException("Google Drive denied private backup access. Confirm Drive API is enabled and the OAuth consent screen grants drive.appdata. $detail".trim())
+                }
                 throw IOException("Google Drive error $code. $detail".trim())
             }
             return connection.inputStream.use { it.readBytes() }

@@ -1,6 +1,6 @@
 # Clarity
 
-Native Kotlin Android task app with To-Do, Calendar, and locked Vault home-screen widgets. GitHub Actions builds an APK named `dark_todo.apk`, signed with a persistent app key.
+Native Kotlin Android task app with To-Do, Calendar, Notes, and locked Vault home-screen widgets. GitHub Actions builds and uploads the debug APK as `dark_todo.apk`.
 
 ## Do I need development tools locally?
 
@@ -14,20 +14,25 @@ The workflow in `.github/workflows/android-apk.yml` runs on pushes and pull requ
 
 To download it, open a successful **Android APK Build** run in GitHub Actions and download the `dark-todo-debug-apk` artifact. Extract it and install `dark_todo.apk` on Android. If Android asks, allow installation from the browser or file manager used to open it. Then long-press the home screen, open **Widgets**, find **Clarity**, and place the To-Do, Calendar, or Vault widget.
 
-### Persistent APK signing
+### Stable debug signing for Google OAuth
 
-The debug APK uses `clarity-signing.jks` and `keystore.properties` when they are present. Both files are excluded from Git. Back them up securely: losing this key means Android will no longer accept future APKs as updates to installations signed with it.
+The routine workflow builds a debug APK. Without a configured debug keystore, Gradle uses the runner's default debug key; hosted runners can have different keys, so Android OAuth fingerprint matching may fail. Use a dedicated, non-production debug keystore and register its SHA-1 in a Google Cloud Android OAuth client for package `com.example.darktodo`.
 
-The GitHub Actions workflow uses the same key from repository Actions secrets. Add these four secrets under **Settings → Secrets and variables → Actions**:
+To create a key with JDK `keytool` (it prompts for passwords and certificate details):
 
-- `ANDROID_KEYSTORE_BASE64`: the Base64 output of `[Convert]::ToBase64String([IO.File]::ReadAllBytes('.\\clarity-signing.jks'))` in PowerShell.
-- `ANDROID_KEYSTORE_PASSWORD`: the `storePassword` value in your local `keystore.properties`.
-- `ANDROID_KEY_PASSWORD`: the `keyPassword` value in `keystore.properties`.
-- `ANDROID_KEY_ALIAS`: the `keyAlias` value in `keystore.properties` (`clarity`).
+```powershell
+keytool -genkeypair -v -keystore clarity-debug.jks -alias clarity-debug -keyalg RSA -keysize 2048 -validity 10000
+keytool -list -v -keystore clarity-debug.jks -alias clarity-debug
+[Convert]::ToBase64String([IO.File]::ReadAllBytes('.\clarity-debug.jks'))
+```
 
-Push and manual GitHub Actions builds require these secrets, so they cannot silently produce APKs signed with a temporary key. Pull request builds from forks can still compile with the default debug key, but those APKs are not for installing over the persistent-key build.
+Add these four repository Actions secrets under **Settings → Secrets and variables → Actions**: `ANDROID_DEBUG_KEYSTORE_BASE64`, `ANDROID_DEBUG_KEYSTORE_PASSWORD`, `ANDROID_DEBUG_KEY_ALIAS`, and `ANDROID_DEBUG_KEY_PASSWORD`. The workflow uses them only to sign the debug APK. Register the displayed SHA-1 in Google Cloud Console as a second Android OAuth client for `com.example.darktodo`; keep the existing production/release OAuth client and key separate. The debug keystore can also be kept outside Git and configured locally with `debugStoreFile`, `debugStorePassword`, `debugKeyAlias`, and `debugKeyPassword` in ignored `keystore.properties`.
 
-Changing from a previously installed APK signed with another key requires a one-time uninstall before Android will accept this signing key. Uninstalling erases app data and removes that app's home-screen widgets, so preserve any needed task data and keep the existing installation until ready to switch. After installing the persistent-key APK, later builds signed with this key install as updates and retain app data and widget placements.
+When changing the signing certificate on an already-installed app, Android may reject the APK as an update. Do not uninstall until any local data you need has been safely backed up; uninstalling removes app data and widgets.
+
+### Release signing
+
+The app module retains a separate release signing configuration using `ANDROID_KEYSTORE_PATH`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, and `ANDROID_KEY_PASSWORD`, or corresponding ignored `keystore.properties` entries. Routine CI currently does not build or sign a release APK.
 
 No Codemagic account or local Android SDK is needed for the GitHub-hosted build.
 

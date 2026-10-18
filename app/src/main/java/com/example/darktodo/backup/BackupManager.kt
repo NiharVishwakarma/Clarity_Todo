@@ -4,7 +4,6 @@ import android.content.Context
 import android.util.Base64
 import com.example.darktodo.data.LocalVaultStore
 import com.example.darktodo.data.StickerStore
-import com.example.darktodo.data.TaskStore
 import com.example.darktodo.data.WidgetBackgrounds
 import com.google.android.gms.auth.api.identity.AuthorizationRequest
 import com.google.android.gms.auth.api.identity.Identity
@@ -45,7 +44,9 @@ object BackupManager {
     /** True only on a clean first launch: no local tasks, history or vault and the prompt was not answered yet. */
     fun needsWelcome(context: Context): Boolean {
         if (onboarded(context)) return false
-        val hasData = LocalVaultStore.exists(context) || TaskStore.tasks(context).isNotEmpty() || TaskStore.history(context).isNotEmpty()
+        val hasData = LocalVaultStore.exists(context) || PREF_FILES.any { name ->
+            context.getSharedPreferences(name, Context.MODE_PRIVATE).all.isNotEmpty()
+        }
         if (hasData) { markOnboarded(context); return false }
         return true
     }
@@ -92,9 +93,24 @@ object BackupManager {
         if (version < 1 || version > BackupCodec.VERSION) throw IOException("This backup was made by a different version of Clarity.")
         val prefs = root.optJSONObject("prefs") ?: throw IOException("The backup is empty or damaged.")
         val files = root.optJSONObject("files") ?: JSONObject()
+        val decodedPrefs = linkedMapOf<String, Map<String, Any>>()
+        PREF_FILES.forEach { name ->
+            if (prefs.has(name)) {
+                val values = prefs.optJSONObject(name) ?: throw IOException("The backup settings are damaged.")
+                decodedPrefs[name] = BackupCodec.decodePrefs(values)
+            }
+        }
+        val decodedFiles = linkedMapOf<String, ByteArray>()
+        files.keys().forEach { name ->
+            val encoded = files.optString(name, null) ?: throw IOException("The backup file list is damaged.")
+            decodedFiles[name] = try {
+                Base64.decode(encoded, Base64.NO_WRAP)
+            } catch (_: IllegalArgumentException) {
+                throw IOException("The backup contains a damaged file and was not restored.")
+            }
+        }
         BackupScheduler.withSuspended {
-            PREF_FILES.forEach { name ->
-                val values = BackupCodec.decodePrefs(prefs.optJSONObject(name) ?: return@forEach)
+            decodedPrefs.forEach { (name, values) ->
                 val editor = context.getSharedPreferences(name, Context.MODE_PRIVATE).edit().clear()
                 values.forEach { (key, value) ->
                     when (value) {
@@ -109,10 +125,10 @@ object BackupManager {
                 check(editor.commit()) { "Could not write restored settings." }
             }
             blobFiles(context).forEach { (name, target) ->
-                val encoded = files.optString(name, "")
-                if (encoded.isNotEmpty()) {
+                val bytes = decodedFiles[name]
+                if (bytes != null && bytes.isNotEmpty()) {
                     val temporary = File(target.parentFile, target.name + ".restore")
-                    temporary.writeBytes(Base64.decode(encoded, Base64.NO_WRAP))
+                    temporary.writeBytes(bytes)
                     if (!temporary.renameTo(target)) { target.writeBytes(temporary.readBytes()); temporary.delete() }
                 } else if (name != "vault") target.delete()
             }
@@ -122,7 +138,7 @@ object BackupManager {
         com.example.darktodo.widget.TodoWidget.updateAll(context)
         com.example.darktodo.widget.CalendarWidget.updateAll(context)
         com.example.darktodo.widget.StickerWidget.updateAll(context)
-        return files.optString("vault", "").isNotEmpty()
+        return decodedFiles["vault"]?.isNotEmpty() == true
     }
 
     fun backupNow(context: Context, token: String? = null): Outcome {

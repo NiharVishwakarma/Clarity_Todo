@@ -35,10 +35,32 @@ jobs:
           gradle-version: '8.9'
 
       - name: Generate wrapper and build APK
+        env:
+          ANDROID_DEBUG_KEYSTORE_BASE64: ${{ secrets.ANDROID_DEBUG_KEYSTORE_BASE64 }}
+          ANDROID_DEBUG_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_DEBUG_KEYSTORE_PASSWORD }}
+          ANDROID_DEBUG_KEY_ALIAS: ${{ secrets.ANDROID_DEBUG_KEY_ALIAS }}
+          ANDROID_DEBUG_KEY_PASSWORD: ${{ secrets.ANDROID_DEBUG_KEY_PASSWORD }}
         run: |
+          if [ -n "$ANDROID_DEBUG_KEYSTORE_BASE64" ]; then
+            for name in ANDROID_DEBUG_KEYSTORE_PASSWORD ANDROID_DEBUG_KEY_ALIAS ANDROID_DEBUG_KEY_PASSWORD; do
+              if [ -z "${!name}" ]; then
+                echo "Missing GitHub Actions secret: $name"
+                exit 1
+              fi
+            done
+            echo "$ANDROID_DEBUG_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/clarity-debug-signing.jks"
+            export ANDROID_DEBUG_KEYSTORE_PATH="$RUNNER_TEMP/clarity-debug-signing.jks"
+            export ANDROID_DEBUG_KEYSTORE_PASSWORD ANDROID_DEBUG_KEY_ALIAS ANDROID_DEBUG_KEY_PASSWORD
+          elif [ -n "$ANDROID_DEBUG_KEYSTORE_PASSWORD$ANDROID_DEBUG_KEY_ALIAS$ANDROID_DEBUG_KEY_PASSWORD" ]; then
+            echo "Set all debug signing secrets, including ANDROID_DEBUG_KEYSTORE_BASE64, or leave them all unset."
+            exit 1
+          else
+            echo "::warning::No stable debug keystore configured; Google OAuth may reject this runner-generated debug certificate."
+          fi
           gradle wrapper --gradle-version 8.9
           chmod +x gradlew
           ./gradlew --no-daemon testDebugUnitTest assembleDebug
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs app/build/outputs/apk/debug/app-debug.apk
           cp app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/dark_todo.apk
 
       - name: Upload debug APK

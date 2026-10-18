@@ -20,6 +20,18 @@ val persistentSigningValues = listOf(signingStoreFile, signingStorePassword, sig
 check(persistentSigningValues.all { it == null } || persistentSigningValues.all { !it.isNullOrBlank() }) {
     "Persistent APK signing is only partially configured. Set all keystore values or none."
 }
+val debugSigningStoreFile = System.getenv("ANDROID_DEBUG_KEYSTORE_PATH")
+    ?: signingProperties.getProperty("debugStoreFile")
+val debugSigningStorePassword = System.getenv("ANDROID_DEBUG_KEYSTORE_PASSWORD")
+    ?: signingProperties.getProperty("debugStorePassword")
+val debugSigningKeyAlias = System.getenv("ANDROID_DEBUG_KEY_ALIAS")
+    ?: signingProperties.getProperty("debugKeyAlias")
+val debugSigningKeyPassword = System.getenv("ANDROID_DEBUG_KEY_PASSWORD")
+    ?: signingProperties.getProperty("debugKeyPassword")
+val stableDebugSigningValues = listOf(debugSigningStoreFile, debugSigningStorePassword, debugSigningKeyAlias, debugSigningKeyPassword)
+check(stableDebugSigningValues.all { it == null } || stableDebugSigningValues.all { !it.isNullOrBlank() }) {
+    "Stable debug signing is only partially configured. Set all debug keystore values or none."
+}
 
 android {
     namespace = "com.example.darktodo"
@@ -48,8 +60,19 @@ android {
             keyPassword = signingKeyPassword
         }
     }
+    if (stableDebugSigningValues.all { !it.isNullOrBlank() }) {
+        signingConfigs.create("stableDebug") {
+            storeFile = file(debugSigningStoreFile!!)
+            storePassword = debugSigningStorePassword
+            keyAlias = debugSigningKeyAlias
+            keyPassword = debugSigningKeyPassword
+        }
+    }
 
     buildTypes {
+        debug {
+            if (stableDebugSigningValues.all { !it.isNullOrBlank() }) signingConfig = signingConfigs.getByName("stableDebug")
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
