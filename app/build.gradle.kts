@@ -8,26 +8,22 @@ plugins {
 
 val signingProperties = Properties()
 rootProject.file("keystore.properties").takeIf { it.isFile }?.inputStream()?.use(signingProperties::load)
-val signingStoreFile = System.getenv("ANDROID_KEYSTORE_PATH")
-    ?: signingProperties.getProperty("storeFile")
-val signingStorePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
-    ?: signingProperties.getProperty("storePassword")
-val signingKeyAlias = System.getenv("ANDROID_KEY_ALIAS")
-    ?: signingProperties.getProperty("keyAlias")
-val signingKeyPassword = System.getenv("ANDROID_KEY_PASSWORD")
-    ?: signingProperties.getProperty("keyPassword")
+fun signingValue(environmentName: String, propertyName: String): String? =
+    System.getenv(environmentName)?.takeIf { it.isNotBlank() }
+        ?: signingProperties.getProperty(propertyName)?.takeIf { it.isNotBlank() }
+
+val signingStoreFile = signingValue("ANDROID_KEYSTORE_PATH", "storeFile")
+val signingStorePassword = signingValue("ANDROID_KEYSTORE_PASSWORD", "storePassword")
+val signingKeyAlias = signingValue("ANDROID_KEY_ALIAS", "keyAlias")
+val signingKeyPassword = signingValue("ANDROID_KEY_PASSWORD", "keyPassword")
 val persistentSigningValues = listOf(signingStoreFile, signingStorePassword, signingKeyAlias, signingKeyPassword)
 check(persistentSigningValues.all { it == null } || persistentSigningValues.all { !it.isNullOrBlank() }) {
     "Persistent APK signing is only partially configured. Set all keystore values or none."
 }
-val debugSigningStoreFile = System.getenv("ANDROID_DEBUG_KEYSTORE_PATH")
-    ?: signingProperties.getProperty("debugStoreFile")
-val debugSigningStorePassword = System.getenv("ANDROID_DEBUG_KEYSTORE_PASSWORD")
-    ?: signingProperties.getProperty("debugStorePassword")
-val debugSigningKeyAlias = System.getenv("ANDROID_DEBUG_KEY_ALIAS")
-    ?: signingProperties.getProperty("debugKeyAlias")
-val debugSigningKeyPassword = System.getenv("ANDROID_DEBUG_KEY_PASSWORD")
-    ?: signingProperties.getProperty("debugKeyPassword")
+val debugSigningStoreFile = signingValue("ANDROID_DEBUG_KEYSTORE_PATH", "debugStoreFile")
+val debugSigningStorePassword = signingValue("ANDROID_DEBUG_KEYSTORE_PASSWORD", "debugStorePassword")
+val debugSigningKeyAlias = signingValue("ANDROID_DEBUG_KEY_ALIAS", "debugKeyAlias")
+val debugSigningKeyPassword = signingValue("ANDROID_DEBUG_KEY_PASSWORD", "debugKeyPassword")
 val stableDebugSigningValues = listOf(debugSigningStoreFile, debugSigningStorePassword, debugSigningKeyAlias, debugSigningKeyPassword)
 check(stableDebugSigningValues.all { it == null } || stableDebugSigningValues.all { !it.isNullOrBlank() }) {
     "Stable debug signing is only partially configured. Set all debug keystore values or none."

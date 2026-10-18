@@ -13,6 +13,11 @@ This log begins with the repository snapshot available when these project notes 
 
 ## Current version summary
 
+### 2026-10-18 — Handle blank optional signing secrets
+
+- Updated Gradle signing configuration to treat blank environment variables as unset before falling back to local properties. This prevents GitHub Actions' declared-but-empty optional debug secrets from triggering the partial-signing guard. Release and debug signing still require complete credential sets when any value is supplied.
+- CI log confirmed the failure occurred during Gradle configuration before unit tests or APK compilation; rerun the workflow after this fix is pushed.
+
 ### 2026-10-18 — Repair Drive backup authorization and restore safety
 
 - Confirmed the app uses Google Identity Services `AuthorizationClient` with `drive.appdata`/email scopes and Drive v3 `appDataFolder`, not Firebase. Documented the actual likely debug-build OAuth mismatch: Cloud setup is bound to the persistent certificate, while routine CI previously used an ephemeral debug certificate.
