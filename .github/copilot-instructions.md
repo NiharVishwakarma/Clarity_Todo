@@ -1,5 +1,15 @@
 # Copilot Instructions
 
+## Repository navigation
+
+- Read [docs/REPO_MAP.md](../docs/REPO_MAP.md) first to identify likely files.
+- Treat the map as a navigation aid; source code is authoritative.
+- Verify mapped paths and inspect relevant code before editing.
+- Prefer targeted searches; broaden only when needed.
+- Make the smallest complete change and run relevant checks.
+- Update the map in the same change when paths, responsibilities, entry points, data flow, or test commands change.
+- Do not add per-change logs or duplicate source code in the map.
+
 ## Project context
 
 - Before changing project files, read [docs/PROJECT_MEMORY.md](../docs/PROJECT_MEMORY.md). For the first creation of that file, use the project source and existing documentation as the baseline.

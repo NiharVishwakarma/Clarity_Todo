@@ -1,323 +1,109 @@
-# Clarity ToDo Repository Map
-
-**Last Verified**: October 2026 | **Root**: `app/src/main/java/com/example/darktodo/`
-
-## Architecture Overview
-
-Single-activity Jetpack Compose app with tab-based modular navigation and external Google Drive backup. Four architectural layers:
-- **UI**: Compose-based screens with RemoteViews widgets
-- **Data**: SharedPreferences (JSON-backed) + encrypted file store
-- **Reminders**: AlarmManager + BroadcastReceivers
-- **Backup**: Google Drive REST API + WorkManager background sync
-
----
-
-## Module Inventory
-
-### Core Entry Points
-
-| Path | Purpose | Key Details |
-|------|---------|------------|
-| `MainActivity.kt` | Single Activity, hosts Compose navigation | Fragment-based, ~200+ lines |
-| `ClarityApplication.kt` | App class, installs BackupScheduler listeners (lines 4-10) | Minimal lifecycle hook |
-
-### Navigation & Module Routing
-
-| Path | Responsibility |
-|------|-----------------|
-| `navigation/ModuleNavigation.kt` | Tab routing & back stack management (lines 1-80) |
-| `navigation/ModulePrefs.kt` | Preferences for module-level settings |
-
-**Module IDs** (lines 18-26): `TASKS`, `HISTORY`, `CALENDAR`, `VAULT`, `QUOTES`, `STICKERS`, `WALLPAPERS`, `SETTINGS`
-
----
-
-## Data Layer (Persistence & State)
-
-### Task Management
-| Path | Persistence | Key Operations |
-|------|-----------|-----------------|
-| `data/TaskStore.kt` | SharedPreferences `todo_store` / key `active_tasks_v1` (JSON array) | `tasks()`, `addConfigured()`, `history()` |
-| `data/TaskTimeFormatter.kt` | — | Boot count tracking, elapsed time calculations, timezone-aware countdown |
-| `data/CountdownEditPolicy.kt` | — | Policies for editing countdown deadlines |
-
-**Task data structure** (line 14): id, title, completed, reminderType (`"none"`, `"time"`, `"duration"`), reminderAt, deadlineAt, countdownStartedAt, countdownDurationMs, countdownBootCount, localDateTime, timeZoneId, followsDeviceTimeZone, taskDate.
-
-**History append-only log** (line 21): Separate `task_history_v1` key, TaskEvent = {id, taskId, title, type, at}.
-
-### Notes/Stickers
-| Path | Persistence | Key Operations |
-|------|-----------|-----------------|
-| `data/StickerStore.kt` | SharedPreferences `sticker_store` / key `stickers_v1` (JSON array) | `load()`, `add()`, `edit()`, `duplicate()`, `delete()` |
-| `data/StickerOps.kt` | — | Pure list operations, JSON encode/decode (lines 35-82) |
-| `data/StickerStyle.kt` | Per-note styling (background, text color, autoContrast, glow, textShadow) | `StickerStyle.resolve()`, contrast validation |
-| `data/StickerColor.kt` | 5 predefined colors (Yellow, Blue, Green, Pink, Purple) | — |
-
-**Sticker data** (line 24-32): id, title, content, color, createdAt, updatedAt, style.
-
-### Vault (Encrypted)
-| Path | Persistence | Key Details |
-|------|-----------|-------------|
-| `data/LocalVaultStore.kt` | Encrypted file `clarity-vault.bin` in `noBackupFilesDir` (never synced) | PBKDF2-HMAC with 210k iterations, AES-256-GCM |
-| `data/LocalVaultStore.kt` (Biometric) | Biometric key in Android Keystore + wrapper in `clarity-vault-biometric.bin` | `prepareBiometricUnlock()`, `saveBiometricWrapper()` (lines 47-60) |
-| `data/VaultAudit.kt` | SharedPreferences `vault_auth` / key `primary` | Tracks auth mode (password/biometric) and unlock attempts |
-
-**Vault entry**: {id, title, username, password, notes}.
-
-### Widget & Appearance Settings
-| Path | Persistence | Scope |
-|------|-----------|-------|
-| `data/WidgetPrefs.kt` | SharedPreferences `calendar_widget_settings` | Widget layout, text size, colors |
-| `data/WidgetBackgrounds.kt` | File store for TODO/CALENDAR/STICKER backgrounds | Per-widget wallpaper images |
-| `data/AppTypographySettings.kt` | SharedPreferences `app_typography` | Font family, size for main app UI |
-| `data/LocalWidgetFonts.kt` | Font file cache | System and custom fonts for widgets |
-| `data/WidgetTypography.kt` | Widget-specific typography | Separate from main app |
-| `data/NoteAppearance.kt` | — | Note styling defaults |
-
-### Time & Calendar Logic
-| Path | Purpose |
-|------|---------|
-| `data/TimeZoneCatalog.kt` | Timezone resolution and LocalDateTime conversion |
-| `data/TaskTimeFormatter.kt` | Boot count, elapsed uptime, countdown remaining time |
-| `data/CalendarDates.kt` | Date range logic, calendar cell selection |
-| `data/CalendarWidgetPrefs.kt` | Calendar widget configuration |
-| `data/HistoryDateFormatter.kt` | Event history date display formatting |
-
----
-
-## Backup & Sync
-
-### Backup Management
-| Path | Scope | Authentication |
-|------|-------|-----------------|
-| `backup/BackupManager.kt` | Orchestrates snapshot, upload, restore | OAuth2 (Google Identity, `DRIVE_SCOPE` = `drive.appdata` only) |
-| `backup/BackupCodec.kt` | JSON encoding/decoding for backup payloads | Version-aware marshalling |
-| `backup/BackupScheduler.kt` | Debounced background sync via WorkManager | Triggers on pref changes, 20s delay, exponential backoff |
-| `backup/DriveClient.kt` | Minimal Drive v3 REST API wrapper | Blocking, off-main-thread (lines 1-73) |
-
-**Backed-up files** (BackupManager line 27): `todo_store`, `calendar_widget_settings`, `app_typography`, `widget_backgrounds`, `vault_auth`, `sticker_store`.
-
-**Blob files** (BackupManager lines 75-80): `vault` (encrypted), `wallpaper_todo`, `wallpaper_calendar`.
-
-**Auth Token**: Silent renewal via `BackupManager.silentToken()` (line 58-61), throws `AuthExpiredException` on 401.
-
----
-
-## Reminders & Scheduling
-
-| Path | Mechanism | Key Details |
-|------|-----------|------------|
-| `reminders/ReminderScheduler.kt` | AlarmManager (exact or inexact based on API/permission) | Supports "time" (absolute) and "duration" (countdown) reminders |
-| `reminders/ReminderTiming.kt` | Timing logic for countdown and time-based alarms | Boot count aware |
-| `reminders/ReminderReceiver.kt` | BroadcastReceiver for alarm fire | Posts notification |
-| `reminders/ReminderRecoveryReceiver.kt` | Recovers alarms on boot/timezone/date changes | Exported, responds to `BOOT_COMPLETED`, `TIME_SET`, `TIMEZONE_CHANGED` |
-
-**Notification channel**: `task_reminders_v2` (HIGH importance, replaces legacy `task_reminders`).
-
----
-
-## Widgets (RemoteViews)
-
-| Widget | Receiver | Service/Provider | Configurator |
-|--------|----------|------------------|--------------|
-| **Todo** | `TodoWidgetReceiver` | `TodoWidgetService` (RemoteViews adapter) | — (no config) |
-| **Calendar** | `CalendarWidgetReceiver` | — | — |
-| **Vault** | `VaultWidgetReceiver` | — | — |
-| **Notes/Stickers** | `StickerWidgetReceiver` | — | `StickerWidgetConfigActivity` |
-
-**Refresh coordination** (manifest lines 43, 55): `CalendarMidnightReceiver`, `WidgetRefreshReceiver`.
-
-**Widget font layouts**: `widget/WidgetFontLayouts.kt` (platform-dependent rendering).
-
----
-
-## UI/Screen Navigation
-
-| Path | Route(s) | Feature |
-|------|----------|---------|
-| `ui/ClarityScreens.kt` | Route definitions for Compose navigation | — |
-| `ui/ClarityUi.kt` | Core Compose component library | ~10KB |
-| `ui/NotesScreen.kt` | Sticker/Note list and editing UI | — |
-| `ui/NoteSettings.kt` | Per-note appearance editor | ~24KB, color picker, style options |
-| `ui/ColorPickerDialog.kt` | Color selection dialog | — |
-| `VaultSecurityScreen.kt` | Vault auth mode (password/biometric) configuration | — |
-| `WidgetBackgroundEditor.kt` | Wallpaper picker for widgets | — |
-
----
-
-## Test Coverage
-
-**Unit Tests** (verify logic, no Android framework):
-- `test/java/data/`: StickerOps, TaskTimeFormatter, CalendarDates, CountdownEditPolicy, HistoryDateFormatter, NoteContrast, VaultAudit
-- `test/java/navigation/`: ModuleNavigation
-- `test/java/reminders/`: ReminderTiming
-- `test/java/widget/`: WidgetFontLayouts, WidgetResourceContract
-
-**Identified Gaps** (no explicit test coverage):
-- `BackupManager` snapshot/restore round-trip
-- `BackupScheduler` debouncing behavior
-- `DriveClient` error handling (403, 401, network)
-- `ReminderScheduler` alarm scheduling & recovery flow
-- `LocalVaultStore` encryption/decryption with various auth modes
-- Widget update coordination across data changes
-
----
-
-## External Dependencies & Boundaries
-
-### Google APIs
-- **Authentication**: `com.google.android.gms:play-services-auth` (Identity API, OAuth consent)
-- **Drive Access**: Direct HTTP/REST (lines 13-14, `backup/DriveClient.kt`), limited to `appDataFolder`
-
-### Android System Services
-- **SharedPreferences**: Primary state store (6 files, see Data Layer)
-- **AlarmManager**: Scheduled reminders
-- **WorkManager**: Background backup sync
-- **BiometricManager**: Vault authentication
-- **Android Keystore**: Biometric key storage
-- **AppWidgetManager**: Widget updates and configuration
-
-### Manifest Permissions (AndroidManifest.xml)
-- `INTERNET`, `ACCESS_NETWORK_STATE` (backup)
-- `POST_NOTIFICATIONS` (reminders)
-- `RECEIVE_BOOT_COMPLETED`, `SCHEDULE_EXACT_ALARM` (reminders recovery)
-
----
-
-## Data Flow Summary
-
-### Task Creation to Reminder
-1. User creates task → `TaskStore.addConfigured()` writes to `todo_store` (SharedPreferences)
-2. `ReminderScheduler.schedule()` called → `AlarmManager` schedules exact or inexact alarm
-3. On alarm fire → `ReminderReceiver` posts notification, updates widget
-4. `BackupScheduler` detects pref change → queues WorkManager job (20s delay)
-5. `BackupWorker.doWork()` → `BackupManager.backupNow()` → snapshot to `clarity-backup.json` → upload via `DriveClient`
-
-### Note Creation to Widget Display
-1. User creates note → `StickerStore.add()` → `StickerStore.save()` writes to `sticker_store` (SharedPreferences)
-2. `StickerWidget.updateAll()` called → `AppWidgetManager.notifyAppWidgetViewDataChanged()`
-3. Launcher queries widget via RemoteViews adapter
-
-### Vault Unlock to Access
-1. User enters password or triggers biometric → `LocalVaultStore.unlock()` decrypts file
-2. `VaultAudit` logs unlock attempt
-3. Auto-lock timer runs; on timeout, key cleared from memory
-
----
-
-## Important Caveats & Implementation Notes
-
-1. **Backup is NOT encrypted over the wire**: Only the vault file itself is encrypted; all prefs (including partial vault keys if stored) are plaintext in backup. Relies on Google Drive's HTTPS + OAuth2 auth.
-
-2. **Vault key is never backed up**: Keystore biometric key stays local; backup only syncs vault file (encrypted) and `vault_auth` mode preference.
-
-3. **Countdown resume on device reboot**: Boot count (`TaskTimeFormatter.bootCount()`) used to detect reboot; elapsed time recalculated (lines 55-60, `reminders/ReminderScheduler.kt`).
-
-4. **Calendar widget updates lazily**: Only triggers if date or completion status changed (lines 68-69, `data/TaskStore.kt`).
-
-5. **Sticker/Note migration**: One-time migration from global style to per-note style (lines 103-117, `data/StickerStore.kt`). Unknown stored fields ignored (backward compat).
-
-6. **SharedPreferences reads are cached**: `TaskStore` maintains `cachedRaw` + `cachedTasks` to avoid repeated JSON parsing (lines 24-25, 28-50).
-
-7. **RemoteViews adapter URI includes font/wallpaper state**: `TodoWidgetService` URI encodes `fontFileId`, wallpaper presence to invalidate cached rows (line 53, `widget/TodoWidget.kt`).
-
-8. **No explicit database (Room/SQLite)**: All persistence via SharedPreferences JSON or direct file I/O.
-
----
-
-## File Structure at a Glance
-
-```
-app/src/main/java/com/example/darktodo/
-├── MainActivity.kt                    [~130KB - Compose screens & logic]
-├── ClarityApplication.kt              [12 lines]
-├── VaultSecurityScreen.kt
-├── WidgetBackgroundEditor.kt
-│
-├── navigation/
-│   ├── ModuleNavigation.kt            [80 lines - routing & tab management]
-│   └── ModulePrefs.kt
-│
-├── data/                              [~19 files, state & logic]
-│   ├── TaskStore.kt                   [~250 lines - active tasks + history]
-│   ├── TaskTimeFormatter.kt
-│   ├── StickerStore.kt                [~200 lines - notes + migration]
-│   ├── StickerOps.kt                  [~50 lines - pure list ops]
-│   ├── LocalVaultStore.kt             [~180 lines - encrypted persistence]
-│   ├── TimeZoneCatalog.kt
-│   ├── CalendarDates.kt
-│   ├── CountdownEditPolicy.kt
-│   ├── WidgetPrefs.kt
-│   ├── WidgetBackgrounds.kt
-│   ├── AppTypographySettings.kt
-│   └── [LocalWidgetFonts, NoteAppearance, VaultAudit, HistoryDateFormatter, etc.]
-│
-├── backup/                            [359 lines total]
-│   ├── BackupManager.kt               [182 lines - snapshot, upload, restore, auth]
-│   ├── BackupScheduler.kt             [60 lines - WorkManager debouncing]
-│   ├── DriveClient.kt                 [73 lines - HTTP/REST API wrapper]
-│   └── BackupCodec.kt                 [44 lines - JSON marshalling]
-│
-├── reminders/
-│   ├── ReminderScheduler.kt           [~100 lines - AlarmManager coordination]
-│   ├── ReminderTiming.kt
-│   ├── ReminderReceiver.kt            [BroadcastReceiver for alarm fire]
-│   └── ReminderRecoveryReceiver.kt    [Boot/timezone recovery]
-│
-├── widget/
-│   ├── TodoWidget.kt                  [RemoteViews rendering, ~200 lines]
-│   ├── TodoWidgetService.kt           [RemoteViews list adapter]
-│   ├── TodoWidgetReceiver.kt          [AppWidgetProvider]
-│   ├── CalendarWidget.kt
-│   ├── VaultWidget.kt
-│   ├── StickerWidget.kt
-│   ├── StickerWidgetConfigActivity.kt [Config UI]
-│   ├── TaskActionActivity.kt          [Action handling from widget taps]
-│   ├── WidgetFontLayouts.kt           [Platform-dependent text rendering]
-│   ├── WidgetRefreshScheduler.kt      [Coordination logic]
-│   └── [CalendarMidnightReceiver, WidgetRefreshReceiver, etc.]
-│
-└── ui/
-    ├── ClarityScreens.kt              [Route definitions]
-    ├── ClarityUi.kt                   [Compose component library]
-    ├── NotesScreen.kt
-    ├── NoteSettings.kt                [~500 lines - styling editor]
-    └── ColorPickerDialog.kt
-
-app/src/test/java/com/example/darktodo/
-├── data/
-│   ├── StickerOpsTest.kt
-│   ├── TaskTimeFormatterTest.kt
-│   ├── CalendarDatesTest.kt
-│   ├── CountdownEditPolicyTest.kt
-│   ├── HistoryDateFormatterTest.kt
-│   ├── VaultAuditTest.kt
-│   ├── NoteContrastTest.kt
-│   ├── StickerStyleTest.kt
-│   ├── WidgetCardTransparencyTest.kt
-│   ├── CalendarWidgetDefaultsTest.kt
-│   └── TimeZoneCatalogTest.kt
-├── navigation/
-│   └── ModuleNavigationTest.kt
-├── reminders/
-│   └── ReminderTimingTest.kt
-└── widget/
-    ├── WidgetFontLayoutsTest.kt
-    └── WidgetResourceContractTest.kt
-
-app/src/main/AndroidManifest.xml
-├── Activities: MainActivity, TaskActionActivity, StickerWidgetConfigActivity
-├── Receivers: TodoWidgetReceiver, CalendarWidgetReceiver, VaultWidgetReceiver,
-│              StickerWidgetReceiver, ReminderReceiver, ReminderRecoveryReceiver,
-│              CalendarMidnightReceiver, WidgetRefreshReceiver
-└── Services: TodoWidgetService
+# Repository map
+
+Navigation aid, not a specification: verify paths and relevant source before editing.
+Paths below are repository-relative; directory prefixes are explicitly identified.
+Keep this map focused on structure and checks, not change logs or copied source.
+
+## Architecture and entry points
+
+- Native Kotlin Android app: one `:app` Gradle module, Jetpack Compose UI,
+  SharedPreferences/local files, AlarmManager reminders, and RemoteViews widgets.
+- `app/src/main/AndroidManifest.xml` registers application/activity entry points,
+  four widget providers, reminder/recovery receivers, and the task collection service.
+- Under `app/src/main/java/com/example/darktodo/`:
+  - `MainActivity.kt`: launcher `FragmentActivity`, `TodoApp`, screen routing,
+    task/history/calendar/settings/vault UI, permissions, and incoming intents.
+  - `ClarityApplication.kt`: installs backup preference listeners at startup.
+  - `navigation/ModuleNavigation.kt` and `navigation/ModulePrefs.kt`: module routes,
+    back/swipe navigation, and last-module persistence.
+  - `ui/ClarityUi.kt`: shared Compose controls, icons, and tab bar;
+    `ui/ClarityScreens.kt`: placeholder, support, and about screens.
+- Quotes and Wallpapers modules are placeholders; widget wallpaper editing is implemented.
+  Support Clarity is a UI preview, not a payment integration.
+
+## Feature → implementation → related tests
+
+Implementation paths in this table are relative to
+`app/src/main/java/com/example/darktodo/`.
+Test paths are relative to `app/src/test/java/com/example/darktodo/`.
+Tests listed are related JVM coverage, not end-to-end guarantees.
+
+| Feature | Main implementation paths | Related tests |
+|---|---|---|
+| Tasks, ordering, history | `MainActivity.kt`, `data/TaskStore.kt`, `data/HistoryDateFormatter.kt` | `data/HistoryDateFormatterTest.kt`; no store/UI integration tests |
+| Calendar/date filtering | `MainActivity.kt`, `data/CalendarDates.kt`, `widget/CalendarWidget.kt`, `data/CalendarWidgetPrefs.kt` | `data/CalendarDatesTest.kt`, `data/CalendarWidgetDefaultsTest.kt` |
+| Reminders, countdowns, time zones | `reminders/ReminderScheduler.kt`, `reminders/ReminderTiming.kt`, `data/TaskTimeFormatter.kt`, `data/CountdownEditPolicy.kt`, `data/TimeZoneCatalog.kt` | `reminders/ReminderTimingTest.kt`, `data/TaskTimeFormatterTest.kt`, `data/CountdownEditPolicyTest.kt`, `data/TimeZoneCatalogTest.kt` |
+| To-Do widget and task clicks | `widget/TodoWidget.kt`, `widget/TodoWidgetService.kt`, `widget/TaskActionActivity.kt`, `widget/WidgetRefreshScheduler.kt` | `widget/WidgetResourceContractTest.kt`, `data/WidgetCardTransparencyTest.kt` |
+| Notes (legacy “Sticker” names) | `ui/NotesScreen.kt`, `ui/NoteSettings.kt`, `data/StickerStore.kt`, `data/StickerStyle.kt`, `data/NoteAppearance.kt` | `data/StickerOpsTest.kt`, `data/StickerStyleTest.kt`, `data/NoteContrastTest.kt` |
+| Notes widget selection/rendering | `widget/StickerWidget.kt`, `widget/StickerWidgetConfigActivity.kt` | `widget/WidgetResourceContractTest.kt` |
+| Vault, authentication, audit | `MainActivity.kt`, `VaultSecurityScreen.kt`, `data/LocalVaultStore.kt`, `data/VaultAudit.kt`, `widget/VaultWidget.kt` | `data/VaultAuditTest.kt`; no crypto/biometric/UI integration tests |
+| Appearance, fonts, backgrounds | `data/WidgetPrefs.kt`, `data/CalendarWidgetPrefs.kt`, `data/AppTypographySettings.kt`, `data/WidgetTypography.kt`, `data/LocalWidgetFonts.kt`, `data/WidgetBackgrounds.kt`, `data/StyleSnapshot.kt`, `WidgetBackgroundEditor.kt`, `ui/ColorPickerDialog.kt`, `widget/WidgetFontLayouts.kt` | `widget/WidgetFontLayoutsTest.kt`, `data/WidgetCardTransparencyTest.kt` |
+| Navigation | `navigation/ModuleNavigation.kt`, `navigation/ModulePrefs.kt`, `MainActivity.kt` | `navigation/ModuleNavigationTest.kt` |
+| Google Drive backup/restore | `BackupScreens.kt`, `backup/BackupManager.kt`, `backup/BackupCodec.kt`, `backup/BackupScheduler.kt`, `backup/DriveClient.kt` | `backup/BackupCodecTest.kt`; no Drive/restore integration tests |
+
+Widget resources: `app/src/main/res/layout/` (live/preview RemoteViews),
+`app/src/main/res/xml/` (provider metadata), `app/src/main/res/drawable/`
+(backgrounds/icons), and `app/src/main/res/values/` (strings/themes/dimensions).
+Start with the provider's referenced resources rather than scanning all artwork.
+
+## Shared state and data flow
+
+Source paths here use the same implementation prefix as the table.
+
+- `data/TaskStore.kt` owns synchronized task/history JSON persistence in `todo_store`
+  (`active_tasks_v1`, `task_history_v1`); To-Do appearance settings share that file.
+  Task mutations persist state, coordinate reminder scheduling/cancellation, and
+  refresh affected widgets. Inspect this boundary before changing task behavior.
+- `data/CalendarWidgetPrefs.kt` owns `calendar_widget_settings`;
+  `widget/CalendarWidget.kt` holds per-widget navigation in `calendar_widget_state`.
+- `data/StickerStore.kt` owns notes and per-note styles in `sticker_store`.
+  Notes retain legacy Sticker identifiers for compatibility; saves refresh the Notes widget.
+- `data/AppTypographySettings.kt`, `data/LocalWidgetFonts.kt`, and
+  `data/WidgetBackgrounds.kt` own app typography, private imported fonts, and
+  private background images/preferences. `data/StyleSnapshot.kt` owns saved styles.
+- `data/LocalVaultStore.kt` owns encrypted vault files in Android private storage
+  and device-bound biometric wrapping via Android Keystore.
+- `ClarityApplication.kt` → `backup/BackupScheduler.kt` installs preference listeners
+  and debounces eligible changes into network-constrained WorkManager work.
+  `backup/BackupManager.kt` defines the backup preference/file allow-list and restore
+  flow; follow it for data inclusion, validation, and post-restore refresh behavior.
+
+## External/platform boundaries
+
+Source paths use the implementation prefix from the feature table.
+
+- `backup/BackupManager.kt`: Google Identity Services authorization (Drive app-data
+  and email scopes); `backup/DriveClient.kt`: Drive v3 REST over HTTPS using
+  `HttpURLConnection`, restricted to `appDataFolder`. Preferences are not
+  application-encrypted in the backup; the vault blob remains encrypted.
+  Imported fonts and device-bound biometric keys are not backed up.
+- `reminders/ReminderScheduler.kt`: AlarmManager, notifications, and system-event
+  recovery receivers; exact-alarm and notification permissions affect delivery.
+- `widget/`: AppWidgetProvider/RemoteViews and launcher interactions.
+  Gallery/font pickers, wallpaper access, biometrics, and Keystore cross Android APIs.
+  These paths need device/emulator verification; no instrumentation test tree exists.
+
+## Build, test, and lint
+
+Run from the repository root. Definitions checked against `app/build.gradle.kts`,
+`gradle/wrapper/gradle-wrapper.properties`, and `.github/workflows/android-apk.yml`.
+Prerequisites: JDK 17, Gradle 8.9, Android SDK platform 35/build-tools 35.0.0.
+Wrapper scripts/JAR are not checked in; CI generates them:
+
+```sh
+gradle wrapper --gradle-version 8.9
+chmod +x gradlew
+./gradlew --no-daemon testDebugUnitTest assembleDebug
 ```
 
----
-
-## Verification Notes
-
-- **Source verified**: Inspected representative files from all modules, authenticated against source at lines cited.
-- **No .github/agents accessed** (per constraints).
-- **No entire-repo scanning** — focused on feature boundaries and data flow.
-- **Existing docs** (`CHANGE_HISTORY.md`, `PROJECT_MEMORY.md`) not assumed authoritative; source code treated as canonical.
+- The block above is the existing CI test/debug-build command, not a claim of a
+  successful build in the current workspace.
+- Targeted JVM example (same Android Gradle Plugin test task):
+  `gradle --no-daemon :app:testDebugUnitTest --tests 'com.example.darktodo.navigation.ModuleNavigationTest'`
+- Android lint: `gradle --no-daemon :app:lintDebug` (standard task supplied by
+  `com.android.application`; not currently run by CI).
+- No separate documentation lint/test configuration exists. For docs-only changes,
+  verify referenced paths and links, keep this map at most 150 lines, and run
+  `git diff --check`; no Android build is needed.
+- `README.md` covers setup/signing; `docs/PROJECT_MEMORY.md` provides deeper context
+  but may contain historical notes. Source/build configuration remains authoritative.
