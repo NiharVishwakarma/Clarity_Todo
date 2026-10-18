@@ -4,4 +4,8 @@ local.properties
 .idea/
 *.iml
 clarity-signing.jks
+*.jks
+*.keystore
+*.p12
+*.pfx
 keystore.properties

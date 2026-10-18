@@ -1,1 +1,11 @@
-# Add keep rules here only if a release (R8) build is found to break at runtime.
+-repackageclasses ''
+-allowaccessmodification
+-keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile
+-assumenosideeffects class android.util.Log {
+    *;
+}
+
+-keep class com.example.darktodo.backup.BackupWorker {
+    public <init>(android.content.Context, androidx.work.WorkerParameters);
+}

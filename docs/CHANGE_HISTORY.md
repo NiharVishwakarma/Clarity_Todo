@@ -13,6 +13,15 @@ This log begins with the repository snapshot available when these project notes 
 
 ## Current version summary
 
+### 2026-10-18 — Release security hardening
+
+- Scoped the persistent APK signing key to release builds only; debug builds remain signed with the standard debug key.
+- Added R8 side-effect rules to strip Android log calls from optimized release builds while retaining debug diagnostics.
+- Made the minified release build a required CI step. Pull requests build it unsigned; trusted non-PR runs verify the release APK signature before upload.
+- Added ignore patterns for common Android signing key formats. No vault format or encryption behavior changed.
+- Configured full-mode R8 renaming, source/line retrace metadata, English resource filtering, and release-only non-debuggable/no-platform-backup manifest values. Added only a narrow keep rule for WorkManager's persisted `BackupWorker` class name and constructor.
+- Not locally built: this workspace has no `gradlew.bat`, system Gradle, Android SDK, JADX, or ADB. CI must confirm the optimized variant and signing behavior; device smoke tests remain pending.
+
 ### 2026-10-18 — Refreshed Tasks and Notes widget previews
 
 - Reworked the Tasks widget picker layout to show a 5-task count, realistic task titles, completed/in-progress/pending status marks, and the existing refresh/add actions.
