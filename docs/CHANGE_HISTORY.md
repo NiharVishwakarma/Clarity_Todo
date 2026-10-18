@@ -13,6 +13,12 @@ This log begins with the repository snapshot available when these project notes 
 
 ## Current version summary
 
+### 2026-10-18 — Add lightweight repository navigation
+
+- Added `docs/REPO_MAP.md` with source-verified entry points, feature-to-file/test mappings, shared state, service boundaries, and build/test/lint guidance.
+- Updated `.github/copilot-instructions.md` to consult and maintain the map while preserving existing project guidance.
+- Recorded these documentation changes, including this history entry; application/runtime code is unchanged.
+
 ### 2026-10-18 — Repair Notes picker and refine widget presentation
 
 - Removed the unsupported plain `View` divider from the Notes `previewLayout`; rebuilt the preview as a compact two-line card using only RemoteViews-supported classes. Existing provider, manifest metadata and configuration activity registration were already correct. Earlier label and bitmap-size fixes did not address preview inflation.
