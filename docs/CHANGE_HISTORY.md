@@ -23,6 +23,7 @@ This log begins with the repository snapshot available when these project notes 
 - Confirmed the app uses Google Identity Services `AuthorizationClient` with `drive.appdata`/email scopes and Drive v3 `appDataFolder`, not Firebase. Documented the actual likely debug-build OAuth mismatch: Cloud setup is bound to the persistent certificate, while routine CI previously used an ephemeral debug certificate.
 - Added optional stable, non-production debug keystore support to Gradle/Actions; the production release key remains separate. CI reports the public APK signer fingerprints. Register an Android OAuth client for package `com.example.darktodo` and the stable debug SHA-1; external Google Cloud configuration is still required.
 - Mapped OAuth developer/network errors to actionable messages and made user cancellation a neutral, non-destructive notice. Prevented duplicate authorization launches.
+- Fixed the CI-reported Kotlin type mismatch by accepting `Throwable` in the authorization error formatter used by task listeners.
 - First-launch detection now treats any backed-up local preferences as existing data. A no-backup result offers explicit Start fresh or Back choices; welcome restore explains that it replaces local state and requires a second explicit confirmation.
 - Snapshot settings and Base64 blobs are parsed before any local writes, so malformed backup payloads fail before restore mutation. Drive 403 errors now mention the API/scope configuration.
 - Not built or device-tested here; verify with the stable debug OAuth client and existing CI workflow.

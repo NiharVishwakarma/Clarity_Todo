@@ -57,7 +57,7 @@ internal fun rememberDriveAuthorizer(
     val failed by rememberUpdatedState(onError)
     val cancelled by rememberUpdatedState(onCancelled)
     var launching by remember { mutableStateOf(false) }
-    fun authorizationError(error: Exception): String = when ((error as? ApiException)?.statusCode) {
+    fun authorizationError(error: Throwable): String = when ((error as? ApiException)?.statusCode) {
         CommonStatusCodes.DEVELOPER_ERROR -> "Google rejected this app's OAuth setup. Register an Android OAuth client for com.example.darktodo and the SHA-1 of this APK's signing key."
         CommonStatusCodes.NETWORK_ERROR -> "Could not connect to Google. Check your internet connection and try again."
         else -> error.message?.takeIf { it.isNotBlank() } ?: "Google authorization failed. Check the OAuth and Drive API configuration, then try again."
