@@ -1,5 +1,14 @@
 # Change History
 
+## 2026-10-18 — Info/System Monitor and Vault widget appearance
+
+- Navigation/activity/shared icons: replaced only the active Quotes slot with the plain `Info` tab in the existing shared styling, retained the legacy Quotes route, migrated old saved selection, and added cold/warm Info intent handling plus a separate Vault appearance child route/gear.
+- Added `monitor/` models, public-API collection/local snapshots, bounded authorized-document inspection, TXT/CSV/native-PDF reports and confirmed Clarity-only cache maintenance; added the seven-section Compose Info UI with unavailable/partial/error states and system settings shortcuts. No broad permissions, invented battery rankings or OS install dates.
+- Added System Monitor RemoteViews widget implementation/state, live/provider/background resources, manifest registration and persisted-worker R8 rule. Its supported periodic scheduling is independent of countdown alarms; actions use immutable PendingIntents, navigation targets activities directly, and failed refreshes retain timestamps/snapshots.
+- Added isolated Vault appearance preferences/settings/tests and updated the Vault live layout/renderer for real font/size/weight/colors/background-only opacity/rounding/reset. Uploaded artwork, locked/setup content and Vault authentication/encryption/data are preserved.
+- Added focused navigation, metric/format/cache, monitor widget and Vault appearance/resource tests. Build/test/lint status and pending runtime checks are recorded in `PROJECT_MEMORY.md`; unavailable infrastructure is not a passing test result.
+- Updated `REPO_MAP.md` for new entry points/data flow/tests, corrected relevant stale WorkManager/navigation facts in `PROJECT_MEMORY.md`, and added this `CHANGE_HISTORY.md` entry covering implementation, tests and these documentation edits. No backup allowlist, permission or dependency changes.
+
 This log begins with the repository snapshot available when these project notes were created. The workspace did not expose Git history, so the baseline below is descriptive rather than a claim about the original commit date.
 
 ## Initial project baseline

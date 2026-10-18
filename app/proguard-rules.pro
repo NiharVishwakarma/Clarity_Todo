@@ -15,4 +15,8 @@
     public <init>(android.content.Context, androidx.work.WorkerParameters);
 }
 
+-keep class com.example.darktodo.widget.SystemMonitorWidgetWorker {
+    public <init>(android.content.Context, androidx.work.WorkerParameters);
+}
+
 -keep class com.example.darktodo.widget.StickerWidgetConfigActivity { *; }

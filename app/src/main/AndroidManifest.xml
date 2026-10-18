@@ -4,6 +4,11 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <queries>
+        <intent><action android:name="android.intent.action.POWER_USAGE_SUMMARY" /></intent>
+        <intent><action android:name="android.settings.INTERNAL_STORAGE_SETTINGS" /></intent>
+        <intent><action android:name="android.intent.action.VIEW_DOWNLOADS" /></intent>
+    </queries>
     <application android:name=".ClarityApplication" android:theme="@style/Theme.DarkTodo" android:label="@string/app_name" android:icon="@mipmap/ic_clarity_suite" android:roundIcon="@mipmap/ic_clarity_suite_round" android:allowBackup="${clarityAllowBackup}">
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter>
@@ -35,6 +40,10 @@
         <receiver android:name=".widget.VaultWidgetReceiver" android:label="@string/vault_widget_label" android:exported="true">
             <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/vault_widget_info" />
+        </receiver>
+        <receiver android:name=".widget.SystemMonitorWidgetReceiver" android:label="Clarity System Monitor" android:exported="true">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/system_monitor_widget_info" />
         </receiver>
         <receiver android:name=".widget.StickerWidgetReceiver" android:label="@string/notes_widget_label" android:exported="true">
             <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>

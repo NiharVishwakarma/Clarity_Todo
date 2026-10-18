@@ -9,7 +9,7 @@ Keep this map focused on structure and checks, not change logs or copied source.
 - Native Kotlin Android app: one `:app` Gradle module, Jetpack Compose UI,
   SharedPreferences/local files, AlarmManager reminders, and RemoteViews widgets.
 - `app/src/main/AndroidManifest.xml` registers application/activity entry points,
-  four widget providers, reminder/recovery receivers, and the task collection service.
+  five widget providers, reminder/recovery receivers, and the task collection service.
 - Under `app/src/main/java/com/example/darktodo/`:
   - `MainActivity.kt`: launcher `FragmentActivity`, `TodoApp`, screen routing,
     task/history/calendar/settings/vault UI, permissions, and incoming intents.
@@ -18,7 +18,8 @@ Keep this map focused on structure and checks, not change logs or copied source.
     back/swipe navigation, and last-module persistence.
   - `ui/ClarityUi.kt`: shared Compose controls, icons, and tab bar;
     `ui/ClarityScreens.kt`: placeholder, support, and about screens.
-- Quotes and Wallpapers modules are placeholders; widget wallpaper editing is implemented.
+- Info replaces the active Quotes tab; the legacy Quotes route/data are retained.
+  Wallpapers is a placeholder; widget wallpaper editing is implemented.
   Support Clarity is a UI preview, not a payment integration.
 
 ## Feature → implementation → related tests
@@ -37,6 +38,9 @@ Tests listed are related JVM coverage, not end-to-end guarantees.
 | Notes (legacy “Sticker” names) | `ui/NotesScreen.kt`, `ui/NoteSettings.kt`, `data/StickerStore.kt`, `data/StickerStyle.kt`, `data/NoteAppearance.kt` | `data/StickerOpsTest.kt`, `data/StickerStyleTest.kt`, `data/NoteContrastTest.kt` |
 | Notes widget selection/rendering | `widget/StickerWidget.kt`, `widget/StickerWidgetConfigActivity.kt` | `widget/WidgetResourceContractTest.kt` |
 | Vault, authentication, audit | `MainActivity.kt`, `VaultSecurityScreen.kt`, `data/LocalVaultStore.kt`, `data/VaultAudit.kt`, `widget/VaultWidget.kt` | `data/VaultAuditTest.kt`, `widget/WidgetResourceContractTest.kt` (icon/preview wiring); no crypto/biometric/UI integration tests |
+| Info metrics, authorized files, reports, cache | `monitor/`, `ui/InfoScreen.kt` | `monitor/` tests; device/provider/settings interactions need runtime checks |
+| System Monitor widget | `widget/SystemMonitorWidget.kt`, `res/layout/system_monitor_widget*.xml`, `res/xml/system_monitor_widget_info.xml` (resources relative to `app/src/main/`) | monitor widget resource/action contracts |
+| Vault widget appearance | `data/VaultAppearance.kt`, `ui/VaultAppearanceScreen.kt`, `widget/VaultWidget.kt` | appearance defaults/bounds and rendering contracts |
 | Appearance, fonts, backgrounds | `data/WidgetPrefs.kt`, `data/CalendarWidgetPrefs.kt`, `data/AppTypographySettings.kt`, `data/WidgetTypography.kt`, `data/LocalWidgetFonts.kt`, `data/WidgetBackgrounds.kt`, `data/StyleSnapshot.kt`, `WidgetBackgroundEditor.kt`, `ui/ColorPickerDialog.kt`, `widget/WidgetFontLayouts.kt` | `widget/WidgetFontLayoutsTest.kt`, `data/WidgetCardTransparencyTest.kt` |
 | Navigation | `navigation/ModuleNavigation.kt`, `navigation/ModulePrefs.kt`, `MainActivity.kt` | `navigation/ModuleNavigationTest.kt` |
 | Google Drive backup/restore | `BackupScreens.kt`, `backup/BackupManager.kt`, `backup/BackupCodec.kt`, `backup/BackupScheduler.kt`, `backup/DriveClient.kt` | `backup/BackupCodecTest.kt`; no Drive/restore integration tests |
@@ -68,6 +72,13 @@ Source paths here use the same implementation prefix as the table.
   private background images/preferences. `data/StyleSnapshot.kt` owns saved styles.
 - `data/LocalVaultStore.kt` owns encrypted vault files in Android private storage
   and device-bound biometric wrapping via Android Keystore.
+- `monitor/MonitorRepository.kt` collects public-API snapshots off-main, serializes
+  refreshes, and retains the last successful snapshot in `noBackupFilesDir`.
+  Info and the monitor widget share it; no monitor data enters the Drive allowlist.
+- `ui/InfoScreen.kt` owns SAF consent, explicit document exports and cache confirmation.
+  Monitor polling is separate from task countdown alarms.
+- `data/VaultAppearance.kt` stores global widget-only appearance independently
+  of Vault authentication; appearance writes refresh all Vault instances.
 - `ClarityApplication.kt` → `backup/BackupScheduler.kt` installs preference listeners
   and debounces eligible changes into network-constrained WorkManager work.
   `backup/BackupManager.kt` defines the backup preference/file allow-list and restore

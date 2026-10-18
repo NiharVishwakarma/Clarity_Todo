@@ -174,6 +174,7 @@ class MainActivity : FragmentActivity() {
         const val ACTION_CREATE_TASK = "com.example.darktodo.action.CREATE_TASK"
         const val ACTION_OPEN_VAULT = "com.example.darktodo.action.OPEN_VAULT"
         const val ACTION_OPEN_NOTE = "com.example.darktodo.action.OPEN_NOTE"
+        const val ACTION_OPEN_INFO = ModuleNavigation.ACTION_OPEN_INFO
         const val EXTRA_NOTE_ID = "note_id"
     }
 
@@ -210,20 +211,22 @@ class MainActivity : FragmentActivity() {
             if (welcome) WelcomeBackGate { restored ->
                 if (restored) recreate() else welcome = false
             } else TodoApp(intent.getStringExtra("edit_task_id"), intent.getStringExtra("task_date"), intent.action == ACTION_CREATE_TASK, intent.action == ACTION_OPEN_VAULT,
-                if (intent.action == ACTION_OPEN_NOTE) intent.getStringExtra(EXTRA_NOTE_ID) else null, intent.action == ACTION_OPEN_NOTE)
+                if (intent.action == ACTION_OPEN_NOTE) intent.getStringExtra(EXTRA_NOTE_ID) else null, intent.action == ACTION_OPEN_NOTE,
+                ModuleNavigation.intentModule(intent.action) == ModuleNavigation.INFO)
         } } }
     }
 
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        if (intent.action == ACTION_OPEN_VAULT || intent.action == ACTION_OPEN_NOTE) recreate()
+        if (intent.action == ACTION_OPEN_VAULT || intent.action == ACTION_OPEN_NOTE ||
+            ModuleNavigation.intentModule(intent.action) == ModuleNavigation.INFO) recreate()
     }
 
 }
 
 @OptIn(ExperimentalFoundationApi::class)
-@Composable private fun TodoApp(openTaskId: String? = null, openTaskDate: String? = null, startCreateTask: Boolean = false, openVault: Boolean = false, openNoteId: String? = null, openNotes: Boolean = false) {
+@Composable private fun TodoApp(openTaskId: String? = null, openTaskDate: String? = null, startCreateTask: Boolean = false, openVault: Boolean = false, openNoteId: String? = null, openNotes: Boolean = false, openInfo: Boolean = false) {
     val context = LocalContext.current
     var tasks by remember { mutableStateOf(TaskStore.tasks(context)) }
     var events by remember { mutableStateOf(TaskStore.history(context)) }
@@ -231,6 +234,7 @@ class MainActivity : FragmentActivity() {
     val startRoute = remember {
         when {
             openVault -> ModuleNavigation.routeFor(ModuleNavigation.VAULT)
+            openInfo -> ModuleNavigation.routeFor(ModuleNavigation.INFO)
             openNotes || openNoteId != null -> ModuleNavigation.routeFor(ModuleNavigation.STICKERS)
             openTaskId != null || openTaskDate != null || startCreateTask -> ModuleNavigation.home
             else -> ModulePrefs.last(context)?.let { ModuleNavigation.routeFor(it) } ?: ModuleNavigation.routeFor(ModuleNavigation.CALENDAR)
@@ -429,7 +433,16 @@ class MainActivity : FragmentActivity() {
                     }
                     CalendarHomeScreen(tasks, calendarSettings, onDate = { selectedDate -> dateFilter = selectedDate.toString(); todoPage = "Tasks"; page = "To-Do" })
                 }
-                page == "Vault" -> VaultScreen()
+                page == "Vault" -> {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        com.example.darktodo.ui.SettingsGearButton("Vault widget appearance") { page = "VaultAppearance" }
+                    }
+                    VaultScreen()
+                }
+                page == "Info" -> com.example.darktodo.ui.InfoScreen {
+                    com.example.darktodo.widget.SystemMonitorWidget.renderAll(context)
+                }
+                page == "VaultAppearance" -> com.example.darktodo.ui.VaultAppearanceScreen { page = "Vault" }
                 page == "Settings" -> GlobalSettingsScreen(
                     onOpenPermissions = { page = "Permissions" },
                     appFontSettings = appFontSettings,
