@@ -102,6 +102,7 @@ fun noteFontFamily(key: String, custom: Typeface? = null): FontFamily = if (cust
     val size = (style.fontSizeSp * style.textScalePercent / 100f).sp
     val family = noteFontFamily(style.fontFamily, LocalWidgetFonts.typeface(appContext, style.fontFileId))
     val bitmap = if (imageKey == null) null else WidgetBackgrounds.image(appContext, imageKey)
+    val hasImage = imageKey != null && WidgetBackgrounds.has(appContext, imageKey)
     val image = remember(bitmap, imageRevision) { bitmap?.asImageBitmap() }
     val fade = if (imageKey == null || bitmap == null) 0f else WidgetBackgrounds.fade(appContext, imageKey) / 100f
     val opacity = style.opacityPercent / 100f
@@ -116,7 +117,10 @@ fun noteFontFamily(key: String, custom: Typeface? = null): FontFamily = if (cust
         Column(
             Modifier.fillMaxWidth().heightIn(min = style.widgetSize.minHeightDp.dp)
                 .clip(shape)
-                .background(Color(StickerHex.toArgb(style.background)).copy(alpha = opacity), shape)
+                .depthBackground(
+                    Color(StickerHex.toArgb(style.background)).copy(alpha = opacity),
+                    enabled = style.backgroundDepth && !hasImage
+                )
                 .then(if (image == null) Modifier else Modifier.drawBehind {
                     val scale = maxOf(this.size.width / image.width, this.size.height / image.height)
                     val srcW = (this.size.width / scale).toInt().coerceIn(1, image.width)
@@ -272,6 +276,9 @@ private val fieldColors @Composable get() = OutlinedTextFieldDefaults.colors(
         }
         HexColorField("Background HEX", style.background, book, onBook) { onChange(style.copy(background = it)) }
         if (!style.autoContrast) HexColorField("Text HEX", style.text, book, onBook) { onChange(style.copy(text = it)) }
+        ToggleRow(
+            "3D background effect", "Applies to colors only; image wallpapers stay unchanged", style.backgroundDepth
+        ) { onChange(style.copy(backgroundDepth = it)) }
 
         imageSection()
 

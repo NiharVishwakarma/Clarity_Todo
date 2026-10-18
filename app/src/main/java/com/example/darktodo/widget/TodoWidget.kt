@@ -97,14 +97,27 @@ object TodoWidget {
         val density = context.resources.displayMetrics.density
         val pad = (settings.paddingDp * density).toInt()
         views.setViewPadding(R.id.widget_content, pad, pad, pad, pad)
+        views.setImageViewResource(R.id.widget_root_background, R.drawable.widget_outer_background)
+        views.setImageViewResource(R.id.widget_task_card_background, R.drawable.widget_task_card_background)
         views.setInt(R.id.widget_root_background, "setColorFilter", parseColor(settings.widgetBackground))
         views.setInt(R.id.widget_count_panel_background, "setColorFilter", parseColor(settings.countPanel))
         views.setInt(R.id.widget_task_card_background, "setColorFilter", cardColor)
         // Alpha belongs only to this background image, never to the collection or its rows.
         views.setInt(R.id.widget_task_card_background, "setImageAlpha", settings.taskCardAlpha)
-        WidgetBackgrounds.render(context, WidgetBackgrounds.TODO, widthDp, heightDp, 12f)?.let { wallpaper ->
-            views.setImageViewBitmap(R.id.widget_root_background, wallpaper)
+        val background = WidgetBackgrounds.render(context, WidgetBackgrounds.TODO, widthDp, heightDp, 12f)
+            ?: if (settings.backgroundDepth) WidgetBackgrounds.renderColor(
+                context, parseColor(settings.widgetBackground), widthDp, heightDp, 12f
+            ) else null
+        background?.let {
+            views.setImageViewBitmap(R.id.widget_root_background, it)
             views.setInt(R.id.widget_root_background, "setColorFilter", Color.TRANSPARENT)
+        }
+        if (settings.backgroundDepth) {
+            views.setImageViewBitmap(R.id.widget_task_card_background, WidgetBackgrounds.renderColor(
+                context, cardColor, (widthDp - 2 * settings.paddingDp - 66).coerceAtLeast(1),
+                (heightDp - 2 * settings.paddingDp).coerceAtLeast(1), 8f
+            ))
+            views.setInt(R.id.widget_task_card_background, "setColorFilter", Color.TRANSPARENT)
         }
         setText(context, views, R.id.widget_count, incompleteCount.toString(), settings.fontFileId, 22f, Color.WHITE)
         setText(context, views, R.id.widget_count_label, "Tasks", settings.fontFileId, 11f, Color.WHITE)

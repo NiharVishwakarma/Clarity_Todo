@@ -13,6 +13,15 @@ This log begins with the repository snapshot available when these project notes 
 
 ## Current version summary
 
+### 2026-10-18 — Optional static 3D color backgrounds
+
+- Added default-off “3D background effect” controls and live appearance previews for Tasks/To-Do, Calendar, and individual Notes. Shared alpha-preserving color gradients provide a soft directional highlight/shade without animation or restyling unrelated application chrome.
+- Persisted independent Tasks/Calendar flags and a backward-compatible per-note JSON flag. Existing reset, saved-default, note duplication, and typed preference backup paths retain their semantics; missing flags remain flat and chosen colors/text styling are not rewritten.
+- Applied depth to the To-Do outer/card color layers, styled in-app Calendar, note surfaces, and corresponding live widgets. Wallpapers/fade remain unchanged; the independent To-Do card color still supports depth over wallpaper. Kept card transparency, note opacity, rounded clipping, borders, and existing shadows independent. Explicitly reset To-Do drawables when disabling depth.
+- Reused shared Canvas/Compose gradient stops and cached RemoteViews color bitmaps bounded to 80,000 pixels/560px per side. Notes retain their existing bitmap cap and rounded mask. No new dependency or alarms.
+- Added focused color/alpha/default-off/independence, note serialization/duplication, and backup-codec regression tests. Twelve shared JVM tests passed against production sources and SDK signatures; 24 Notes model tests passed in standalone Kotlin/JUnit validation using unchanged model/operations definitions. These are not Gradle/Android rendering tests. The Gradle 8.9 focused test attempt failed before compilation because Google Maven was unreachable; integrated `testDebugUnitTest`/`assembleDebug` and device/launcher verification remain pending.
+- Updated `PROJECT_MEMORY.md` with implementation, compatibility, wallpaper/transparency rules, verification limits, and the device checklist; this entry also accounts for the change-history update itself.
+
 ### 2026-10-18 — Repair Notes picker and refine widget presentation
 
 - Removed the unsupported plain `View` divider from the Notes `previewLayout`; rebuilt the preview as a compact two-line card using only RemoteViews-supported classes. Existing provider, manifest metadata and configuration activity registration were already correct. Earlier label and bitmap-size fixes did not address preview inflation.
