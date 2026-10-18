@@ -33,7 +33,6 @@ android {
         versionName = "1.0"
         resourceConfigurations += listOf("en")
         manifestPlaceholders["clarityAllowBackup"] = "true"
-        manifestPlaceholders["clarityDebuggable"] = "false"
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -51,15 +50,11 @@ android {
     }
 
     buildTypes {
-        debug {
-            manifestPlaceholders["clarityDebuggable"] = "true"
-        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
             isDebuggable = false
             manifestPlaceholders["clarityAllowBackup"] = "false"
-            manifestPlaceholders["clarityDebuggable"] = "false"
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             if (persistentSigningValues.all { !it.isNullOrBlank() }) signingConfig = signingConfigs.getByName("persistent")
         }

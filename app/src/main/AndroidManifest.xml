@@ -4,7 +4,7 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
-    <application android:name=".ClarityApplication" android:theme="@style/Theme.DarkTodo" android:label="@string/app_name" android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher_round" android:allowBackup="${clarityAllowBackup}" android:debuggable="${clarityDebuggable}">
+    <application android:name=".ClarityApplication" android:theme="@style/Theme.DarkTodo" android:label="@string/app_name" android:icon="@mipmap/ic_clarity_vault" android:roundIcon="@mipmap/ic_clarity_vault_round" android:allowBackup="${clarityAllowBackup}">
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

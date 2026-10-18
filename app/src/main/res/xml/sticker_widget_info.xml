@@ -1,5 +1,5 @@
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
-    android:label="@string/sticker_widget_label"
+    android:label="@string/notes_widget_label"
     android:minWidth="180dp"
     android:minHeight="110dp"
     android:minResizeWidth="110dp"

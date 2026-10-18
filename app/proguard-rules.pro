@@ -3,7 +3,12 @@
 -keepattributes SourceFile,LineNumberTable
 -renamesourcefileattribute SourceFile
 -assumenosideeffects class android.util.Log {
-    *;
+    public static int v(...);
+    public static int d(...);
+    public static int i(...);
+    public static int w(...);
+    public static int e(...);
+    public static int wtf(...);
 }
 
 -keep class com.example.darktodo.backup.BackupWorker {

@@ -8,7 +8,7 @@
     android:initialLayout="@layout/calendar_widget"
     android:previewImage="@drawable/widget_preview_calendar"
     android:previewLayout="@layout/calendar_widget_preview"
-    android:label="Clarity Calendar"
+    android:label="@string/calendar_widget_label"
     android:resizeMode="horizontal|vertical"
     android:widgetCategory="home_screen"
     android:description="@string/calendar_widget_description"

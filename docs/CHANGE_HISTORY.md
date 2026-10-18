@@ -13,13 +13,20 @@ This log begins with the repository snapshot available when these project notes 
 
 ## Current version summary
 
+### 2026-10-18 — Distinct widget labels and Vault identity
+
+- Assigned string-resource picker labels to To-Do, Calendar, Notes, and Vault; confirmed Notes already has a registered provider, selectable note storage, configuration activity, preview resources, and real RemoteViews rendering.
+- Replaced the Vault wheel/spoke graphic with a metallic safe-door shield and keyhole. Added adaptive icon resources referenced by the manifest; preserved the existing general Clarity task-list icon artwork.
+- Refined the Vault RemoteViews layout and preview; it shows a setup prompt when no vault exists and the locked tap-to-unlock prompt when one does. Authentication continues through MainActivity.
+- Source inspection did not identify which provider/device condition caused the reported "Couldn't add widget" message; no relevant launcher exception log was supplied. No speculative provider lifecycle change was made.
+
 ### 2026-10-18 — Release security hardening
 
 - Scoped the persistent APK signing key to release builds only; debug builds remain signed with the standard debug key.
 - Added R8 side-effect rules to strip Android log calls from optimized release builds while retaining debug diagnostics.
 - Made the minified release build a required CI step. Pull requests build it unsigned; trusted non-PR runs verify the release APK signature before upload.
 - Added ignore patterns for common Android signing key formats. No vault format or encryption behavior changed.
-- Configured full-mode R8 renaming, source/line retrace metadata, English resource filtering, and release-only non-debuggable/no-platform-backup manifest values. Added only a narrow keep rule for WorkManager's persisted `BackupWorker` class name and constructor.
+- Configured full-mode R8 renaming, source/line retrace metadata, English resource filtering, release-only non-debuggable/no-platform-backup behavior, and a narrow keep rule for WorkManager's persisted `BackupWorker` class name and constructor. The manifest omits `android:debuggable` so AGP assigns it per build type.
 - Not locally built: this workspace has no `gradlew.bat`, system Gradle, Android SDK, JADX, or ADB. CI must confirm the optimized variant and signing behavior; device smoke tests remain pending.
 
 ### 2026-10-18 — Refreshed Tasks and Notes widget previews
