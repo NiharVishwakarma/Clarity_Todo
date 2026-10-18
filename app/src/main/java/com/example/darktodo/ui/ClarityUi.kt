@@ -55,6 +55,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.Role
@@ -108,6 +109,7 @@ fun CollapsibleSettingsSection(
     icon: ImageVector? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
+    val focusManager = LocalFocusManager.current
     val chevronRotation by animateFloatAsState(
         targetValue = if (expanded) 180f else 0f,
         animationSpec = tween(180),
@@ -121,7 +123,10 @@ fun CollapsibleSettingsSection(
     ) {
         Column(Modifier.animateContentSize(animationSpec = tween(200))) {
             Surface(
-                onClick = { onExpandedChange(!expanded) },
+                onClick = {
+                    if (expanded) focusManager.clearFocus()
+                    onExpandedChange(!expanded)
+                },
                 color = Color.Transparent,
                 shape = RoundedCornerShape(UiTokens.CardRadius),
                 modifier = Modifier.fillMaxWidth().semantics {

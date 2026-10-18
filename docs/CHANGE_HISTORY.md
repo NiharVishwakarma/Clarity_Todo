@@ -2,7 +2,7 @@
 
 ## 2026-10-18 — Organize appearance settings
 
-- Added a shared outlined, animated settings-section card with a 56dp accessible header, optional wrapping subtitle, decorative accent icon, expanded/collapsed semantics, and saveable expansion state. Section contents remain composed but clipped and absent from accessibility semantics while collapsed, preserving draft fields, dialogs, and import launchers.
+- Added a shared outlined, animated settings-section card with a 56dp accessible header, optional wrapping subtitle, decorative accent icon, expanded/collapsed semantics, and saveable expansion state. Section contents remain composed but clipped and absent from accessibility semantics while collapsed; collapse clears focus to dismiss the keyboard without discarding drafts, dialogs, or import launchers.
 - Regrouped existing To-Do, Calendar, app-font, per-note, and Vault appearance controls under truthful Fonts, Colors, Background, Layout, and Readability headings. Completion fade, Calendar status dots, Vault corner radius, and reset/default actions remain directly available; no controls or preference keys were added or removed.
 - Preserved existing save/refresh paths, note-specific debounced save and close-time flush, Vault immediate versus slider-release writes, font/image handling, and widget scope. Info/System Monitor, Note widget selection, and Vault security remain unchanged.
 - Added `SettingsOrganizationContractTest` to guard section composition/accessibility and existing controls/save callbacks; updated project memory and the repository map, including this entry.

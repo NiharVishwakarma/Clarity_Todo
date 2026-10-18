@@ -185,7 +185,7 @@ Drive backup uses Google Identity Services authorization for the Drive `appDataF
 
 ## Settings organization (2026-10-18)
 
-- [`ui/ClarityUi.kt`](../app/src/main/java/com/example/darktodo/ui/ClarityUi.kt) provides the shared animated, accessible collapsible settings card. Its children remain composed while collapsed so temporary form/picker state and active font-import launchers are not discarded by section toggles; expansion state is saveable UI state, not a preference.
+- [`ui/ClarityUi.kt`](../app/src/main/java/com/example/darktodo/ui/ClarityUi.kt) provides the shared animated, accessible collapsible settings card. Its children remain composed while collapsed so temporary form/picker state and active font-import launchers are not discarded by section toggles; collapse clears focus to dismiss the keyboard. Expansion state is saveable UI state, not a preference.
 - To-Do, Calendar, global font, per-note, and Vault appearance screens use consistent **Fonts**, **Colors**, and **Background** sections where those controls exist, plus focused **Layout** and **Readability** groups. Completion fade, Calendar status-dot visibility, Vault corner radius, and reset/default actions remain directly accessible.
 - This changes presentation only. Existing preference ownership, ranges/defaults, image/font file handling, note-save debounce/close flush, Vault save-on-release behavior, and widget refresh paths remain the source of truth; Info/System Monitor, note-widget selection, and Vault security have no appearance settings and remain unchanged.
 

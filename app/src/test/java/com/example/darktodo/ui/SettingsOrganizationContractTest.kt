@@ -19,6 +19,7 @@ class SettingsOrganizationContractTest {
         assertTrue(section.contains("heightIn(min = 56.dp)"))
         assertTrue(section.contains("content = content"))
         assertTrue(section.contains("role = Role.Button"))
+        assertTrue(section.contains("focusManager.clearFocus()"))
         assertTrue(section.contains("stateDescription = if (expanded)"))
         assertTrue(section.contains("clearAndSetSemantics"))
         assertFalse(section.contains("AnimatedVisibility"))
