@@ -44,6 +44,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -66,6 +67,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.example.darktodo.UiTokens
+import com.example.darktodo.ui.ClarityIcons
+import com.example.darktodo.ui.CollapsibleSettingsSection
 import com.example.darktodo.data.LocalWidgetFonts
 import com.example.darktodo.data.NoteAppearance
 import com.example.darktodo.data.StickerColor
@@ -220,7 +223,7 @@ private val fieldColors @Composable get() = OutlinedTextFieldDefaults.colors(
                 modifier = Modifier.weight(1f).clickable { onSelect(i) }
             ) {
                 Box(Modifier.heightIn(min = 40.dp).padding(horizontal = 6.dp), contentAlignment = Alignment.Center) {
-                    Text(label, color = if (selected) UiTokens.Accent else UiTokens.Ink, fontSize = UiTokens.DetailSp.sp, maxLines = 1, softWrap = false)
+                    Text(label, color = if (selected) UiTokens.Accent else UiTokens.Ink, fontSize = UiTokens.DetailSp.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                 }
             }
         }
@@ -237,20 +240,18 @@ private val fieldColors @Composable get() = OutlinedTextFieldDefaults.colors(
     }
 }
 
-@Composable private fun GroupTitle(text: String, hint: String) {
-    Column(Modifier.padding(top = 12.dp)) {
-        Text(text, color = UiTokens.Ink, fontSize = UiTokens.SectionTitleSp.sp, fontWeight = FontWeight.SemiBold)
-        Text(hint, color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp)
-    }
-}
-
-/** Every styling control for one note. [imageSection] is placed right after the colours. */
+/** Every styling control for one note. [imageSection] is placed in Background. */
 @Composable fun NoteStyleControls(
-    style: StickerStyle, book: StickerColorBook, onBook: (StickerColorBook) -> Unit,
+    noteId: String, style: StickerStyle, book: StickerColorBook, onBook: (StickerColorBook) -> Unit,
     imageSection: @Composable () -> Unit, onChange: (StickerStyle) -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    var colorsExpanded by rememberSaveable(noteId) { mutableStateOf(true) }
+    var fontsExpanded by rememberSaveable(noteId) { mutableStateOf(false) }
+    var backgroundExpanded by rememberSaveable(noteId) { mutableStateOf(false) }
+    var readabilityExpanded by rememberSaveable(noteId) { mutableStateOf(false) }
+    var layoutExpanded by rememberSaveable(noteId) { mutableStateOf(false) }
     var importedFonts by remember { mutableStateOf(LocalWidgetFonts.list(context)) }
     val fontPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) scope.launch {
@@ -262,55 +263,86 @@ private val fieldColors @Composable get() = OutlinedTextFieldDefaults.colors(
         }
     }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        GroupTitle("Colours", "Changes the background colour of this note and, with auto contrast off, its text colour.")
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            StickerColor.entries.forEach { preset ->
-                val background = "#%06X".format(preset.background and 0xFFFFFF)
-                val ink = "#%06X".format(preset.ink and 0xFFFFFF)
-                Swatch(background, style.background.equals(background, ignoreCase = true)) { onChange(style.copy(background = background, text = ink)) }
+        CollapsibleSettingsSection(
+            title = "Colors",
+            summary = "Presets change background and text · Text and border colors",
+            expanded = colorsExpanded,
+            onExpandedChange = { colorsExpanded = it },
+            icon = ClarityIcons.Colors
+        ) {
+            Text("Each preset changes both the background and text colors.", color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp)
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                StickerColor.entries.forEach { preset ->
+                    val background = "#%06X".format(preset.background and 0xFFFFFF)
+                    val ink = "#%06X".format(preset.ink and 0xFFFFFF)
+                    Swatch(background, style.background.equals(background, ignoreCase = true)) { onChange(style.copy(background = background, text = ink)) }
+                }
             }
+            if (!style.autoContrast) HexColorField("Text color HEX", style.text, book, onBook) { onChange(style.copy(text = it)) }
+            HexColorField("Border color HEX", style.borderColor, book, onBook) { onChange(style.copy(borderColor = it)) }
         }
-        HexColorField("Background HEX", style.background, book, onBook) { onChange(style.copy(background = it)) }
-        if (!style.autoContrast) HexColorField("Text HEX", style.text, book, onBook) { onChange(style.copy(text = it)) }
-
-        imageSection()
-
-        GroupTitle("Text readability", "Keeps the text readable on any colour or image.")
-        ToggleRow("Auto contrast", "Picks light or dark text from the background. Turn off to choose the text colour yourself.", style.autoContrast) { onChange(style.copy(autoContrast = it)) }
-        ToggleRow("Text shadow", "A soft shadow behind the text.", style.textShadow) { onChange(style.copy(textShadow = it)) }
-        ToggleRow("Glow", "A glow around the text. Used instead of the shadow when both are on.", style.glow) { onChange(style.copy(glow = it)) }
-
-        GroupTitle("Font", "Changes the font, size and weight of this note's title and text, in the app and on the home-screen widget.")
-        WidgetFontFamily.entries.chunked(2).forEach { row ->
-            ChoiceRow(row.map { it.label to (style.fontFileId == null && it.key == style.fontFamily) }) { onChange(style.copy(fontFamily = row[it].key, fontFileId = null)) }
+        CollapsibleSettingsSection(
+            title = "Fonts",
+            summary = "Font family · Font size (body) · Font weight · Line height · Text scaling",
+            expanded = fontsExpanded,
+            onExpandedChange = { fontsExpanded = it },
+            icon = ClarityIcons.Fonts
+        ) {
+            Text("Font family", color = UiTokens.Ink, fontSize = UiTokens.LabelSp.sp)
+            WidgetFontFamily.entries.chunked(2).forEach { row ->
+                ChoiceRow(row.map { it.label to (style.fontFileId == null && it.key == style.fontFamily) }) { onChange(style.copy(fontFamily = row[it].key, fontFileId = null)) }
+            }
+            Text("Custom fonts", color = UiTokens.Ink, fontSize = UiTokens.LabelSp.sp)
+            importedFonts.chunked(2).forEach { row ->
+                ChoiceRow(row.map { it.name.substringBeforeLast('.') to (it.id == style.fontFileId) }) { onChange(style.copy(fontFileId = row[it].id)) }
+            }
+            TextButton(onClick = { fontPicker.launch(arrayOf("*/*")) }) { Text("Import font file (.ttf, .otf, .ttc)", color = UiTokens.Accent, fontSize = UiTokens.DetailSp.sp) }
+            StyleSlider("Font size (body)", "${style.fontSizeSp.toInt()} sp", style.fontSizeSp, 10f..28f) { onChange(style.copy(fontSizeSp = it)) }
+            Text("Font weight (body)", color = UiTokens.Ink, fontSize = UiTokens.LabelSp.sp)
+            val weights = listOf("Light" to 300, "Regular" to 400, "Medium" to 500, "Bold" to 700)
+            ChoiceRow(weights.map { it.first to (it.second == style.fontWeight) }) { onChange(style.copy(fontWeight = weights[it].second)) }
+            StyleSlider("Line height", "%.1f\u00D7".format(style.lineHeight), style.lineHeight, 1f..2f) { onChange(style.copy(lineHeight = (it * 10).toInt() / 10f)) }
+            StyleSlider("Text scaling", "${style.textScalePercent}%", style.textScalePercent.toFloat(), 80f..150f) { onChange(style.copy(textScalePercent = it.toInt())) }
         }
-        Text("Custom fonts", color = UiTokens.Ink, fontSize = UiTokens.LabelSp.sp)
-        importedFonts.chunked(2).forEach { row ->
-            ChoiceRow(row.map { it.name.substringBeforeLast('.') to (it.id == style.fontFileId) }) { onChange(style.copy(fontFileId = row[it].id)) }
+        CollapsibleSettingsSection(
+            title = "Background",
+            summary = "Background color · Image · Opacity",
+            expanded = backgroundExpanded,
+            onExpandedChange = { backgroundExpanded = it },
+            icon = ClarityIcons.Background
+        ) {
+            HexColorField("Background color HEX", style.background, book, onBook) { onChange(style.copy(background = it)) }
+            imageSection()
+            StyleSlider("Background opacity", "${style.opacityPercent}%", style.opacityPercent.toFloat(), 30f..100f) { onChange(style.copy(opacityPercent = it.toInt())) }
         }
-        TextButton(onClick = { fontPicker.launch(arrayOf("*/*")) }) { Text("Import font file (.ttf, .otf, .ttc)", color = UiTokens.Accent, fontSize = UiTokens.DetailSp.sp) }
-        StyleSlider("Font size", "${style.fontSizeSp.toInt()} sp", style.fontSizeSp, 10f..28f) { onChange(style.copy(fontSizeSp = it)) }
-        Text("Font weight", color = UiTokens.Ink, fontSize = UiTokens.LabelSp.sp)
-        val weights = listOf("Light" to 300, "Regular" to 400, "Medium" to 500, "Bold" to 700)
-        ChoiceRow(weights.map { it.first to (it.second == style.fontWeight) }) { onChange(style.copy(fontWeight = weights[it].second)) }
-        StyleSlider("Line height", "%.1f\u00D7".format(style.lineHeight), style.lineHeight, 1f..2f) { onChange(style.copy(lineHeight = (it * 10).toInt() / 10f)) }
-        StyleSlider("Text scaling", "${style.textScalePercent}%", style.textScalePercent.toFloat(), 80f..150f) { onChange(style.copy(textScalePercent = it.toInt())) }
-
-        GroupTitle("Border", "Changes the outline around this note. Set thickness to 0 for no border.")
-        StyleSlider("Border thickness", if (style.borderWidthDp == 0) "None" else "${style.borderWidthDp} dp", style.borderWidthDp.toFloat(), 0f..12f) { onChange(style.copy(borderWidthDp = it.toInt())) }
-        HexColorField("Border HEX", style.borderColor, book, onBook) { onChange(style.copy(borderColor = it)) }
-
-        GroupTitle("Widget size", "Changes how tall this note's card is.")
-        val sizes = StickerWidgetSize.entries
-        ChoiceRow(sizes.map { it.label to (it == style.widgetSize) }) { onChange(style.copy(widgetSize = sizes[it])) }
-        if (style.widgetSize == StickerWidgetSize.Auto) Text("Auto sizes the note to fit its text.", color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp)
-
-        GroupTitle("Card shape & spacing", "Changes the corner roundness, inner padding, outer margin, transparency and shadow of this note.")
-        StyleSlider("Corner radius", "${style.cornerRadiusDp} dp", style.cornerRadiusDp.toFloat(), 0f..32f) { onChange(style.copy(cornerRadiusDp = it.toInt())) }
-        StyleSlider("Padding", "${style.paddingDp} dp", style.paddingDp.toFloat(), 4f..32f) { onChange(style.copy(paddingDp = it.toInt())) }
-        StyleSlider("Margin", "${style.marginDp} dp", style.marginDp.toFloat(), 0f..24f) { onChange(style.copy(marginDp = it.toInt())) }
-        StyleSlider("Opacity", "${style.opacityPercent}%", style.opacityPercent.toFloat(), 30f..100f) { onChange(style.copy(opacityPercent = it.toInt())) }
-        StyleSlider("Shadow", "${style.elevationDp} dp", style.elevationDp.toFloat(), 0f..16f) { onChange(style.copy(elevationDp = it.toInt())) }
+        CollapsibleSettingsSection(
+            title = "Readability",
+            summary = "Contrast · Text shadow · Glow",
+            expanded = readabilityExpanded,
+            onExpandedChange = { readabilityExpanded = it },
+            icon = ClarityIcons.Personalization
+        ) {
+            ToggleRow("Auto contrast", "Picks light or dark text from the background. Turn off to choose the text color yourself.", style.autoContrast) { onChange(style.copy(autoContrast = it)) }
+            ToggleRow("Text shadow", "A soft shadow behind the text.", style.textShadow) { onChange(style.copy(textShadow = it)) }
+            ToggleRow("Glow", "A glow around the text. Used instead of the shadow when both are on.", style.glow) { onChange(style.copy(glow = it)) }
+        }
+        CollapsibleSettingsSection(
+            title = "Layout",
+            summary = "Border · Widget size · Spacing · Corners · Elevation",
+            expanded = layoutExpanded,
+            onExpandedChange = { layoutExpanded = it },
+            icon = ClarityIcons.Layout
+        ) {
+            StyleSlider("Border thickness", if (style.borderWidthDp == 0) "None" else "${style.borderWidthDp} dp", style.borderWidthDp.toFloat(), 0f..12f) { onChange(style.copy(borderWidthDp = it.toInt())) }
+            Text("Widget size", color = UiTokens.Ink, fontSize = UiTokens.LabelSp.sp)
+            val sizes = StickerWidgetSize.entries
+            ChoiceRow(sizes.map { it.label to (it == style.widgetSize) }) { onChange(style.copy(widgetSize = sizes[it])) }
+            if (style.widgetSize == StickerWidgetSize.Auto) Text("Auto sizes the note to fit its text.", color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp)
+            StyleSlider("Corner radius", "${style.cornerRadiusDp} dp", style.cornerRadiusDp.toFloat(), 0f..32f) { onChange(style.copy(cornerRadiusDp = it.toInt())) }
+            StyleSlider("Padding", "${style.paddingDp} dp", style.paddingDp.toFloat(), 4f..32f) { onChange(style.copy(paddingDp = it.toInt())) }
+            StyleSlider("Margin", "${style.marginDp} dp", style.marginDp.toFloat(), 0f..24f) { onChange(style.copy(marginDp = it.toInt())) }
+            StyleSlider("Card elevation", "${style.elevationDp} dp", style.elevationDp.toFloat(), 0f..16f) { onChange(style.copy(elevationDp = it.toInt())) }
+        }
     }
 }
 
@@ -360,7 +392,7 @@ private val fieldColors @Composable get() = OutlinedTextFieldDefaults.colors(
             )
             Text("These settings apply to this note only, and the home-screen widget showing it updates instantly.", color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp)
             NoteStyleControls(
-                style, book, { book = it; StickerStore.saveColorBook(context, it) },
+                noteId, style, book, { book = it; StickerStore.saveColorBook(context, it) },
                 imageSection = {
                     Surface(color = UiTokens.SurfaceRaised, shape = RoundedCornerShape(UiTokens.CardRadius), modifier = Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {

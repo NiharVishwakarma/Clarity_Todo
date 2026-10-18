@@ -63,6 +63,7 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -124,6 +125,7 @@ import com.example.darktodo.navigation.ModuleNavigation
 import com.example.darktodo.navigation.ModulePrefs
 import androidx.activity.compose.BackHandler
 import com.example.darktodo.ui.ClarityIcons
+import com.example.darktodo.ui.CollapsibleSettingsSection
 import com.example.darktodo.ui.ModuleTabBar
 import com.example.darktodo.ui.SettingsCategoryHeader
 import com.example.darktodo.ui.SettingsNavRow
@@ -1226,15 +1228,21 @@ private fun biometricUnavailableMessage(status: Int): String = when (status) {
     onOpenSupport: () -> Unit,
     onOpenAbout: () -> Unit
 ) {
-    var typographyExpanded by remember { mutableStateOf(false) }
+    var typographyExpanded by rememberSaveable { mutableStateOf(false) }
     val channelEnabled = channelImportance != android.app.NotificationManager.IMPORTANCE_NONE
     val notificationsOkay = notificationGranted && notificationsEnabled && channelEnabled
     val permissionNeeded = remindersEnabled && !notificationsOkay
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(UiTokens.ControlGap)) {
         SettingsCategoryHeader(ClarityIcons.Personalization, "Personalization")
-        CollapsibleSettingsSection("Fonts Customization", selectedFontLabel(appFontSettings.family, appFontSettings.fontFileId, importedFonts), typographyExpanded, { typographyExpanded = it }) {
+        CollapsibleSettingsSection(
+            title = "Fonts",
+            summary = "Font family · ${selectedFontLabel(appFontSettings.family, appFontSettings.fontFileId, importedFonts)}",
+            expanded = typographyExpanded,
+            onExpandedChange = { typographyExpanded = it },
+            icon = ClarityIcons.Fonts
+        ) {
             SettingsPanel {
-                FontFamilyRow("App font", appFontSettings.family, appFontSettings.fontFileId, importedFonts, onAppFontFamily, onAppImportedFont)
+                FontFamilyRow("Font family", appFontSettings.family, appFontSettings.fontFileId, importedFonts, onAppFontFamily, onAppImportedFont)
                 LocalFontImportRow(importedFonts.size, onImportAppFont)
             }
         }
@@ -1545,14 +1553,14 @@ private data class ColorPickTarget(val key: String, val label: String, val value
     var pickTarget by remember { mutableStateOf<ColorPickTarget?>(null) }
     var confirmTodoReset by remember { mutableStateOf(false) }
     var confirmCalendarReset by remember { mutableStateOf(false) }
-    var todoColorsExpanded by remember { mutableStateOf(false) }
-    var todoLayoutExpanded by remember { mutableStateOf(false) }
-    var calendarColorsExpanded by remember { mutableStateOf(false) }
-    var todoFontExpanded by remember { mutableStateOf(false) }
-    var todoDisplayExpanded by remember { mutableStateOf(false) }
-    var calendarFontExpanded by remember { mutableStateOf(false) }
-    var calendarSizesExpanded by remember { mutableStateOf(false) }
-    var calendarLayoutExpanded by remember { mutableStateOf(false) }
+    var todoColorsExpanded by rememberSaveable { mutableStateOf(true) }
+    var todoBackgroundExpanded by rememberSaveable { mutableStateOf(false) }
+    var todoLayoutExpanded by rememberSaveable { mutableStateOf(false) }
+    var calendarColorsExpanded by rememberSaveable { mutableStateOf(true) }
+    var todoFontExpanded by rememberSaveable { mutableStateOf(true) }
+    var calendarFontExpanded by rememberSaveable { mutableStateOf(true) }
+    var calendarBackgroundExpanded by rememberSaveable { mutableStateOf(false) }
+    var calendarLayoutExpanded by rememberSaveable { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(UiTokens.ControlGap)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -1563,31 +1571,58 @@ private data class ColorPickTarget(val key: String, val label: String, val value
             TextButton(onClick = onBack) { Text("Done", color = Accent) }
         }
         if (isTodo) SettingsSection("To-Do Widget", "Independent task widget appearance") {
-            WallpaperRow(com.example.darktodo.data.WidgetBackgrounds.TODO, "To-Do widget wallpaper", onOpenWallpaper)
-            CollapsibleSettingsSection("Font", selectedFontLabel(settings.fontFamily, settings.fontFileId, importedFonts), todoFontExpanded, { todoFontExpanded = it }) {
+            CollapsibleSettingsSection(
+                title = "Fonts",
+                summary = "${selectedFontLabel(settings.fontFamily, settings.fontFileId, importedFonts)} · Task-title font size",
+                expanded = todoFontExpanded,
+                onExpandedChange = { todoFontExpanded = it },
+                icon = ClarityIcons.Fonts
+            ) {
                 SettingsPanel {
                     FontFamilyRow("Font family", settings.fontFamily, settings.fontFileId, importedFonts, onFontFamily, onTodoImportedFont)
                     LocalFontImportRow(importedFonts.size) { onImportFont(false) }
+                    SettingSlider("Font size (task title)", "${settings.taskTitleSizeSp.toInt()} sp", settings.taskTitleSizeSp, 12f..24f, onTaskTitleSize)
                 }
             }
-            CollapsibleSettingsSection("Text & completion", "${settings.taskTitleSizeSp.toInt()} sp title · ${settings.fadePercent}% fade", todoDisplayExpanded, { todoDisplayExpanded = it }) {
+            CollapsibleSettingsSection(
+                title = "Colors",
+                summary = "Checkboxes · Count panel · Task title",
+                expanded = todoColorsExpanded,
+                onExpandedChange = { todoColorsExpanded = it },
+                icon = ClarityIcons.Colors
+            ) {
                 SettingsPanel {
-                    SettingSlider("Task-title size", "${settings.taskTitleSizeSp.toInt()} sp", settings.taskTitleSizeSp, 12f..24f, onTaskTitleSize)
-                    SettingSlider("Completed-task fade", "${settings.fadePercent}%", settings.fadePercent.toFloat(), 0f..100f, { onFade(it.toInt()) }, intValued = true)
+                    ColorSettingRow("Incomplete checkbox", settings.incomplete) { pickTarget = ColorPickTarget("incomplete", "Incomplete checkbox", settings.incomplete, false) }
+                    ColorSettingRow("Completed checkbox", settings.complete) { pickTarget = ColorPickTarget("complete", "Completed checkbox", settings.complete, false) }
+                    ColorSettingRow("Task-count panel", settings.countPanel) { pickTarget = ColorPickTarget("count_panel", "Task-count panel", settings.countPanel, false) }
+                    ColorSettingRow("Task title", settings.taskTitle) { pickTarget = ColorPickTarget("task_title", "Task title", settings.taskTitle, false) }
                 }
             }
-            ExpandableColorPalette("To-Do widget colors", 6, todoColorsExpanded, { todoColorsExpanded = it }) {
-              Column(verticalArrangement = Arrangement.spacedBy(UiTokens.ControlGap)) {
-                ColorSettingRow("Incomplete checkbox", settings.incomplete) { pickTarget = ColorPickTarget("incomplete", "Incomplete checkbox", settings.incomplete, false) }
-                ColorSettingRow("Completed checkbox", settings.complete) { pickTarget = ColorPickTarget("complete", "Completed checkbox", settings.complete, false) }
-                ColorSettingRow("Task-count panel", settings.countPanel) { pickTarget = ColorPickTarget("count_panel", "Task-count panel", settings.countPanel, false) }
-                ColorSettingRow("Widget background", settings.widgetBackground) { pickTarget = ColorPickTarget("background", "Widget background", settings.widgetBackground, false) }
-                ColorSettingRow("Task card background", settings.taskCard) { pickTarget = ColorPickTarget("task_card", "Task card background", settings.taskCard, false) }
-                SettingSlider("Task card background transparency", "${settings.taskCardTransparencyPercent}%", settings.taskCardTransparencyPercent.toFloat(), 0f..100f, { onTaskCardTransparency(it.toInt()) }, intValued = true)
-                ColorSettingRow("Task title", settings.taskTitle) { pickTarget = ColorPickTarget("task_title", "Task title", settings.taskTitle, false) }
-              }
+            CollapsibleSettingsSection(
+                title = "Background",
+                summary = "Widget fill · Task-card transparency · Wallpaper",
+                expanded = todoBackgroundExpanded,
+                onExpandedChange = { todoBackgroundExpanded = it },
+                icon = ClarityIcons.Background
+            ) {
+                SettingsPanel {
+                    WallpaperRow(com.example.darktodo.data.WidgetBackgrounds.TODO, "To-Do widget wallpaper", onOpenWallpaper)
+                    ColorSettingRow("Widget background", settings.widgetBackground) { pickTarget = ColorPickTarget("background", "Widget background", settings.widgetBackground, false) }
+                    ColorSettingRow("Task card background", settings.taskCard) { pickTarget = ColorPickTarget("task_card", "Task card background", settings.taskCard, false) }
+                    SettingSlider("Task card background transparency", "${settings.taskCardTransparencyPercent}%", settings.taskCardTransparencyPercent.toFloat(), 0f..100f, { onTaskCardTransparency(it.toInt()) }, intValued = true)
+                }
             }
-            CollapsibleSettingsSection("Size & layout", "${settings.paddingDp} dp padding · ${settings.rowSpacingDp} dp row spacing", todoLayoutExpanded, { todoLayoutExpanded = it }) {
+            SettingsPanel {
+                Text("Display", color = Ink, fontSize = UiTokens.LabelSp.sp, fontWeight = FontWeight.Medium)
+                SettingSlider("Completed-task fade", "${settings.fadePercent}%", settings.fadePercent.toFloat(), 0f..100f, { onFade(it.toInt()) }, intValued = true)
+            }
+            CollapsibleSettingsSection(
+                title = "Layout",
+                summary = "${settings.paddingDp} dp padding · ${settings.rowSpacingDp} dp row spacing",
+                expanded = todoLayoutExpanded,
+                onExpandedChange = { todoLayoutExpanded = it },
+                icon = ClarityIcons.Layout
+            ) {
                 SettingsPanel {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         listOf("Compact" to (4 to 0), "Comfortable" to (8 to 2), "Spacious" to (14 to 6)).forEach { (label, v) ->
@@ -1601,46 +1636,73 @@ private data class ColorPickTarget(val key: String, val label: String, val value
             DefaultStyleActions(isTodo = true, onSave = onSaveDefault, onRestore = onRestoreDefault)
             ResetAction("Reset To-Do settings") { confirmTodoReset = true }
         } else SettingsSection("Calendar Widget", "Independent calendar appearance and task indicators") {
-            WallpaperRow(com.example.darktodo.data.WidgetBackgrounds.CALENDAR, "Calendar widget wallpaper", onOpenWallpaper)
-            CollapsibleSettingsSection("Font", selectedFontLabel(calendarSettings.fontFamily, calendarSettings.fontFileId, importedFonts), calendarFontExpanded, { calendarFontExpanded = it }) {
+            CollapsibleSettingsSection(
+                title = "Fonts",
+                summary = "${selectedFontLabel(calendarSettings.fontFamily, calendarSettings.fontFileId, importedFonts)} · Date · Weekday · Month font sizes",
+                expanded = calendarFontExpanded,
+                onExpandedChange = { calendarFontExpanded = it },
+                icon = ClarityIcons.Fonts
+            ) {
                 SettingsPanel {
                     FontFamilyRow("Font family", calendarSettings.fontFamily, calendarSettings.fontFileId, importedFonts, onCalendarFontFamily, onCalendarImportedFont)
                     LocalFontImportRow(importedFonts.size) { onImportFont(true) }
+                    SettingSlider("Font size (date)", "${calendarSettings.dateSize} sp", calendarSettings.dateSize.toFloat(), 12f..20f, { onCalendarInt("date_size", it.toInt()) }, intValued = true)
+                    SettingSlider("Font size (weekday)", "${calendarSettings.weekdaySize} sp", calendarSettings.weekdaySize.toFloat(), 8f..14f, { onCalendarInt("weekday_size", it.toInt()) }, intValued = true)
+                    SettingSlider("Font size (month heading)", "${calendarSettings.headingSize} sp", calendarSettings.headingSize.toFloat(), 14f..24f, { onCalendarInt("heading_size", it.toInt()) }, intValued = true)
                 }
             }
-            CollapsibleSettingsSection("Text sizes", "Date ${calendarSettings.dateSize} sp · Weekday ${calendarSettings.weekdaySize} sp · Month ${calendarSettings.headingSize} sp", calendarSizesExpanded, { calendarSizesExpanded = it }) {
+            CollapsibleSettingsSection(
+                title = "Colors",
+                summary = "Dates · Navigation · Selected date · Task indicators",
+                expanded = calendarColorsExpanded,
+                onExpandedChange = { calendarColorsExpanded = it },
+                icon = ClarityIcons.Colors
+            ) {
                 SettingsPanel {
-                    SettingSlider("Date size", "${calendarSettings.dateSize} sp", calendarSettings.dateSize.toFloat(), 12f..20f, { onCalendarInt("date_size", it.toInt()) }, intValued = true)
-                    SettingSlider("Weekday size", "${calendarSettings.weekdaySize} sp", calendarSettings.weekdaySize.toFloat(), 8f..14f, { onCalendarInt("weekday_size", it.toInt()) }, intValued = true)
-                    SettingSlider("Month heading size", "${calendarSettings.headingSize} sp", calendarSettings.headingSize.toFloat(), 14f..24f, { onCalendarInt("heading_size", it.toInt()) }, intValued = true)
+                    val colors = listOf(
+                        "date" to ("Date text" to calendarSettings.date),
+                        "weekday" to ("Weekday text" to calendarSettings.weekday),
+                        "heading" to ("Month heading" to calendarSettings.heading),
+                        "selected_background" to ("Selected-date circle" to calendarSettings.selectedBackground),
+                        "selected_text" to ("Selected-date text" to calendarSettings.selectedText),
+                        "navigation_arrows" to ("Month navigation arrows" to calendarSettings.navigationArrows),
+                        "complete_dot" to ("Completed-task dot" to calendarSettings.completeDot),
+                        "mixed_dot" to ("Mixed-status dot" to calendarSettings.mixedDot),
+                        "open_dot" to ("Incomplete-task dot" to calendarSettings.openDot)
+                    )
+                    colors.forEach { (key, pair) ->
+                        ColorSettingRow(pair.first, pair.second) { pickTarget = ColorPickTarget(key, pair.first, pair.second, true) }
+                    }
                 }
             }
-            ExpandableColorPalette("Calendar widget colors", 10, calendarColorsExpanded, { calendarColorsExpanded = it }) {
-              Column(verticalArrangement = Arrangement.spacedBy(UiTokens.ControlGap)) {
-                val colors = listOf(
-                    "background" to ("Background" to calendarSettings.background),
-                    "date" to ("Date text" to calendarSettings.date),
-                    "weekday" to ("Weekday text" to calendarSettings.weekday),
-                    "heading" to ("Month heading" to calendarSettings.heading),
-                    "selected_background" to ("Selected-date circle" to calendarSettings.selectedBackground),
-                    "selected_text" to ("Selected-date text" to calendarSettings.selectedText),
-                    "navigation_arrows" to ("Month navigation arrows" to calendarSettings.navigationArrows),
-                    "complete_dot" to ("Completed-task dot" to calendarSettings.completeDot),
-                    "mixed_dot" to ("Mixed-status dot" to calendarSettings.mixedDot),
-                    "open_dot" to ("Incomplete-task dot" to calendarSettings.openDot)
-                )
-                colors.forEach { (key, pair) ->
-                    ColorSettingRow(pair.first, pair.second) { pickTarget = ColorPickTarget(key, pair.first, pair.second, true) }
+            CollapsibleSettingsSection(
+                title = "Background",
+                summary = "Widget fill · Wallpaper",
+                expanded = calendarBackgroundExpanded,
+                onExpandedChange = { calendarBackgroundExpanded = it },
+                icon = ClarityIcons.Background
+            ) {
+                SettingsPanel {
+                    WallpaperRow(com.example.darktodo.data.WidgetBackgrounds.CALENDAR, "Calendar widget wallpaper", onOpenWallpaper)
+                    ColorSettingRow("Widget background", calendarSettings.background) {
+                        pickTarget = ColorPickTarget("background", "Widget background", calendarSettings.background, true)
+                    }
                 }
-              }
             }
-            CollapsibleSettingsSection("Layout", "${calendarSettings.cornerRadius} dp corners · ${calendarSettings.rowSpacing} dp row spacing", calendarLayoutExpanded, { calendarLayoutExpanded = it }) {
+            CollapsibleSettingsSection(
+                title = "Layout",
+                summary = "${calendarSettings.cornerRadius} dp corners · ${calendarSettings.rowSpacing} dp row spacing",
+                expanded = calendarLayoutExpanded,
+                onExpandedChange = { calendarLayoutExpanded = it },
+                icon = ClarityIcons.Layout
+            ) {
                 SettingsPanel {
                     SettingSlider("Corner radius", "${calendarSettings.cornerRadius} dp", calendarSettings.cornerRadius.toFloat(), 8f..32f, { onCalendarInt("corner_radius", it.toInt()) }, intValued = true)
                     SettingSlider("Vertical row spacing", "${calendarSettings.rowSpacing} dp", calendarSettings.rowSpacing.toFloat(), 0f..8f, { onCalendarInt("row_spacing", it.toInt()) }, intValued = true)
                 }
             }
             SettingsPanel {
+                Text("Display", color = Ink, fontSize = UiTokens.LabelSp.sp, fontWeight = FontWeight.Medium)
                 SettingsSwitchRow("Show task-status dots", "Mark dates with completed or open tasks", calendarSettings.showDots, onCalendarDots)
             }
             DefaultStyleActions(isTodo = false, onSave = onSaveDefault, onRestore = onRestoreDefault)
@@ -1765,63 +1827,12 @@ private data class ColorPickTarget(val key: String, val label: String, val value
     }
 }
 
-@Composable private fun CollapsibleSettingsSection(
-    title: String,
-    summary: String,
-    expanded: Boolean,
-    onExpandedChange: (Boolean) -> Unit,
-    content: @Composable ColumnScope.() -> Unit
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(UiTokens.ControlGap)) {
-        Surface(
-            onClick = { onExpandedChange(!expanded) },
-            color = UiTokens.SurfaceRaised,
-            shape = RoundedCornerShape(UiTokens.RowRadius),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Row(
-                Modifier.fillMaxWidth().heightIn(min = UiTokens.ControlHeight).padding(horizontal = 14.dp, vertical = 7.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(UiTokens.ControlGap)
-            ) {
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(title, color = Ink, fontSize = UiTokens.LabelSp.sp, fontWeight = FontWeight.Medium)
-                    Text(summary, color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
-                Text(if (expanded) "\u2303" else "\u2304", color = UiTokens.Secondary, fontSize = 20.sp)
-            }
-        }
-        AnimatedVisibility(
-            visible = expanded,
-            enter = expandVertically(animationSpec = tween(200)) + fadeIn(animationSpec = tween(160)),
-            exit = shrinkVertically(animationSpec = tween(180)) + fadeOut(animationSpec = tween(120))
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(UiTokens.ControlGap), content = content)
-        }
-    }
-}
-
 private fun selectedFontLabel(
     family: WidgetFontFamily,
     fileId: String?,
     importedFonts: List<ImportedWidgetFont>
 ): String = importedFonts.firstOrNull { it.id == fileId }?.name ?: family.label
 
-@Composable private fun ExpandableColorPalette(
-    title: String,
-    colorCount: Int,
-    expanded: Boolean,
-    onExpandedChange: (Boolean) -> Unit,
-    content: @Composable ColumnScope.() -> Unit
-) {
-    CollapsibleSettingsSection(
-        title = title,
-        summary = "$colorCount color options",
-        expanded = expanded,
-        onExpandedChange = onExpandedChange,
-        content = content
-    )
-}
 @Composable private fun ColorSettingRow(label: String, value: String, onClick: () -> Unit) {
     Surface(
         onClick = onClick,
@@ -1830,7 +1841,7 @@ private fun selectedFontLabel(
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(Modifier.heightIn(min = UiTokens.ControlHeight).padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text(label, color = Ink, modifier = Modifier.weight(1f), fontSize = UiTokens.LabelSp.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(label, color = Ink, modifier = Modifier.weight(1f), fontSize = UiTokens.LabelSp.sp)
             Text(value.uppercase(), color = UiTokens.Subdued, fontSize = UiTokens.DetailSp.sp, maxLines = 1)
             Box(Modifier.size(UiTokens.SwatchSize).background(colorFromHex(value), RoundedCornerShape(UiTokens.SwatchRadius)).border(1.dp, Color.White.copy(alpha = .32f), RoundedCornerShape(UiTokens.SwatchRadius)))
         }

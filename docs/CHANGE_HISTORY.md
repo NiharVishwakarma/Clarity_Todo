@@ -1,5 +1,13 @@
 # Change History
 
+## 2026-10-18 — Organize appearance settings
+
+- Added a shared outlined, animated settings-section card with a 56dp accessible header, optional wrapping subtitle, decorative accent icon, expanded/collapsed semantics, and saveable expansion state. Section contents remain composed but clipped and absent from accessibility semantics while collapsed, preserving draft fields, dialogs, and import launchers.
+- Regrouped existing To-Do, Calendar, app-font, per-note, and Vault appearance controls under truthful Fonts, Colors, Background, Layout, and Readability headings. Completion fade, Calendar status dots, Vault corner radius, and reset/default actions remain directly available; no controls or preference keys were added or removed.
+- Preserved existing save/refresh paths, note-specific debounced save and close-time flush, Vault immediate versus slider-release writes, font/image handling, and widget scope. Info/System Monitor, Note widget selection, and Vault security remain unchanged.
+- Added `SettingsOrganizationContractTest` to guard section composition/accessibility and existing controls/save callbacks; updated project memory and the repository map, including this entry.
+- Validation: focused tests were attempted with `gradle --no-daemon :app:testDebugUnitTest --tests 'com.example.darktodo.ui.SettingsOrganizationContractTest'` and Gradle 8.9; the full `:app:testDebugUnitTest :app:assembleDebug :app:lintDebug` task set was also attempted with Gradle 8.9. All stopped before compilation because Android Gradle Plugin `8.7.3` could not be resolved from configured repositories. Equivalent source-contract assertions and `git diff --check` passed. `adb` is not installed, so device/UI checks were not performed.
+
 ## 2026-10-18 — Info/System Monitor and Vault widget appearance
 
 - Navigation/activity/shared icons: replaced only the active Quotes slot with the plain `Info` tab in the existing shared styling, retained the legacy Quotes route, migrated old saved selection, and added cold/warm Info intent handling plus a separate Vault appearance child route/gear.
