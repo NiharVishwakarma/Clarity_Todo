@@ -13,6 +13,12 @@ This log begins with the repository snapshot available when these project notes 
 
 ## Current version summary
 
+### 2026-10-18 — Use uploaded launcher artwork without a competing variant
+
+- Verified that the manifest's normal and round icons share the adaptive foreground and dark/red background, with API 26 matching the app's minimum SDK. Kept the existing manifest, XML, and uploaded `app/src/main/res/drawable/clarity_suite_icon.png` unchanged.
+- Removed the different same-named PNG from `drawable-nodpi`, which could override the uploaded artwork during Android resource selection.
+- Added JVM resource-contract tests for the manifest/adaptive/foreground chain, PNG decoding, and a single artwork resource location. Updated the repository map and project memory with the verified wiring and upload location, including this history entry.
+
 ### 2026-10-18 — Add lightweight repository navigation
 
 - Added `docs/REPO_MAP.md` with source-verified entry points, feature-to-file/test mappings, shared state, service boundaries, and build/test/lint guidance.

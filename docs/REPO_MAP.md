@@ -41,6 +41,11 @@ Tests listed are related JVM coverage, not end-to-end guarantees.
 | Navigation | `navigation/ModuleNavigation.kt`, `navigation/ModulePrefs.kt`, `MainActivity.kt` | `navigation/ModuleNavigationTest.kt` |
 | Google Drive backup/restore | `BackupScreens.kt`, `backup/BackupManager.kt`, `backup/BackupCodec.kt`, `backup/BackupScheduler.kt`, `backup/DriveClient.kt` | `backup/BackupCodecTest.kt`; no Drive/restore integration tests |
 
+Launcher icon resources under `app/src/main/`: `AndroidManifest.xml` →
+`res/mipmap-anydpi-v26/ic_clarity_suite*.xml` → `res/drawable/ic_clarity_suite_foreground.xml` →
+`res/drawable/clarity_suite_icon.png`. Related test: `LauncherIconResourceContractTest.kt`
+(relative to the test prefix above). Keep only one artwork variant.
+
 Widget resources: `app/src/main/res/layout/` (live/preview RemoteViews),
 `app/src/main/res/xml/` (provider metadata), `app/src/main/res/drawable/`
 (backgrounds/icons), and `app/src/main/res/values/` (strings/themes/dimensions).
