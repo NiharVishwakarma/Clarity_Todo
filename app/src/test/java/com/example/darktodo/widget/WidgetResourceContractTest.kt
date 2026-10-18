@@ -81,11 +81,17 @@ class WidgetResourceContractTest {
         assertEquals("wrap_content", icon.attr("layout_width"))
         assertEquals("true", icon.attr("adjustViewBounds"))
         assertEquals("fitCenter", icon.attr("scaleType"))
-        assertEquals("@drawable/vault_icon", icon.attr("src"))
+        assertEquals("@drawable/vault_widget_icon", icon.attr("src"))
+        val artwork = File(main, "res/drawable/vault_widget_icon.png")
+        assertTrue("Uploaded Vault widget artwork must exist", artwork.isFile)
+        assertTrue("Uploaded Vault widget artwork must not be empty", artwork.length() > 0)
         val previewIcon = xml("res/drawable/vault_widget_preview.xml").elements().single { it.attr("drawable") == icon.attr("src") }
         assertEquals("62dp", previewIcon.attr("height"))
         assertEquals("62dp", previewIcon.attr("width"))
         assertEquals("start|center_vertical", previewIcon.attr("gravity"))
-        assertEquals("@layout/vault_widget", xml("res/xml/vault_widget_info.xml").attr("previewLayout"))
+        val provider = xml("res/xml/vault_widget_info.xml")
+        assertEquals("@layout/vault_widget", provider.attr("initialLayout"))
+        assertEquals("@layout/vault_widget", provider.attr("previewLayout"))
+        assertEquals("@drawable/vault_widget_preview", provider.attr("previewImage"))
     }
 }
