@@ -10,6 +10,32 @@ const val UNAVAILABLE = "Unavailable"
 data class MonitorSnapshot(val capturedAt: Long, val values: Map<String, String>)
 
 object MonitorFormats {
+    const val STALE_AFTER_MILLIS = 60 * 60 * 1000L
+
+    fun snapshotStale(capturedAt: Long, now: Long, refreshFailed: Boolean): Boolean =
+        refreshFailed || capturedAt < 0 || now < capturedAt || now - capturedAt >= STALE_AFTER_MILLIS
+
+    fun snapshotStatus(capturedAt: Long?, now: Long, refreshing: Boolean, refreshFailed: Boolean): String {
+        if (capturedAt == null) return when {
+            refreshing -> "Loading device metrics…"
+            refreshFailed -> "Error — no successful snapshot. Retry Refresh."
+            else -> "Unavailable — no successful snapshot yet."
+        }
+        val status = when {
+            snapshotStale(capturedAt, now, refreshFailed) -> if (refreshing) "Stale · Refreshing" else if (refreshFailed) "Stale · Refresh failed" else "Stale"
+            refreshing -> "Refreshing · Showing previous snapshot"
+            else -> "Updated"
+        }
+        return "$status · Captured ${timestamp(capturedAt)}"
+    }
+
+    fun storageFailureStatus(error: Exception): String = when (error) {
+        is SecurityException -> "Access denied by Android for this app's own UID; no Usage Access requested"
+        is UnsupportedOperationException -> "Unsupported — Android storage statistics service or API unavailable"
+        is java.io.IOException -> "Unavailable — storage service/provider or volume could not be read"
+        else -> "Unavailable — Android storage statistics query failed"
+    }
+
     fun bytes(value: Long?): String {
         if (value == null || value < 0) return UNAVAILABLE
         val units = listOf("B", "KiB", "MiB", "GiB", "TiB", "PiB", "EiB")

@@ -88,6 +88,10 @@ private fun InfoMonitorContent(onSnapshotUpdated: () -> Unit) {
     val scope = rememberCoroutineScope()
     val updatedCallback by rememberUpdatedState(onSnapshotUpdated)
     var snapshot by remember { mutableStateOf<MonitorSnapshot?>(null) }
+    var loadingSnapshot by remember { mutableStateOf(true) }
+    var refreshing by remember { mutableStateOf(false) }
+    var refreshFailed by remember { mutableStateOf(false) }
+    var now by remember { mutableStateOf(System.currentTimeMillis()) }
     var message by remember { mutableStateOf("Loading local snapshot…") }
     var section by rememberSaveable { mutableStateOf("Device") }
     var working by remember { mutableStateOf(false) }
@@ -100,13 +104,13 @@ private fun InfoMonitorContent(onSnapshotUpdated: () -> Unit) {
     var cache by remember { mutableStateOf<CacheResult?>(null) }
     var confirmCache by remember { mutableStateOf(false) }
 
-    fun work(block: suspend () -> Unit) {
+    fun work(onCancelled: (() -> String)? = null, block: suspend () -> Unit) {
         if (working) return
         working = true
         operation = scope.launch {
             try { block() }
             catch (cancelled: CancellationException) {
-                message = "Cancelled. Previous snapshot preserved; an export or cleanup may be partial."
+                message = onCancelled?.invoke() ?: "Cancelled. Previous snapshot preserved; an export or cleanup may be partial."
                 throw cancelled
             } catch (_: Exception) {
                 message = "Operation failed. Previous snapshot preserved. Check access and retry; exported files may be incomplete."
@@ -114,8 +118,20 @@ private fun InfoMonitorContent(onSnapshotUpdated: () -> Unit) {
         }
     }
     suspend fun refresh(): MonitorSnapshot {
-        val fresh = MonitorRepository.refresh(context)
+        refreshing = true
+        val fresh = try {
+            MonitorRepository.refresh(context)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            refreshFailed = true
+            throw error
+        } finally {
+            refreshing = false
+            now = System.currentTimeMillis()
+        }
         snapshot = fresh
+        refreshFailed = false
         updatedCallback()
         return fresh
     }
@@ -147,8 +163,10 @@ private fun InfoMonitorContent(onSnapshotUpdated: () -> Unit) {
 
     LaunchedEffect(lifecycle) {
         snapshot = withContext(Dispatchers.IO) { MonitorRepository.last(context) }
+        loadingSnapshot = false
         lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
             while (true) {
+                now = System.currentTimeMillis()
                 if (!working && !pickerPending) work { refresh(); message = "Snapshot refreshed locally. Auto-refresh every 30 seconds while visible." }
                 delay(30_000)
             }
@@ -171,7 +189,9 @@ private fun InfoMonitorContent(onSnapshotUpdated: () -> Unit) {
                 Button(enabled = !working && !pickerPending, onClick = { work { refresh(); message = "Snapshot refreshed." } }) { Text("Refresh") }
                 if (working) OutlinedButton(onClick = { operation?.cancel() }) { Text("Cancel") }
             }
-            Text(snapshot?.let { "Captured ${MonitorFormats.timestamp(it.capturedAt)}" } ?: "No successful snapshot yet",
+            Text(MonitorFormats.snapshotStatus(snapshot?.capturedAt, now, refreshing || loadingSnapshot, refreshFailed),
+                color = if (refreshFailed || snapshot?.let { MonitorFormats.snapshotStale(it.capturedAt, now, false) } == true)
+                    UiTokens.Accent else UiTokens.Muted,
                 style = MaterialTheme.typography.bodySmall)
             Text(message, style = MaterialTheme.typography.bodySmall)
             Text(section, style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 12.dp))
@@ -241,7 +261,7 @@ private fun InfoMonitorContent(onSnapshotUpdated: () -> Unit) {
                 }
                 item {
                     Text("Reports", style = MaterialTheme.typography.titleMedium)
-                    Text("Export a newly collected, coherent snapshot with its UTC timestamp. Reports contain device/build details but no unique device IDs, task data, passwords, or download names. Choose the destination yourself. PDF uses Android's native PDF renderer; font glyph coverage depends on Android.")
+                    Text("Export a newly collected, coherent snapshot with its UTC timestamp. Reports contain device/build details, including model and build fingerprint, but no unique hardware IDs, task data, passwords, or selected document names. Choose the destination yourself. PDF uses Android's native PDF renderer; font glyph coverage depends on Android.")
                     val filename = "clarity-info-${snapshot?.capturedAt ?: System.currentTimeMillis()}"
                     OutlinedButton(enabled = !working && !pickerPending, onClick = { pickerPending = true; try { textExport.launch("$filename.txt") } catch (_: Exception) { pickerPending = false; message = "No export picker available." } }) { Text("Save TXT") }
                     OutlinedButton(enabled = !working && !pickerPending, onClick = { pickerPending = true; try { csvExport.launch("$filename.csv") } catch (_: Exception) { pickerPending = false; message = "No export picker available." } }) { Text("Save CSV") }
@@ -287,9 +307,24 @@ private fun InfoMonitorContent(onSnapshotUpdated: () -> Unit) {
         text = { Text("Delete only this app's disposable cache and compiled-code cache. Files may be recreated and startup may be slower. This cannot be undone. All task, note, vault and settings data is kept.") },
         confirmButton = { TextButton(enabled = !working, onClick = {
             confirmCache = false
-            work {
-                cache = MonitorCache.clear(context)
-                message = "Deleted ${MonitorFormats.bytes(cache!!.bytes)} in ${cache!!.files} cache files${if (cache!!.partial) "; partial cleanup, some entries skipped" else ""}."
+            var cleanupSummary: String? = null
+            work(onCancelled = {
+                cleanupSummary?.let { "$it Snapshot refresh cancelled; previous snapshot preserved." }
+                    ?: "Cache cleanup cancelled; some cache files may already have been deleted."
+            }) {
+                val result = MonitorCache.clear(context)
+                cache = result
+                val summary = "Deleted ${MonitorFormats.bytes(result.bytes)} in ${result.files} cache files; ${result.failures} skipped/errors${if (result.partial) "; partial cleanup" else ""}."
+                cleanupSummary = summary
+                message = summary
+                try {
+                    refresh()
+                    message = "$summary Metrics refreshed."
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    message = "$summary Metrics refresh failed; previous successful snapshot remains available."
+                }
             }
         }) { Text("Clear cache") } },
         dismissButton = { TextButton(onClick = { confirmCache = false }) { Text("Cancel") } }

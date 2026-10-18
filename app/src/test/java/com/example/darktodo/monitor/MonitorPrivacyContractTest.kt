@@ -1,0 +1,49 @@
+package com.example.darktodo.monitor
+
+import java.io.File
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class MonitorPrivacyContractTest {
+    private fun source(path: String): String {
+        val main = File("src/main/java/com/example/darktodo").let {
+            if (it.isDirectory) it else File("app/src/main/java/com/example/darktodo")
+        }
+        return File(main, path).readText()
+    }
+
+    @Test fun snapshotIsPersistedOnlyInNoBackupStorage() {
+        val repository = source("monitor/MonitorRepository.kt")
+        assertTrue(Regex("""AtomicFile\s*\(\s*File\s*\(\s*context\.noBackupFilesDir\s*,\s*"monitor-snapshot\.json"""")
+            .containsMatchIn(repository))
+        assertFalse(repository.contains("getSharedPreferences"))
+    }
+
+    @Test fun cloudBackupAllowListsExcludeMonitorSnapshotsReportsAndPreferences() {
+        val backup = source("backup/BackupManager.kt")
+        val preferences = Regex("""val PREF_FILES\s*=\s*listOf\(([^)]*)\)""")
+            .find(backup)!!.groupValues[1]
+        val names = Regex(""""([^"]+)"""").findAll(preferences).map { it.groupValues[1] }.toSet()
+        assertEquals(setOf("todo_store", "calendar_widget_settings", "app_typography",
+            "widget_backgrounds", "vault_auth", "sticker_store"), names)
+        assertFalse(names.any { it.contains("monitor", ignoreCase = true) || it.contains("report", ignoreCase = true) })
+        val blobs = backup.substringAfter("private fun blobFiles(").substringBefore("/** Replaces local data")
+        val fixedNames = Regex(""""([^"]+)"\s+to\s+""").findAll(blobs).map { it.groupValues[1] }.toSet()
+        assertEquals(setOf("vault", "wallpaper_todo", "wallpaper_calendar"), fixedNames)
+        assertTrue(blobs.contains("""files["wallpaper_note_${'$'}{note.id}"]"""))
+        assertFalse(blobs.contains("monitor", ignoreCase = true))
+        assertFalse(blobs.contains("report", ignoreCase = true))
+        assertFalse(blobs.contains("listFiles"))
+        assertFalse(blobs.contains(".walk"))
+    }
+
+    @Test fun reportsWriteOnlyToUserSelectedDestinationWithoutPrivateCopies() {
+        val reports = source("monitor/MonitorReports.kt")
+        assertTrue(reports.contains("""context.contentResolver.openOutputStream(uri, "wt")"""))
+        assertFalse(reports.contains("context.filesDir"))
+        assertFalse(reports.contains("context.noBackupFilesDir"))
+        assertFalse(reports.contains("getSharedPreferences"))
+    }
+}

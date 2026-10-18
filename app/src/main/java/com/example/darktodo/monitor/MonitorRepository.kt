@@ -133,11 +133,18 @@ object MonitorRepository {
             Environment.getExternalStorageState(it) == Environment.MEDIA_MOUNTED
         })
         value("Storage accounting") { "Used = filesystem total minus bytes available to apps, including reserved space. Free includes reserved bytes unavailable to normal apps. App external may share internal storage; do not add totals." }
+        var ownStorageStatus = "Available — Android statistics for this app's own UID; no Usage Access requested"
         val ownStorage = try {
-            val manager = context.getSystemService(Context.STORAGE_SERVICE) as StorageManager
-            val stats = context.getSystemService(Context.STORAGE_STATS_SERVICE) as StorageStatsManager
+            val manager = context.getSystemService(Context.STORAGE_SERVICE) as? StorageManager
+                ?: throw UnsupportedOperationException()
+            val stats = context.getSystemService(Context.STORAGE_STATS_SERVICE) as? StorageStatsManager
+                ?: throw UnsupportedOperationException()
             stats.queryStatsForUid(manager.getUuidForPath(context.filesDir), Process.myUid())
-        } catch (_: Exception) { null }
+        } catch (error: Exception) {
+            ownStorageStatus = MonitorFormats.storageFailureStatus(error)
+            null
+        }
+        value("Clarity app storage status") { ownStorageStatus }
         value("Clarity app storage: code") { MonitorFormats.bytes(ownStorage?.appBytes) }
         value("Clarity app storage: data (includes cache)") { MonitorFormats.bytes(ownStorage?.dataBytes) }
         value("Clarity app storage: cache (subset of data)") { MonitorFormats.bytes(ownStorage?.cacheBytes) }

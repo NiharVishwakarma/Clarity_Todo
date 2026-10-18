@@ -69,4 +69,23 @@ class MonitorFormatsTest {
             assertEquals(null, MonitorFormats.percentFraction(it))
         }
     }
+
+    @Test fun snapshotStatesCoverLoadingUnavailableFailureAndAge() {
+        assertEquals("Loading device metrics…", MonitorFormats.snapshotStatus(null, 1_000, true, false))
+        assertTrue(MonitorFormats.snapshotStatus(null, 1_000, false, true).startsWith("Error"))
+        assertTrue(MonitorFormats.snapshotStatus(null, 1_000, false, false).startsWith("Unavailable"))
+        assertTrue(MonitorFormats.snapshotStatus(1_000, 2_000, false, false).startsWith("Updated"))
+        assertTrue(MonitorFormats.snapshotStatus(1_000, 2_000, true, false).startsWith("Refreshing"))
+        assertTrue(MonitorFormats.snapshotStatus(1_000, 2_000, false, true).startsWith("Stale · Refresh failed"))
+        assertTrue(MonitorFormats.snapshotStatus(1_000, 2_000, true, true).startsWith("Stale · Refreshing"))
+        assertTrue(MonitorFormats.snapshotStatus(1_000, 1_000 + MonitorFormats.STALE_AFTER_MILLIS, false, false).startsWith("Stale"))
+        assertTrue(MonitorFormats.snapshotStatus(2_000, 1_000, false, false).startsWith("Stale"))
+    }
+
+    @Test fun ownAppStorageFailuresDistinguishDeniedUnsupportedAndProviderFailure() {
+        assertTrue(MonitorFormats.storageFailureStatus(SecurityException()).startsWith("Access denied"))
+        assertTrue(MonitorFormats.storageFailureStatus(UnsupportedOperationException()).startsWith("Unsupported"))
+        assertTrue(MonitorFormats.storageFailureStatus(java.io.IOException()).contains("service/provider"))
+        assertTrue(MonitorFormats.storageFailureStatus(IllegalStateException()).contains("query failed"))
+    }
 }
