@@ -30,6 +30,33 @@ Add these four repository Actions secrets under **Settings → Secrets and varia
 
 When changing the signing certificate on an already-installed app, Android may reject the APK as an update. Do not uninstall until any local data you need has been safely backed up; uninstalling removes app data and widgets.
 
+### Google connection troubleshooting
+
+The app uses Google Identity Services authorization from Google Play services, with
+`drive.appdata` and `email` scopes. This Android authorization flow identifies the
+app by package and signing certificate; it does not use a web redirect URI or a
+client secret embedded in the app.
+
+- In the same Google Cloud project, enable the **Google Drive API**, configure the
+  OAuth consent screen/audience, and allow the requested scopes. If the project is
+  in Testing, add the Google account being used as a test user; organization policies
+  can also restrict access.
+- Create/check an **Android OAuth client** with package `com.example.darktodo` and
+  the exact **SHA-1** certificate fingerprint printed by the workflow's
+  `apksigner verify --print-certs` command for the APK actually installed. It also
+  prints SHA-256; Android OAuth client matching here uses SHA-1, not SHA-256.
+- A workflow warning about a missing stable debug keystore means that run used
+  an ephemeral debug certificate. Set the four signing secrets above to reuse
+  one certificate across builds, then register that certificate's SHA-1. Do not
+  replace the release OAuth client, share keystore passwords, or commit keys.
+- On the device, check internet access and that Google Play services is installed,
+  enabled and current. Read the connection error displayed under Settings > Data.
+  A successful APK build alone does not verify OAuth or Drive access.
+
+Cancellation leaves local data unchanged. Successful authorization updates the
+account immediately; checking/uploading the private backup can still fail
+separately and displays an error. The last-backup time changes only after upload.
+
 ### Release signing
 
 The app module retains a separate release signing configuration using `ANDROID_KEYSTORE_PATH`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, and `ANDROID_KEY_PASSWORD`, or corresponding ignored `keystore.properties` entries. Routine CI currently does not build or sign a release APK.

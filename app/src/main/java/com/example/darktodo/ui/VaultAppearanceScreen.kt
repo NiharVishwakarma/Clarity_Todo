@@ -26,7 +26,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -56,9 +55,9 @@ fun VaultAppearanceScreen(onBack: () -> Unit) {
     var fonts by remember { mutableStateOf(LocalWidgetFonts.list(context)) }
     var book by remember { mutableStateOf(StickerColorBook()) }
     var importing by remember { mutableStateOf(false) }
-    var fontsExpanded by rememberSaveable { mutableStateOf(true) }
-    var colorsExpanded by rememberSaveable { mutableStateOf(true) }
-    var backgroundExpanded by rememberSaveable { mutableStateOf(false) }
+    var fontsExpanded by rememberSettingsSectionExpanded()
+    var colorsExpanded by rememberSettingsSectionExpanded()
+    var backgroundExpanded by rememberSettingsSectionExpanded()
     val importScope = rememberCoroutineScope()
     fun update(value: VaultAppearance) {
         style = value.sanitized()
@@ -125,7 +124,7 @@ fun VaultAppearanceScreen(onBack: () -> Unit) {
             }
             fonts.forEach { font ->
                 TextButton(onClick = { update(style.copy(fontFileId = font.id)) }) {
-                    Text((if (style.fontFileId == font.id) "✓ " else "") + font.name, color = UiTokens.Accent)
+                    Text((if (font.containsId(style.fontFileId)) "✓ " else "") + font.name, color = UiTokens.Accent)
                 }
             }
             TextButton(onClick = { importer.launch(arrayOf("*/*")) }, enabled = !importing) {

@@ -15,20 +15,23 @@ import kotlin.math.ceil
 import org.json.JSONArray
 import org.json.JSONObject
 
-data class ImportedWidgetFont(val id: String, val name: String)
-
-/** Private copies of user-picked font files, shared by both home-screen widgets. */
+/** Private copies of user-picked font files, shared by app typography and all font pickers/widgets. */
 object LocalWidgetFonts {
     private const val PREFS = "widget_fonts"
     private const val KEY_FONTS = "imported_fonts"
     private const val MAX_FONT_BYTES = 20L * 1024L * 1024L
     private val typefaceCache = mutableMapOf<String, Typeface>()
+    private val catalog = ImportedFontCatalog { file, error ->
+        android.util.Log.w("LocalWidgetFonts", "Could not inspect imported font ${file.name}", error)
+    }
     // Parsed registry keyed by its stored JSON; the file-exists check still runs on every call.
     private var listRaw: String? = null
     private var listEntries: List<ImportedWidgetFont> = emptyList()
 
-    fun list(context: Context): List<ImportedWidgetFont> {
-        val root = root(context)
+    @Synchronized
+    fun list(context: Context): List<ImportedWidgetFont> = catalog.list(root(context), entries(context))
+
+    private fun entries(context: Context): List<ImportedWidgetFont> {
         val json = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .getString(KEY_FONTS, "[]") ?: "[]"
         val entries = synchronized(this) {
@@ -43,15 +46,17 @@ object LocalWidgetFonts {
                             if (id.matches(Regex("^[a-f0-9-]+\\.(ttf|otf|ttc)$")) && name.isNotBlank()) add(ImportedWidgetFont(id, name))
                         }
                     }
-                }.getOrDefault(emptyList())
+                }.onFailure { android.util.Log.e("LocalWidgetFonts", "Could not read the font registry", it) }
+                    .getOrDefault(emptyList())
                 listRaw = json
             }
             listEntries
         }
-        return entries.filter { File(root, it.id).isFile }
+        return entries
     }
 
     /** Copy, validate, then register a font selected through Android's document picker. */
+    @Synchronized
     fun import(context: Context, uri: Uri): ImportedWidgetFont {
         val app = context.applicationContext
         val displayName = displayName(app, uri)
@@ -82,16 +87,23 @@ object LocalWidgetFonts {
             }
             val parsed = Typeface.Builder(temporary).build()
             check(parsed != null) { "Android couldn't read this font file." }
+            val hash = catalog.hash(temporary)
+            val entries = entries(app)
+            catalog.find(directory, entries, hash)?.let { return it }
             check(temporary.renameTo(destination)) { "Could not save the font in app storage." }
             synchronized(typefaceCache) { typefaceCache[id] = parsed }
 
-            val entries = list(app).toMutableList().apply { add(0, ImportedWidgetFont(id, displayName)) }
-            val array = JSONArray()
-            entries.forEach { array.put(JSONObject().put("id", it.id).put("name", it.name)) }
-            app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(KEY_FONTS, array.toString()).apply()
-            return ImportedWidgetFont(id, displayName)
+            // Append to the original JSON, not the deduplicated picker view: retain legacy metadata/IDs.
+            val prefs = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            val array = JSONArray(prefs.getString(KEY_FONTS, "[]") ?: "[]")
+            array.put(JSONObject().put("id", id).put("name", displayName))
+            check(prefs.edit().putString(KEY_FONTS, array.toString()).commit()) { "Could not save the font registry." }
+            listRaw = null
+            return list(app).first { it.containsId(id) }
         } finally {
-            if (temporary.exists()) temporary.delete()
+            if (temporary.exists() && !temporary.delete()) {
+                android.util.Log.w("LocalWidgetFonts", "Could not remove temporary font ${temporary.name}")
+            }
         }
     }
 
@@ -100,6 +112,7 @@ object LocalWidgetFonts {
         if (fontId == null) return null
         return synchronized(typefaceCache) {
             typefaceCache[fontId] ?: runCatching { Typeface.createFromFile(File(root(context), fontId)) }
+                .onFailure { android.util.Log.w("LocalWidgetFonts", "Could not load imported font $fontId", it) }
                 .getOrNull()?.also { typefaceCache[fontId] = it }
         }
     }

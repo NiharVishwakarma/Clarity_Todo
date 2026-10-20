@@ -9,6 +9,22 @@ class SettingsOrganizationContractTest {
     private val main = File("src/main").let { if (it.isDirectory) it else File("app/src/main") }
     private fun source(path: String) = File(main, "java/com/example/darktodo/$path").readText()
 
+    @Test fun everySettingsSectionUsesTransientCollapsedState() {
+        val shared = source("ui/ClarityUi.kt")
+            .substringAfter("fun rememberSettingsSectionExpanded")
+            .substringBefore("fun CollapsibleSettingsSection")
+        assertTrue(shared.contains("remember(key) { mutableStateOf(false) }"))
+        assertFalse(shared.contains("rememberSaveable"))
+        listOf("MainActivity.kt", "ui/NoteSettings.kt", "ui/VaultAppearanceScreen.kt").forEach { path ->
+            val screen = source(path)
+            val sections = Regex("var \\w+Expanded by ([^\\r\\n]+)").findAll(screen)
+                .filterNot { it.value.contains("addExpanded") }.toList()
+            assertTrue(path, sections.isNotEmpty())
+            sections.forEach { assertTrue(it.value, it.groupValues[1].startsWith("rememberSettingsSectionExpanded(")) }
+        }
+        assertTrue(source("ui/NoteSettings.kt").contains("rememberSettingsSectionExpanded(noteId)"))
+    }
+
     @Test fun collapsedSectionsKeepContentComposedAndExposeExpansionState() {
         val section = source("ui/ClarityUi.kt")
             .substringAfter("fun CollapsibleSettingsSection")
