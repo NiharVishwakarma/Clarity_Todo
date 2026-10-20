@@ -234,10 +234,11 @@ fun CollapsibleSettingsSection(
     }
 }
 
-@Composable fun SettingsCategoryHeader(icon: ImageVector, title: String, modifier: Modifier = Modifier) {
+@Composable fun SettingsCategoryHeader(icon: ImageVector, title: String, modifier: Modifier = Modifier, trailing: (@Composable () -> Unit)? = null) {
     Row(modifier.fillMaxWidth().padding(top = 16.dp, bottom = 2.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         ClarityGlyph(icon, size = 20.dp)
-        Text(title, color = UiTokens.Ink, fontSize = UiTokens.SectionTitleSp.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
+        Text(title, color = UiTokens.Ink, fontSize = UiTokens.SectionTitleSp.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, modifier = Modifier.weight(1f))
+        trailing?.invoke()
     }
 }
 

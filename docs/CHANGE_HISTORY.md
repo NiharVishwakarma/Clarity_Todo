@@ -1,5 +1,11 @@
 # Change History
 
+## 2026-10-20 - Settings > Data layout and help
+
+- Reordered Settings > Data (account, Back up now, Backup history, Backup settings, secondary status card, Disconnect) and removed the redundant Restore backup row; restore remains in Backup history. Delete backup history moved into a "More" menu with the existing confirmation (button now reads "Delete all backups").
+- Replaced the long explanatory paragraph with a help button beside the Data heading (new optional `trailing` slot on `SettingsCategoryHeader`). Added account, read-only Backup settings and status-details dialogs; the paused-reason text states that the reason is not recorded.
+- UI-only: no changes to backup format, encryption, OAuth, scopes, storage, retention or restore logic. Not compiled or device-tested locally; verification is via the GitHub Actions debug workflow.
+
 ## 2026-10-20 - Google Drive backup history and selectable restore points
 
 - Replaced single-file overwrites with immutable dated snapshots in the existing private Drive app-data folder, retaining OAuth scopes and version-1 payloads. Added stable reserved IDs, durable retry payloads/operation IDs, paginated discovery, explicit metadata and download/checksum/format verification before success timestamps or retention.

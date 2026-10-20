@@ -4,16 +4,26 @@ import android.app.Activity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -28,7 +38,12 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -37,6 +52,9 @@ import androidx.compose.ui.window.Dialog
 import android.text.format.Formatter
 import com.example.darktodo.backup.BackupManager
 import com.example.darktodo.backup.BackupPoint
+import com.example.darktodo.ui.ClarityGlyph
+import com.example.darktodo.ui.ClarityIcons
+import com.example.darktodo.ui.SettingsNavRow
 import com.google.android.gms.auth.api.identity.AuthorizationResult
 import com.google.android.gms.auth.api.identity.Identity
 import com.google.android.gms.common.api.ApiException
@@ -120,6 +138,43 @@ private enum class BackupConfirm { BACKUP, RESTORE, DELETE, DISCONNECT }
 private enum class BackupAuthorization { CONNECT, BACKUP, HISTORY, RESTORE, DELETE }
 
 private fun backupDate(point: BackupPoint): String = point.createdAt?.let(::formatTime) ?: "Date unavailable"
+
+@Composable
+private fun HelpItem(heading: String, body: String) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(heading, color = SecInk, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        Text(body, color = SecMuted, fontSize = 13.sp)
+    }
+}
+
+@Composable
+private fun BackupInfoDialog(title: String, onDismiss: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = SecCard,
+        title = { Text(title, color = SecInk) },
+        text = { Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp), content = content) },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Close", color = SecAccent) } }
+    )
+}
+
+/** Help icon for the Data heading; opens a summary of what Drive backup stores and keeps. */
+@Composable
+internal fun BackupHelpButton() {
+    var open by remember { mutableStateOf(false) }
+    Box(
+        Modifier.size(40.dp).clip(CircleShape).clickable(role = Role.Button) { open = true }
+            .semantics { contentDescription = "About Google Drive backup" },
+        contentAlignment = Alignment.Center
+    ) { ClarityGlyph(ClarityIcons.Info, size = 20.dp, tint = UiTokens.Muted) }
+    if (open) BackupInfoDialog("About Google Drive backup", onDismiss = { open = false }) {
+        HelpItem("Where backups go", "Backups are saved in Clarity's private app-data folder in your Google Drive. Clarity requests access to that folder only, not to the rest of your Drive.")
+        HelpItem("Vault", "Only the vault's encrypted file is uploaded. Your master password and the biometric key are not uploaded; the biometric key stays in this device's Keystore and is not restored, so after a restore you unlock with your master password.")
+        HelpItem("What is included", "Tasks and history, Notes, Calendar and To-Do settings, app typography, widget backgrounds and wallpapers, and the vault file. Imported custom fonts are not backed up. Apart from the vault, this data is stored as ordinary data in the private folder; Clarity does not add its own encryption to it.")
+        HelpItem("Snapshots", "The latest ${BackupManager.RETENTION_LIMIT} verified new snapshots are kept, including Safety points. Older ones are removed only after a new upload is verified. Legacy backups are kept separately. Restoring first creates a Safety point and does not delete history.")
+        HelpItem("Deleting", "Delete backup history permanently removes every Clarity restore point from your Drive app-data folder and turns automatic backup off. Data on this device is not changed. Disconnecting keeps your cloud backups.")
+    }
+}
 
 @Composable
 private fun BackupHistoryDialog(
@@ -275,31 +330,77 @@ internal fun BackupSettingsSection() {
         withToken(BackupAuthorization.CONNECT)
     }
 
+    val idle = !busy && pending == null
+    var showAccount by remember { mutableStateOf(false) }
+    var showSettings by remember { mutableStateOf(false) }
+    var showStatus by remember { mutableStateOf(false) }
+    var showMore by remember { mutableStateOf(false) }
+    val autoLabel = when {
+        email == null -> "Not connected"
+        auto -> "On"
+        else -> "Paused"
+    }
+
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        InfoRow("Google account", email ?: "Not connected")
-        InfoRow("Backup status", when {
-            email == null -> "Not connected"
-            !auto -> "Automatic backup paused"
-            status.isNotBlank() -> status
-            else -> "Automatic"
-        })
-        InfoRow("Last backup", formatTime(last))
-        Text(
-            "Backups go to a private app folder in your Google Drive that other apps cannot read. Your vault is uploaded only as its encrypted file: the master password and biometric keys never leave this device. Tasks and settings are stored as ordinary data in that private folder. The latest ${BackupManager.RETENTION_LIMIT} verified new snapshots are kept; older ones are removed only after a new upload is verified. Legacy backups are kept separately. Restore creates a Safety point and does not delete history.",
-            color = SecMuted, fontSize = 12.sp
-        )
         message?.let { Text(it, color = SecAccent, fontSize = 13.sp) }
         lastError?.takeIf { it != message }?.let { Text("Last backup attempt failed: $it", color = SecAccent, fontSize = 12.sp) }
-        if (busy || pending != null) Text("Working…", color = SecMuted, fontSize = 13.sp)
+        if (!idle) Text("Working…", color = SecMuted, fontSize = 13.sp)
         if (email == null) {
-            if (!busy && pending == null) ActionRow("Connect Google account") { connect() }
-        } else if (!busy && pending == null) {
-            ActionRow("Backup now") { if (auto) withToken(BackupAuthorization.BACKUP) else confirm = BackupConfirm.BACKUP }
-            ActionRow("Backup history") { withToken(BackupAuthorization.HISTORY) }
-            ActionRow("Restore backup") { withToken(BackupAuthorization.HISTORY) }
-            ActionRow("Delete backup history") { confirm = BackupConfirm.DELETE }
-            ActionRow("Disconnect Google account") { confirm = BackupConfirm.DISCONNECT }
+            if (idle) SettingsNavRow(Icons.Outlined.AccountCircle, "Connect Google account", "Sign in to back up to Google Drive") { connect() }
+        } else if (idle) {
+            SettingsNavRow(Icons.Outlined.AccountCircle, "Google account", email) { showAccount = true }
+            SettingsNavRow(ClarityIcons.Backup, "Back up now", "Create a new backup snapshot") {
+                if (auto) withToken(BackupAuthorization.BACKUP) else confirm = BackupConfirm.BACKUP
+            }
+            SettingsNavRow(ClarityIcons.History, "Backup history", "View and restore previous snapshots") { withToken(BackupAuthorization.HISTORY) }
+            SettingsNavRow(ClarityIcons.Layout, "Backup settings", "Automatic backups and retention") { showSettings = true }
         }
+        Surface(color = SecCard, shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
+            Row(Modifier.fillMaxWidth().padding(start = 14.dp, top = 6.dp, bottom = 6.dp, end = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Backup status", color = SecMuted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Last backup: ${formatTime(last)} · Automatic backup: $autoLabel", color = SecMuted, fontSize = 12.sp)
+                }
+                TextButton(onClick = { showStatus = true }) { Text("Details", color = SecAccent, fontSize = 12.sp) }
+            }
+        }
+        if (email != null && idle) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                TextButton(onClick = { confirm = BackupConfirm.DISCONNECT }) { Text("Disconnect Google account", color = SecMuted, fontSize = 13.sp) }
+                Box {
+                    TextButton(onClick = { showMore = true }) { Text("More", color = SecMuted, fontSize = 13.sp) }
+                    DropdownMenu(expanded = showMore, onDismissRequest = { showMore = false }, containerColor = SecRaised) {
+                        DropdownMenuItem(
+                            text = { Text("Delete backup history", color = SecAccent) },
+                            onClick = { showMore = false; confirm = BackupConfirm.DELETE }
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    if (showAccount) BackupInfoDialog("Google account", onDismiss = { showAccount = false }) {
+        HelpItem("Connected account", email ?: "Not connected")
+        HelpItem("Disconnecting", "Disconnect stops backups from this device. Cloud backups are kept, and Google's access grant is not revoked.")
+        TextButton(onClick = { showAccount = false; confirm = BackupConfirm.DISCONNECT }) { Text("Disconnect Google account", color = SecAccent) }
+    }
+
+    if (showSettings) BackupInfoDialog("Backup settings", onDismiss = { showSettings = false }) {
+        HelpItem("Automatic backup: $autoLabel", "Automatic backup turns on after Back up now or a restore. Changes to tasks and settings are then uploaded in the background when the network is available.")
+        HelpItem("Retention", "The latest ${BackupManager.RETENTION_LIMIT} verified new snapshots are kept, including Safety points. This limit is fixed. Legacy backups are kept separately.")
+    }
+
+    if (showStatus) BackupInfoDialog("Backup status", onDismiss = { showStatus = false }) {
+        HelpItem("Connection", email ?: "Not connected")
+        HelpItem("Last successful backup", formatTime(last))
+        HelpItem("Automatic backup", autoLabel)
+        if (status.isNotBlank() && email != null) HelpItem("Latest result", status)
+        lastError?.let { HelpItem("Last failed attempt", it) }
+        if (email != null && !auto) HelpItem(
+            "Why is it paused?",
+            "Clarity does not record the reason. Automatic backup is off until you run Back up now or restore a backup. It is also turned off by disconnecting, choosing Start Fresh, or deleting backup history."
+        )
     }
 
     if (showHistory) BackupHistoryDialog(
@@ -340,7 +441,12 @@ internal fun BackupSettingsSection() {
                             message = "Disconnected. Your cloud backup was kept."; revision++
                         }
                     }
-                }) { Text(if (action == BackupConfirm.RESTORE) "Restore" else "Continue", color = SecAccent) }
+                }) {
+                    Text(
+                        when (action) { BackupConfirm.RESTORE -> "Restore"; BackupConfirm.DELETE -> "Delete all backups"; else -> "Continue" },
+                        color = SecAccent
+                    )
+                }
             },
             dismissButton = { TextButton(onClick = { confirm = null }) { Text("Cancel", color = SecMuted) } }
         )
