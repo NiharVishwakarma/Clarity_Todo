@@ -1254,7 +1254,7 @@ private fun biometricUnavailableMessage(status: Int): String = when (status) {
         SettingsNavRow(ClarityIcons.Vault, "Vault Security", "Master password, biometrics, auto lock, audit", onClick = onOpenVaultSecurity)
         SettingsNavRow(ClarityIcons.Security, "Permissions", "Notifications and exact alarms", alert = permissionNeeded, onClick = onOpenPermissions)
         Spacer(Modifier.height(UiTokens.CompactGap))
-        SettingsCategoryHeader(ClarityIcons.Backup, "Data")
+        SettingsCategoryHeader(ClarityIcons.Backup, "Data", trailing = { BackupHelpButton() })
         BackupSettingsSection()
         Spacer(Modifier.height(UiTokens.CompactGap))
         SettingsCategoryHeader(ClarityIcons.Support, "Support Clarity")
