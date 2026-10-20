@@ -23,8 +23,8 @@ class MonitorPrivacyContractTest {
 
     @Test fun cloudBackupAllowListsExcludeMonitorSnapshotsReportsAndPreferences() {
         val backup = source("backup/BackupManager.kt")
-        val preferences = Regex("""val PREF_FILES\s*=\s*listOf\(([^)]*)\)""")
-            .find(backup)!!.groupValues[1]
+        val preferences = Regex("""val preferenceFiles\s*=\s*listOf\(([^)]*)\)""")
+            .find(source("backup/BackupSnapshot.kt"))!!.groupValues[1]
         val names = Regex(""""([^"]+)"""").findAll(preferences).map { it.groupValues[1] }.toSet()
         assertEquals(setOf("todo_store", "calendar_widget_settings", "app_typography",
             "widget_backgrounds", "vault_auth", "sticker_store"), names)
