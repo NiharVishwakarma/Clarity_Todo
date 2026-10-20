@@ -31,7 +31,7 @@ object WidgetSettings {
         val p = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val storedFamily = WidgetFontFamily.fromStoredKey(p.getString(PREFIX + "font_family", null)) ?: defaults.fontFamily
         val storedFontId = p.getString(PREFIX + "font_file_id", null)
-        val fontFileId = storedFontId?.takeIf { id -> LocalWidgetFonts.list(context).any { it.id == id } }
+        val fontFileId = storedFontId?.takeIf { id -> LocalWidgetFonts.list(context).any { it.containsId(id) } }
         val family = storedFamily
         if (p.contains(PREFIX + "font_style") || p.contains(PREFIX + "font_italic")) {
             p.edit().remove(PREFIX + "font_style").remove(PREFIX + "font_italic").apply()

@@ -17,7 +17,7 @@ object AppTypographySettings {
         val prefs = context.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE)
         val family = WidgetFontFamily.fromStoredKey(prefs.getString(FAMILY, null)) ?: WidgetFontFamily.SANS_SERIF
         val savedFontId = prefs.getString(FONT_FILE_ID, null)
-        val fontFileId = savedFontId?.takeIf { id -> LocalWidgetFonts.list(context).any { it.id == id } }
+        val fontFileId = savedFontId?.takeIf { id -> LocalWidgetFonts.list(context).any { it.containsId(id) } }
         return AppFontSettings(family = family, fontFileId = fontFileId)
     }
 
@@ -29,7 +29,7 @@ object AppTypographySettings {
     }
 
     fun saveImportedFont(context: Context, fontId: String) {
-        if (LocalWidgetFonts.list(context).none { it.id == fontId }) return
+        require(LocalWidgetFonts.list(context).any { it.containsId(fontId) }) { "That imported font is unavailable." }
         context.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit()
             .putString(FONT_FILE_ID, fontId)
             .apply()

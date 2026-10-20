@@ -16,7 +16,7 @@ Keep this map focused on structure and checks, not change logs or copied source.
   - `ClarityApplication.kt`: installs backup preference listeners at startup.
   - `navigation/ModuleNavigation.kt` and `navigation/ModulePrefs.kt`: module routes,
     back/swipe navigation, and last-module persistence.
-  - `ui/ClarityUi.kt`: shared Compose controls, icons, and tab bar;
+  - `ui/ClarityUi.kt`: shared Compose controls, transient collapsed section state, icons, and tab bar;
     `ui/ClarityScreens.kt`: placeholder, support, and about screens.
 - Info replaces the active Quotes tab; the legacy Quotes route/data are retained.
   Wallpapers is a placeholder; widget wallpaper editing is implemented.
@@ -41,9 +41,9 @@ Tests listed are related JVM coverage, not end-to-end guarantees.
 | Info metrics, authorized files, reports, cache | `monitor/`, `ui/InfoScreen.kt` | `monitor/` tests; device/provider/settings interactions need runtime checks |
 | System Monitor widget | `widget/SystemMonitorWidget.kt`, `res/layout/system_monitor_widget*.xml`, `res/xml/system_monitor_widget_info.xml` (resources relative to `app/src/main/`) | monitor widget resource/action contracts |
 | Vault widget appearance | `data/VaultAppearance.kt`, `ui/VaultAppearanceScreen.kt`, `widget/VaultWidget.kt` | appearance defaults/bounds and rendering contracts |
-| Appearance, fonts, backgrounds | `data/WidgetPrefs.kt`, `data/CalendarWidgetPrefs.kt`, `data/AppTypographySettings.kt`, `data/WidgetTypography.kt`, `data/LocalWidgetFonts.kt`, `data/WidgetBackgrounds.kt`, `data/StyleSnapshot.kt`, `WidgetBackgroundEditor.kt`, `ui/ColorPickerDialog.kt`, `ui/ClarityUi.kt` (shared settings sections), `widget/WidgetFontLayouts.kt` | `widget/WidgetFontLayoutsTest.kt`, `data/WidgetCardTransparencyTest.kt`, `ui/SettingsOrganizationContractTest.kt` |
+| Appearance, fonts, backgrounds | `data/WidgetPrefs.kt`, `data/CalendarWidgetPrefs.kt`, `data/AppTypographySettings.kt`, `data/WidgetTypography.kt`, `data/LocalWidgetFonts.kt`, `data/ImportedFontCatalog.kt`, `data/WidgetBackgrounds.kt`, `data/StyleSnapshot.kt`, `WidgetBackgroundEditor.kt`, `ui/ColorPickerDialog.kt`, `ui/ClarityUi.kt` (shared settings sections), `widget/WidgetFontLayouts.kt` | `data/ImportedFontCatalogTest.kt`, `widget/WidgetFontLayoutsTest.kt`, `data/WidgetCardTransparencyTest.kt`, `ui/SettingsOrganizationContractTest.kt` |
 | Navigation | `navigation/ModuleNavigation.kt`, `navigation/ModulePrefs.kt`, `MainActivity.kt` | `navigation/ModuleNavigationTest.kt` |
-| Google Drive backup/restore | `BackupScreens.kt`, `backup/BackupManager.kt`, `backup/BackupCodec.kt`, `backup/BackupScheduler.kt`, `backup/DriveClient.kt` | `backup/BackupCodecTest.kt`; no Drive/restore integration tests |
+| Google Drive backup/restore | `BackupScreens.kt`, `backup/BackupManager.kt`, `backup/BackupCodec.kt`, `backup/BackupScheduler.kt`, `backup/DriveClient.kt` | `backup/BackupCodecTest.kt`, `backup/BackupConnectionContractTest.kt`; no Drive/restore integration tests |
 
 Launcher icon resources under `app/src/main/`: `AndroidManifest.xml` →
 `res/mipmap-anydpi-v26/ic_clarity_suite*.xml` → `res/drawable/ic_clarity_suite_foreground.xml` →
@@ -70,6 +70,10 @@ Source paths here use the same implementation prefix as the table.
 - `data/AppTypographySettings.kt`, `data/LocalWidgetFonts.kt`, and
   `data/WidgetBackgrounds.kt` own app typography, private imported fonts, and
   private background images/preferences. `data/StyleSnapshot.kt` owns saved styles.
+- `data/ImportedFontCatalog.kt` groups private fonts by SHA-256, retains legacy ID
+  aliases, and reads bounded OpenType/TTC name metadata. `LocalWidgetFonts.kt`
+  serializes imports, reuses matching assets, and retains original registry records
+  and files; all app/widget font selectors consume its unique catalog.
 - `data/LocalVaultStore.kt` owns encrypted vault files in Android private storage
   and device-bound biometric wrapping via Android Keystore.
 - `monitor/MonitorRepository.kt` collects public-API snapshots off-main, serializes
@@ -83,6 +87,8 @@ Source paths here use the same implementation prefix as the table.
   and debounces eligible changes into network-constrained WorkManager work.
   `backup/BackupManager.kt` defines the backup preference/file allow-list and restore
   flow; follow it for data inclusion, validation, and post-restore refresh behavior.
+- `BackupScreens.kt` saves pending authorization actions (not tokens/callbacks);
+  `MainActivity.kt` restores the current page to retain the Settings result launcher.
 
 ## External/platform boundaries
 

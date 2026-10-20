@@ -44,7 +44,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -247,11 +246,11 @@ private val fieldColors @Composable get() = OutlinedTextFieldDefaults.colors(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var colorsExpanded by rememberSaveable(noteId) { mutableStateOf(true) }
-    var fontsExpanded by rememberSaveable(noteId) { mutableStateOf(false) }
-    var backgroundExpanded by rememberSaveable(noteId) { mutableStateOf(false) }
-    var readabilityExpanded by rememberSaveable(noteId) { mutableStateOf(false) }
-    var layoutExpanded by rememberSaveable(noteId) { mutableStateOf(false) }
+    var colorsExpanded by rememberSettingsSectionExpanded(noteId)
+    var fontsExpanded by rememberSettingsSectionExpanded(noteId)
+    var backgroundExpanded by rememberSettingsSectionExpanded(noteId)
+    var readabilityExpanded by rememberSettingsSectionExpanded(noteId)
+    var layoutExpanded by rememberSettingsSectionExpanded(noteId)
     var importedFonts by remember { mutableStateOf(LocalWidgetFonts.list(context)) }
     val fontPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) scope.launch {
@@ -294,7 +293,7 @@ private val fieldColors @Composable get() = OutlinedTextFieldDefaults.colors(
             }
             Text("Custom fonts", color = UiTokens.Ink, fontSize = UiTokens.LabelSp.sp)
             importedFonts.chunked(2).forEach { row ->
-                ChoiceRow(row.map { it.name.substringBeforeLast('.') to (it.id == style.fontFileId) }) { onChange(style.copy(fontFileId = row[it].id)) }
+                ChoiceRow(row.map { it.name to it.containsId(style.fontFileId) }) { onChange(style.copy(fontFileId = row[it].id)) }
             }
             TextButton(onClick = { fontPicker.launch(arrayOf("*/*")) }) { Text("Import font file (.ttf, .otf, .ttc)", color = UiTokens.Accent, fontSize = UiTokens.DetailSp.sp) }
             StyleSlider("Font size (body)", "${style.fontSizeSp.toInt()} sp", style.fontSizeSp, 10f..28f) { onChange(style.copy(fontSizeSp = it)) }

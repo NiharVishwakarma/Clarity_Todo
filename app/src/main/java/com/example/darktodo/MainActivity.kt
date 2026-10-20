@@ -126,6 +126,7 @@ import com.example.darktodo.navigation.ModulePrefs
 import androidx.activity.compose.BackHandler
 import com.example.darktodo.ui.ClarityIcons
 import com.example.darktodo.ui.CollapsibleSettingsSection
+import com.example.darktodo.ui.rememberSettingsSectionExpanded
 import com.example.darktodo.ui.ModuleTabBar
 import com.example.darktodo.ui.SettingsCategoryHeader
 import com.example.darktodo.ui.SettingsNavRow
@@ -242,7 +243,9 @@ class MainActivity : FragmentActivity() {
             else -> ModulePrefs.last(context)?.let { ModuleNavigation.routeFor(it) } ?: ModuleNavigation.routeFor(ModuleNavigation.CALENDAR)
         }
     }
-    var page by remember { mutableStateOf(startRoute.page) }
+    var page by rememberSaveable(key = "page:$openVault:$openNotes:$openNoteId:$openInfo") {
+        mutableStateOf(startRoute.page)
+    }
     var todoPage by remember { mutableStateOf(startRoute.todoPage) }
     var wallpaperTarget by remember { mutableStateOf(com.example.darktodo.data.WidgetBackgrounds.TODO) }
     var noteSettingsId by remember { mutableStateOf<String?>(null) }
@@ -1228,7 +1231,7 @@ private fun biometricUnavailableMessage(status: Int): String = when (status) {
     onOpenSupport: () -> Unit,
     onOpenAbout: () -> Unit
 ) {
-    var typographyExpanded by rememberSaveable { mutableStateOf(false) }
+    var typographyExpanded by rememberSettingsSectionExpanded()
     val channelEnabled = channelImportance != android.app.NotificationManager.IMPORTANCE_NONE
     val notificationsOkay = notificationGranted && notificationsEnabled && channelEnabled
     val permissionNeeded = remindersEnabled && !notificationsOkay
@@ -1553,14 +1556,14 @@ private data class ColorPickTarget(val key: String, val label: String, val value
     var pickTarget by remember { mutableStateOf<ColorPickTarget?>(null) }
     var confirmTodoReset by remember { mutableStateOf(false) }
     var confirmCalendarReset by remember { mutableStateOf(false) }
-    var todoColorsExpanded by rememberSaveable { mutableStateOf(true) }
-    var todoBackgroundExpanded by rememberSaveable { mutableStateOf(false) }
-    var todoLayoutExpanded by rememberSaveable { mutableStateOf(false) }
-    var calendarColorsExpanded by rememberSaveable { mutableStateOf(true) }
-    var todoFontExpanded by rememberSaveable { mutableStateOf(true) }
-    var calendarFontExpanded by rememberSaveable { mutableStateOf(true) }
-    var calendarBackgroundExpanded by rememberSaveable { mutableStateOf(false) }
-    var calendarLayoutExpanded by rememberSaveable { mutableStateOf(false) }
+    var todoColorsExpanded by rememberSettingsSectionExpanded()
+    var todoBackgroundExpanded by rememberSettingsSectionExpanded()
+    var todoLayoutExpanded by rememberSettingsSectionExpanded()
+    var calendarColorsExpanded by rememberSettingsSectionExpanded()
+    var todoFontExpanded by rememberSettingsSectionExpanded()
+    var calendarFontExpanded by rememberSettingsSectionExpanded()
+    var calendarBackgroundExpanded by rememberSettingsSectionExpanded()
+    var calendarLayoutExpanded by rememberSettingsSectionExpanded()
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(UiTokens.ControlGap)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -1831,7 +1834,7 @@ private fun selectedFontLabel(
     family: WidgetFontFamily,
     fileId: String?,
     importedFonts: List<ImportedWidgetFont>
-): String = importedFonts.firstOrNull { it.id == fileId }?.name ?: family.label
+): String = importedFonts.firstOrNull { it.containsId(fileId) }?.name ?: family.label
 
 @Composable private fun ColorSettingRow(label: String, value: String, onClick: () -> Unit) {
     Surface(
@@ -1864,7 +1867,7 @@ private fun selectedFontLabel(
         Box {
             TextButton(onClick = { expanded = true }, contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)) {
                 Text(
-                    importedFonts.firstOrNull { it.id == selectedFontId }?.name ?: selected.label,
+                    importedFonts.firstOrNull { it.containsId(selectedFontId) }?.name ?: selected.label,
                     color = UiTokens.Secondary, fontSize = UiTokens.LabelSp.sp, fontFamily = selectedFontFamily, maxLines = 1, overflow = TextOverflow.Ellipsis
                 )
             }

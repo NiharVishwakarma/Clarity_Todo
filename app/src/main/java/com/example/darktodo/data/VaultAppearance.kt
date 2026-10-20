@@ -62,7 +62,7 @@ object VaultAppearancePrefs {
         fun number(key: String, default: Number) = values[key] as? Number ?: default
         fun text(key: String, default: String) = values[key] as? String ?: default
         val selectedFont = (values["font_file_id"] as? String)?.takeIf { id ->
-            LocalWidgetFonts.list(context).any { it.id == id }
+            LocalWidgetFonts.list(context).any { it.containsId(id) }
         }
         return VaultAppearance(
             fontFamily = text("font_family", defaults.fontFamily),

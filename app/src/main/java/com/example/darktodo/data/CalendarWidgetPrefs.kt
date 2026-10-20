@@ -20,7 +20,7 @@ object CalendarWidgetSettings {
         fun color(key: String, value: String) = p.getString(key, value) ?: value
         val storedFamily = WidgetFontFamily.fromStoredKey(p.getString("font_family", null)) ?: defaults.fontFamily
         val storedFontId = p.getString("font_file_id", null)
-        val fontFileId = storedFontId?.takeIf { id -> LocalWidgetFonts.list(context).any { it.id == id } }
+        val fontFileId = storedFontId?.takeIf { id -> LocalWidgetFonts.list(context).any { it.containsId(id) } }
         val family = storedFamily
         if (p.contains("font_style") || p.contains("font_italic")) {
             p.edit().remove("font_style").remove("font_italic").apply()

@@ -23,6 +23,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -60,12 +61,12 @@ internal fun rememberDriveAuthorizer(
     fun authorizationError(error: Throwable): String = when ((error as? ApiException)?.statusCode) {
         CommonStatusCodes.DEVELOPER_ERROR -> "Google rejected this app's OAuth setup. Register an Android OAuth client for com.example.darktodo and the SHA-1 of this APK's signing key."
         CommonStatusCodes.NETWORK_ERROR -> "Could not connect to Google. Check your internet connection and try again."
-        else -> error.message?.takeIf { it.isNotBlank() } ?: "Google authorization failed. Check the OAuth and Drive API configuration, then try again."
+        else -> "Google authorization failed${(error as? ApiException)?.statusCode?.let { " (code $it)" }.orEmpty()}. Check Google Play services, OAuth consent and Drive API configuration, then try again."
     }
     fun handle(result: AuthorizationResult) {
         launching = false
         val token = result.accessToken
-        if (token == null) failed("Google did not grant Drive access. Check that the drive.appdata scope is enabled for this app.")
+        if (token.isNullOrBlank()) failed("Google did not grant Drive access. Check that the drive.appdata scope is enabled for this app.")
         else authorized(token, runCatching { result.toGoogleSignInAccount()?.email }.getOrNull())
     }
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
@@ -73,18 +74,26 @@ internal fun rememberDriveAuthorizer(
         if (result.resultCode == Activity.RESULT_OK && result.data != null) {
             runCatching { Identity.getAuthorizationClient(context).getAuthorizationResultFromIntent(result.data) }
                 .fold({ handle(it) }, { failed(authorizationError(it)) })
+        } else if (result.data?.hasExtra(ActivityResultContracts.StartIntentSenderForResult.EXTRA_SEND_INTENT_EXCEPTION) == true) {
+            failed("Google authorization could not open. Check Google Play services and try again.")
         } else if (result.resultCode == Activity.RESULT_CANCELED) cancelled()
         else failed("Google authorization did not complete. Try again or check the OAuth configuration.")
     }
     return {
         if (!launching) {
             launching = true
-            Identity.getAuthorizationClient(context).authorize(BackupManager.authorizationRequest())
+            try {
+                Identity.getAuthorizationClient(context).authorize(BackupManager.authorizationRequest())
                 .addOnSuccessListener { result ->
                     val pending = result.pendingIntent
-                    if (result.hasResolution() && pending != null) {
-                        runCatching { launcher.launch(IntentSenderRequest.Builder(pending.intentSender).build()) }
-                            .onFailure { launching = false; failed(authorizationError(it)) }
+                    if (result.hasResolution()) {
+                        if (pending == null) {
+                            launching = false
+                            failed("Google did not provide an authorization screen. Check Google Play services and try again.")
+                        } else {
+                            runCatching { launcher.launch(IntentSenderRequest.Builder(pending.intentSender).build()) }
+                                .onFailure { launching = false; failed(authorizationError(it)) }
+                        }
                     } else handle(result)
                 }
                 .addOnFailureListener {
@@ -92,6 +101,10 @@ internal fun rememberDriveAuthorizer(
                     if ((it as? ApiException)?.statusCode == CommonStatusCodes.CANCELED) cancelled()
                     else failed(authorizationError(it))
                 }
+            } catch (error: Exception) {
+                launching = false
+                failed(authorizationError(error))
+            }
         }
     }
 }
@@ -99,6 +112,7 @@ internal fun rememberDriveAuthorizer(
 private fun formatTime(millis: Long): String = if (millis <= 0L) "Never" else DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(millis))
 
 private enum class BackupConfirm { BACKUP, RESTORE, DELETE, DISCONNECT }
+private enum class BackupAuthorization { CONNECT, BACKUP, RESTORE, DELETE }
 
 /** Settings > Backup & Restore. */
 @Composable
@@ -109,47 +123,72 @@ internal fun BackupSettingsSection() {
     var busy by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
     var confirm by remember { mutableStateOf<BackupConfirm?>(null) }
-    var pending by remember { mutableStateOf<((String, String?) -> Unit)?>(null) }
+    var pending by rememberSaveable { mutableStateOf<BackupAuthorization?>(null) }
     val authorize = rememberDriveAuthorizer(
-        onError = { message = it; busy = false },
-        onCancelled = { message = null; busy = false },
-        onAuthorized = { token, email -> pending?.invoke(token, email) }
+        onError = { pending = null; message = it; busy = false },
+        onCancelled = { pending = null; message = "Google authorization was cancelled. Your local data is unchanged."; busy = false },
+        onAuthorized = { token, accountEmail ->
+            val action = pending
+            pending = null
+            if (action == null) {
+                message = "No Google connection request is active. Tap Connect Google account to try again."
+                busy = false
+            } else {
+                busy = true
+                if (action == BackupAuthorization.CONNECT) {
+                    BackupManager.setConnected(context, accountEmail)
+                    revision++
+                }
+                scope.launch {
+                    val result = withContext(Dispatchers.IO) {
+                        runCatching {
+                            when (action) {
+                                BackupAuthorization.CONNECT -> {
+                                    if (BackupManager.findBackup(token) == null) {
+                                        BackupManager.setAutoEnabled(context, true)
+                                        BackupManager.backupNow(context, token).message
+                                    } else "Connected. A backup already exists in this account: use Restore backup, or Backup now to replace it."
+                                }
+                                BackupAuthorization.BACKUP -> {
+                                    BackupManager.setAutoEnabled(context, true)
+                                    BackupManager.backupNow(context, token).message
+                                }
+                                BackupAuthorization.RESTORE -> {
+                                    BackupManager.restore(context, token)
+                                    "Backup restored."
+                                }
+                                BackupAuthorization.DELETE ->
+                                    if (BackupManager.deleteBackup(context, token)) "Cloud backup deleted." else "No cloud backup was found."
+                            }
+                        }
+                    }
+                    result.fold(
+                        onSuccess = {
+                            message = it
+                            if (action == BackupAuthorization.RESTORE) (context as? Activity)?.recreate()
+                        },
+                        onFailure = { message = it.message ?: "Google Drive operation failed. Check your connection and Drive API access." }
+                    )
+                    busy = false
+                    revision++
+                }
+            }
+        }
     )
     val email = remember(revision) { BackupManager.email(context) }
     val auto = remember(revision) { BackupManager.autoEnabled(context) }
     val last = remember(revision) { BackupManager.lastBackupAt(context) }
     val status = remember(revision) { BackupManager.lastStatus(context) }
 
-    fun withToken(work: (token: String) -> String) {
+    fun withToken(action: BackupAuthorization) {
+        if (busy || pending != null) return
         busy = true; message = null
-        pending = { token, _ ->
-            pending = null
-            scope.launch {
-                val result = withContext(Dispatchers.IO) { runCatching { work(token) }.getOrElse { it.message ?: "Something went wrong." } }
-                message = result; busy = false; revision++
-            }
-        }
+        pending = action
         authorize()
     }
 
     fun connect() {
-        busy = true; message = null
-        pending = { token, accountEmail ->
-            pending = null
-            BackupManager.setConnected(context, accountEmail)
-            scope.launch {
-                val result = withContext(Dispatchers.IO) {
-                    runCatching {
-                        if (BackupManager.findBackup(token) == null) {
-                            BackupManager.setAutoEnabled(context, true)
-                            BackupManager.backupNow(context, token).message
-                        } else "Connected. A backup already exists in this account: use Restore backup, or Backup now to replace it."
-                    }.getOrElse { it.message ?: "Could not check for an existing backup." }
-                }
-                message = result; busy = false; revision++
-            }
-        }
-        authorize()
+        withToken(BackupAuthorization.CONNECT)
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -166,11 +205,11 @@ internal fun BackupSettingsSection() {
             color = SecMuted, fontSize = 12.sp
         )
         message?.let { Text(it, color = SecAccent, fontSize = 13.sp) }
-        if (busy) Text("Working…", color = SecMuted, fontSize = 13.sp)
+        if (busy || pending != null) Text("Working…", color = SecMuted, fontSize = 13.sp)
         if (email == null) {
-            if (!busy) ActionRow("Connect Google account") { connect() }
-        } else if (!busy) {
-            ActionRow("Backup now") { if (auto) withToken { BackupManager.backupNow(context, it).message } else confirm = BackupConfirm.BACKUP }
+            if (!busy && pending == null) ActionRow("Connect Google account") { connect() }
+        } else if (!busy && pending == null) {
+            ActionRow("Backup now") { if (auto) withToken(BackupAuthorization.BACKUP) else confirm = BackupConfirm.BACKUP }
             ActionRow("Restore backup") { confirm = BackupConfirm.RESTORE }
             ActionRow("Delete backup") { confirm = BackupConfirm.DELETE }
             ActionRow("Disconnect Google account") { confirm = BackupConfirm.DISCONNECT }
@@ -193,22 +232,9 @@ internal fun BackupSettingsSection() {
                 TextButton(onClick = {
                     confirm = null
                     when (action) {
-                        BackupConfirm.BACKUP -> withToken { BackupManager.setAutoEnabled(context, true); BackupManager.backupNow(context, it).message }
-                        BackupConfirm.RESTORE -> {
-                            busy = true; message = null
-                            pending = { token, _ ->
-                                pending = null
-                                scope.launch {
-                                    val outcome = withContext(Dispatchers.IO) { runCatching { BackupManager.restore(context, token) } }
-                                    outcome.fold(
-                                        onSuccess = { (context as? Activity)?.recreate() },
-                                        onFailure = { message = it.message ?: "Restore failed."; busy = false; revision++ }
-                                    )
-                                }
-                            }
-                            authorize()
-                        }
-                        BackupConfirm.DELETE -> withToken { if (BackupManager.deleteBackup(context, it)) "Cloud backup deleted." else "No cloud backup was found." }
+                        BackupConfirm.BACKUP -> withToken(BackupAuthorization.BACKUP)
+                        BackupConfirm.RESTORE -> withToken(BackupAuthorization.RESTORE)
+                        BackupConfirm.DELETE -> withToken(BackupAuthorization.DELETE)
                         BackupConfirm.DISCONNECT -> {
                             BackupManager.disconnect(context)
                             com.example.darktodo.backup.BackupScheduler.cancel(context)
@@ -237,31 +263,37 @@ internal fun WelcomeBackGate(onFinished: (restored: Boolean) -> Unit) {
     var backupTime by remember { mutableStateOf("") }
     var restoring by remember { mutableStateOf(false) }
     var confirmRestore by remember { mutableStateOf(false) }
-    var pending by remember { mutableStateOf<((String, String?) -> Unit)?>(null) }
+    var checkingAuthorization by rememberSaveable { mutableStateOf(false) }
     val authorize = rememberDriveAuthorizer(
-        onError = { message = it; notice = null; stage = WelcomeStage.ASK },
-        onCancelled = { message = null; notice = "Google sign-in was cancelled. Your local data is unchanged; you can try again."; stage = WelcomeStage.ASK },
-        onAuthorized = { value, email -> pending?.invoke(value, email) }
+        onError = { checkingAuthorization = false; message = it; notice = null; stage = WelcomeStage.ASK },
+        onCancelled = { checkingAuthorization = false; message = null; notice = "Google sign-in was cancelled. Your local data is unchanged; you can try again."; stage = WelcomeStage.ASK },
+        onAuthorized = { value, email ->
+            if (!checkingAuthorization) {
+                message = "The Google connection request was interrupted. Please try again."
+                stage = WelcomeStage.ASK
+            } else {
+                checkingAuthorization = false
+                stage = WelcomeStage.CHECKING
+                scope.launch {
+                    val found = withContext(Dispatchers.IO) { runCatching { BackupManager.findBackup(value) } }
+                    found.fold(
+                        onSuccess = { remote ->
+                            BackupManager.setConnected(context, email)
+                            token = value
+                            if (remote == null) stage = WelcomeStage.NONE
+                            else { backupTime = remote.modifiedTime.replace('T', ' ').substringBefore('.').removeSuffix("Z") + " UTC"; stage = WelcomeStage.FOUND }
+                        },
+                        onFailure = { message = it.message ?: "Could not check for a backup. Confirm Drive API access and try again."; stage = WelcomeStage.ASK }
+                    )
+                }
+            }
+        }
     )
 
     fun check() {
-        if (stage == WelcomeStage.CHECKING) return
+        if (stage == WelcomeStage.CHECKING || checkingAuthorization) return
         stage = WelcomeStage.CHECKING; message = null; notice = null
-        pending = { value, email ->
-            pending = null
-            scope.launch {
-                val found = withContext(Dispatchers.IO) { runCatching { BackupManager.findBackup(value) } }
-                found.fold(
-                    onSuccess = { remote ->
-                        BackupManager.setConnected(context, email)
-                        token = value
-                        if (remote == null) stage = WelcomeStage.NONE
-                        else { backupTime = remote.modifiedTime.replace('T', ' ').substringBefore('.').removeSuffix("Z") + " UTC"; stage = WelcomeStage.FOUND }
-                    },
-                    onFailure = { message = it.message ?: "Could not check for a backup. Confirm Drive API access and try again."; stage = WelcomeStage.ASK }
-                )
-            }
-        }
+        checkingAuthorization = true
         authorize()
     }
 
@@ -293,8 +325,11 @@ internal fun WelcomeBackGate(onFinished: (restored: Boolean) -> Unit) {
                         Text("Used Clarity before? Sign in with Google to look for your backup. Checking changes nothing.", color = SecMuted, fontSize = 14.sp, textAlign = TextAlign.Center)
                         message?.let { Text(it, color = SecAccent, fontSize = 13.sp, textAlign = TextAlign.Center) }
                         notice?.let { Text(it, color = SecMuted, fontSize = 13.sp, textAlign = TextAlign.Center) }
-                        ActionRow("Look for my backup") { check() }
-                        ActionRow("Start fresh") { BackupManager.markOnboarded(context); onFinished(false) }
+                        if (checkingAuthorization) Text("Waiting for Google authorization…", color = SecMuted, fontSize = 13.sp)
+                        else {
+                            ActionRow("Look for my backup") { check() }
+                            ActionRow("Start fresh") { BackupManager.markOnboarded(context); onFinished(false) }
+                        }
                     }
                     WelcomeStage.CHECKING -> Text("Looking for your backup…", color = SecInk, fontSize = 16.sp)
                     WelcomeStage.FOUND -> {
