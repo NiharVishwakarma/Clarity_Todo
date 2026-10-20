@@ -50,7 +50,7 @@ object BackupScheduler {
 class BackupWorker(context: Context, params: WorkerParameters) : Worker(context, params) {
     override fun doWork(): Result {
         if (!BackupManager.autoEnabled(applicationContext)) return Result.success()
-        val outcome = BackupManager.backupNow(applicationContext)
+        val outcome = BackupManager.backupNow(applicationContext, automatic = true, operationId = id.toString())
         return when {
             outcome.ok -> Result.success()
             outcome.retry -> Result.retry()

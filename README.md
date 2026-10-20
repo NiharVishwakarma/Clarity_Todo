@@ -57,6 +57,52 @@ Cancellation leaves local data unchanged. Successful authorization updates the
 account immediately; checking/uploading the private backup can still fail
 separately and displays an error. The last-backup time changes only after upload.
 
+### Backup history and restore points
+
+Under **Settings > Data**, use **Backup now** to create a separate snapshot and
+**Backup history** (also opened by **Restore backup**) to refresh the list and
+choose a particular restore point. Dates use the device's local time zone.
+Manual, automatic and pre-restore Safety points show their type, size and format
+when available. Automatic backups keep the existing change-triggered, debounced,
+network-constrained schedule; this is not a periodic/daily schedule.
+
+Snapshots use unique Google Drive file IDs in the existing private `appDataFolder`,
+with dated names, checksum metadata and the existing version-1 JSON format.
+Retries reuse a durable reserved ID and payload rather than appending duplicates.
+The old `clarity-backup.json` appears as a Legacy backup without migration or
+deletion; its displayed date is Drive's last modification time, not an invented
+snapshot time. Unknown metadata is labelled as unavailable.
+
+The default retention limit is **10 verified new snapshots**, including Safety
+points. Older eligible snapshots are deleted only after another upload has been
+downloaded, checksum/format-validated and marked verified. Legacy, unverified and
+unknown-format snapshots are kept separately. Restore does not prune history;
+it can temporarily exceed the limit until the next successful normal backup.
+Failed cleanup keeps extra copies and reports that cleanup was deferred.
+The limit is a single constant in
+[`BackupHistory.kt`](app/src/main/java/com/example/darktodo/backup/BackupHistory.kt),
+not a configurable setting or a storage-quota guarantee.
+
+Restore asks for confirmation of the selected ID and date, then downloads that
+exact file. Unsupported/incomplete JSON, invalid typed preferences, malformed
+nested task/note JSON, invalid encoded files and checksum failures are rejected
+before applying data. A verified cloud Safety point and matching local safety file
+are required before replacing preferences/files. An application failure attempts
+rollback; recovery errors explicitly identify the retained Safety point. This is
+not a cross-file transaction: process termination during application can require
+manually restoring the Safety point. Keep the app open until it finishes.
+
+The vault stays encrypted; master passwords and biometric keys are not uploaded.
+Unlock a restored vault with its original master password. Without that password,
+preflight can check its header and transport integrity, not authenticate/decrypt
+its contents. A snapshot without a vault preserves the current vault; legacy
+snapshots without Notes preserve current Notes. Imported fonts are not backed up.
+Successful restore reloads the app and refreshes its affected widgets.
+Offline/access-expiry failures display an error; reconnect/refresh and retry.
+**Delete backup history** explicitly deletes all Clarity restore points, including
+legacy and Safety copies, and pauses automatic backup; it does not delete local
+data or unrelated Drive files.
+
 ### Release signing
 
 The app module retains a separate release signing configuration using `ANDROID_KEYSTORE_PATH`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, and `ANDROID_KEY_PASSWORD`, or corresponding ignored `keystore.properties` entries. Routine CI currently does not build or sign a release APK.
