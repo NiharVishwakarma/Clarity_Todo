@@ -154,6 +154,7 @@ internal fun WidgetBackgroundEditor(target: String, onClose: () -> Unit) {
         when (target) {
             WidgetBackgrounds.TODO -> TodoWidget.updateAll(context)
             WidgetBackgrounds.CALENDAR -> CalendarWidget.updateAll(context)
+            WidgetBackgrounds.SYSTEM_MONITOR -> com.example.darktodo.widget.SystemMonitorWidget.renderAll(context)
             else -> com.example.darktodo.widget.StickerWidget.updateAll(context)
         }
     }
@@ -161,7 +162,12 @@ internal fun WidgetBackgroundEditor(target: String, onClose: () -> Unit) {
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text(when { target == WidgetBackgrounds.TODO -> "To-Do widget wallpaper"; isNote -> "Note background image"; else -> "Calendar widget wallpaper" }, color = EditorInk, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Text(when {
+                    target == WidgetBackgrounds.TODO -> "To-Do widget wallpaper"
+                    target == WidgetBackgrounds.SYSTEM_MONITOR -> "System Monitor widget wallpaper"
+                    isNote -> "Note background image"
+                    else -> "Calendar widget wallpaper"
+                }, color = EditorInk, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                 Text("Pinch to zoom, drag to reposition", color = EditorMuted, fontSize = 13.sp)
             }
             TextButton(onClick = onClose) { Text("Cancel", color = EditorAccent) }

@@ -59,7 +59,7 @@ class SystemMonitorWidgetTest {
             .parse(File(main, "res/layout/system_monitor_widget.xml")).documentElement
         val nodes = layout.getElementsByTagName("*")
         val elements = listOf(layout) + (0 until nodes.length).map { nodes.item(it) as Element }
-        assertTrue(elements.all { it.tagName in setOf("LinearLayout", "TextView") })
+        assertTrue(elements.all { it.tagName in setOf("FrameLayout", "LinearLayout", "TextView", "ImageView") })
         val ids = elements.map { it.getAttributeNS(android, "id") }.toSet()
         listOf("refresh", "info", "battery", "storage", "downloads", "details", "updated").forEach {
             assertTrue("Missing $it control", "@+id/monitor_widget_$it" in ids)
@@ -112,5 +112,30 @@ class SystemMonitorWidgetTest {
                     "android.appwidget.action.APPWIDGET_UPDATE"
             }
         })
+    }
+
+    @Test fun clearCacheActionActivityIsDeclaredInManifest() {
+        val main = File("src/main").let { if (it.isDirectory) it else File("app/src/main") }
+        val android = "http://schemas.android.com/apk/res/android"
+        val manifest = DocumentBuilderFactory.newInstance().apply { isNamespaceAware = true }
+            .newDocumentBuilder().parse(File(main, "AndroidManifest.xml"))
+        val activities = manifest.getElementsByTagName("activity")
+        val activity = (0 until activities.length).map { activities.item(it) as Element }.single {
+            it.getAttributeNS(android, "name") == ".widget.SystemMonitorActionActivity"
+        }
+        assertEquals("false", activity.getAttributeNS(android, "exported"))
+        assertEquals("true", activity.getAttributeNS(android, "excludeFromRecents"))
+    }
+
+    @Test fun systemMonitorAppearanceDefaultsMatchClarityDarkTheme() {
+        val defaults = com.example.darktodo.data.SystemMonitorAppearance.DEFAULT
+        assertEquals("#FFFFFF", defaults.titleColor)
+        assertEquals("#B9BBC8", defaults.labelColor)
+        assertEquals("#FFFFFF", defaults.valueColor)
+        assertEquals("#FF8A96", defaults.accentColor)
+        assertEquals("#1A1A20", defaults.backgroundColor)
+        assertEquals("#25252D", defaults.cardBackgroundColor)
+        assertEquals(20, defaults.cornerRadiusDp)
+        assertEquals(12, defaults.cardCornerRadiusDp)
     }
 }

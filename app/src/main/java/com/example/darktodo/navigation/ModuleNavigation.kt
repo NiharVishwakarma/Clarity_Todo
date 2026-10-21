@@ -58,7 +58,7 @@ object ModuleNavigation {
         "Calendar", "CalendarSettings", "CalendarWallpaper" -> CALENDAR
         "StickerSettings" -> STICKERS
         "Vault", "VaultAppearance" -> VAULT
-        "Info" -> INFO
+        "Info", "SystemMonitorAppearance", "SystemMonitorWallpaper" -> INFO
         "Quotes" -> QUOTES
         "Stickers" -> STICKERS
         "Wallpapers" -> WALLPAPERS
@@ -76,6 +76,8 @@ object ModuleNavigation {
         page == "TodoWallpaper" -> BackStep.GoTo(ModuleRoute("TodoSettings"))
         page == "CalendarWallpaper" -> BackStep.GoTo(ModuleRoute("CalendarSettings"))
         page == "CalendarSettings" -> BackStep.GoTo(ModuleRoute("Calendar"))
+        page == "SystemMonitorWallpaper" -> BackStep.GoTo(ModuleRoute("SystemMonitorAppearance"))
+        page == "SystemMonitorAppearance" -> BackStep.GoTo(ModuleRoute("Info"))
         page == "StickerSettings" -> BackStep.GoTo(ModuleRoute("Stickers"))
         page == "VaultAppearance" -> BackStep.GoTo(ModuleRoute("Vault"))
         page == "To-Do" && todoPage == "Tasks" -> BackStep.AtHome

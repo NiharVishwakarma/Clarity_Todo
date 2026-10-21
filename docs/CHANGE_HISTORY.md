@@ -1,5 +1,19 @@
 # Change History
 
+## 2026-10-21 - System Monitor widget redesign, cache monitoring, and customization
+
+- Redesigned System Monitor home-screen widget to a compact, production-ready dark-surface card layout based on Clarity visual language:
+  - Header with prominent title, model/subtitle, and compact Refresh action.
+  - 2-column grid layout for RAM, storage, battery, and Clarity app cache.
+  - Added cache monitoring with genuine `StorageStatsManager` Clarity UID cache reading and formatting; no fabricated metrics.
+  - Added compact "Clear cache ›" action launching `SystemMonitorActionActivity` with explicit user confirmation and clear boundary explanation (deleting only Clarity disposable cacheDir and codeCacheDir without touching user data or other apps' caches).
+  - Footer with last update status and compact Downloads navigation.
+- Created `SystemMonitorAppearance` and `SystemMonitorAppearancePrefs` for full customization reuse (font family, private imported fonts, sizes, weights, colors, card surface opacity, background opacity, wallpaper image via `WidgetBackgrounds.SYSTEM_MONITOR`, and rounded corners).
+- Added `SystemMonitorAppearanceScreen` in Jetpack Compose, wired to Info screen header via `SettingsGearButton` and module navigation back stack.
+- Updated `system_monitor_widget.xml`, `system_monitor_widget_preview.xml`, `system_monitor_card_background.xml`, and registered `SystemMonitorActionActivity` in `AndroidManifest.xml`.
+- Extended `SystemMonitorWidgetTest` and `ModuleNavigationTest` with regression test cases covering appearance defaults, manifest registration, and navigation routing.
+- Documentation updated in `REPO_MAP.md`, `PROJECT_MEMORY.md`, and `CHANGE_HISTORY.md`. Local checks run with git status/diff. No local Gradle build attempted per instructions.
+
 ## 2026-10-20 - Settings > Data layout and help
 
 - Reordered Settings > Data (account, Back up now, Backup history, Backup settings, secondary status card, Disconnect) and removed the redundant Restore backup row; restore remains in Backup history. Delete backup history moved into a "More" menu with the existing confirmation (button now reads "Delete all backups").
