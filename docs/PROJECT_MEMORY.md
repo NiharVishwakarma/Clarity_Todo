@@ -22,6 +22,8 @@ The Android application is branded **Clarity** in its UI and widget labels; Grad
 
 ## Widget architecture
 
+The launcher source artwork [`clarity_suite_icon.png`](../app/src/main/res/drawable/clarity_suite_icon.png) is the centered 1024 x 1024 transparent PNG prepared from the supplied metallic C/red-swoosh image. The existing adaptive foreground's centered 70dp sizing and background resources are unchanged; the Vault widget artwork is separate and unchanged.
+
 ### Info and Vault appearance release (2026-10-18)
 
 - [`monitor/`](../app/src/main/java/com/example/darktodo/monitor) separates public-API collection, arithmetic/formatting, authorized document discovery, reports and cache maintenance from [`InfoScreen.kt`](../app/src/main/java/com/example/darktodo/ui/InfoScreen.kt). Snapshots are serialized, atomic and local in `noBackupFilesDir`; unsuccessful refreshes retain the last successful snapshot. The dashboard and widget disclose timestamps/unavailable/stale values.

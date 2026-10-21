@@ -1,5 +1,16 @@
 # Change History
 
+## 2026-10-21 - Fix Info header compilation import
+
+- Added the missing `androidx.compose.ui.Alignment` import used by the Info header row, fixing the `Unresolved reference 'Alignment'` error reported by GitHub Actions at `:app:compileDebugKotlin`.
+- Checked the targeted source diff and whitespace. No local Gradle build was attempted; compilation and subsequent tests require a new CI run. Workflow and existing pending launcher-artwork changes are unchanged.
+
+## 2026-10-21 - Replace launcher source with centered Clarity icon
+
+- Replaced `app/src/main/res/drawable/clarity_suite_icon.png` with the prepared 1024 x 1024 transparent PNG, preserving the supplied artwork's proportions, colors, metallic shading and red swoosh.
+- Kept the resource name, adaptive-icon XML, centered 70dp foreground sizing, background and separate Vault widget artwork unchanged. Updated project memory; repository paths and responsibilities are unchanged.
+- Verified the replacement matches the prepared PNG by SHA-256, PNG decoding/dimensions/transparency, and the adaptive resource references. No local Android build or device verification was performed.
+
 ## 2026-10-21 - System Monitor widget redesign, cache monitoring, and customization
 
 - Redesigned System Monitor home-screen widget to a compact, production-ready dark-surface card layout based on Clarity visual language:
