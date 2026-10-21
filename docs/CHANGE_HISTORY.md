@@ -1,5 +1,12 @@
 # Change History
 
+## 2026-10-21 - Fix monitor RemoteViews targets and icon test compilation
+
+- Fixed invalid text actions on the System Monitor's storage and battery `LinearLayout` click containers. Values now update only their child `TextView`s, preserving the settings actions and displaying charging status with battery percentage.
+- Missing Clarity cache measurements show `Unavailable` instead of a fabricated zero. Added explicit widget update/collection error logging without changing the refresh schedule.
+- Replaced desktop-only `javax.imageio.ImageIO` in the launcher contract with `DataInputStream` checks of the PNG signature and 1024px RGBA header. This addresses the attached CI's `compileDebugUnitTestKotlin` failure without dependencies. Pixel-level transparency/centering/mask checks remain desktop visual/asset checks, not this header contract.
+- Added a monitor contract checking all current RemoteViews text/color targets against layout node types and retaining the clickable containers. Updated project memory and test navigation. Local validation is limited to XML/source/PNG and diff checks; no local Android build or Gradle test execution.
+
 ## 2026-10-21 - Clean icon boundary and share official branding with Vault
 
 - Cleaned only the shared 1024px PNG's edge alpha (near-transparent noise and tiny silhouette spurs), retaining interior RGB/alpha, proportions, C emblem, red swoosh and shading. Recentered the silhouette by a two-pixel vertical translation.

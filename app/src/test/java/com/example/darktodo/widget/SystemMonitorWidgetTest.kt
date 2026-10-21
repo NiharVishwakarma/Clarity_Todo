@@ -88,6 +88,31 @@ class SystemMonitorWidgetTest {
         assertFalse(SystemMonitorWidgetState.expanded(minimum))
     }
 
+    @Test fun remoteViewsTextActionsTargetTextViewsInsteadOfMetricContainers() {
+        val main = File("src/main").let { if (it.isDirectory) it else File("app/src/main") }
+        val android = "http://schemas.android.com/apk/res/android"
+        val layout = DocumentBuilderFactory.newInstance().apply { isNamespaceAware = true }
+            .newDocumentBuilder().parse(File(main, "res/layout/system_monitor_widget.xml")).documentElement
+        val nodes = layout.getElementsByTagName("*")
+        val elements = (listOf(layout) + (0 until nodes.length).map { nodes.item(it) as Element })
+            .filter { it.hasAttributeNS(android, "id") }
+            .associateBy { it.getAttributeNS(android, "id").substringAfter('/') }
+        val source = File(main, "java/com/example/darktodo/widget/SystemMonitorWidget.kt").readText()
+        val textActions = Regex(
+            """views\.(?:setTextViewText|setInt)\(\s*R\.id\.(\w+)\s*,"""
+        ).findAll(source).toList()
+        assertTrue("Must verify actual text bindings", textActions.isNotEmpty())
+        textActions.forEach { action ->
+            val id = action.groupValues[1]
+            assertEquals("Invalid RemoteViews text target: $id", "TextView", elements[id]?.tagName)
+        }
+        listOf("storage", "battery").forEach { name ->
+            assertEquals("LinearLayout", elements["monitor_widget_$name"]?.tagName)
+            assertTrue(source.contains("views.setOnClickPendingIntent(R.id.monitor_widget_$name,"))
+        }
+        assertFalse("Missing cache measurements must not be fabricated", source.contains("?: \"0 B\""))
+    }
+
     @Test fun providerIsRegisteredWithTheExpectedManifestMetadata() {
         val main = File("src/main").let { if (it.isDirectory) it else File("app/src/main") }
         val android = "http://schemas.android.com/apk/res/android"

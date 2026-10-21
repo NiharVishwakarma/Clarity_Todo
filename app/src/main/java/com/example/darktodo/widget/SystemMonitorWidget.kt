@@ -12,6 +12,7 @@ import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
+import android.util.Log
 import android.view.View
 import android.widget.RemoteViews
 import androidx.work.ExistingPeriodicWorkPolicy
@@ -39,6 +40,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.withTimeout
 
 object SystemMonitorWidget {
+    private const val TAG = "SystemMonitorWidget"
     internal const val ACTION_REFRESH = "com.example.darktodo.SYSTEM_MONITOR_REFRESH"
     private const val WORK_NAME = "clarity-system-monitor-periodic"
     private const val TIMEOUT_MS = 6_500L
@@ -47,12 +49,18 @@ object SystemMonitorWidget {
 
     fun refreshAll(context: Context) {
         val app = context.applicationContext
-        scope.launch { runCatching { refreshAndRender(app) } }
+        scope.launch {
+            runCatching { refreshAndRender(app) }
+                .onFailure { Log.e(TAG, "Unable to refresh System Monitor widgets", it) }
+        }
     }
 
     fun renderAll(context: Context) {
         val app = context.applicationContext
-        scope.launch { runCatching { render(app) } }
+        scope.launch {
+            runCatching { render(app) }
+                .onFailure { Log.e(TAG, "Unable to render System Monitor widgets", it) }
+        }
     }
 
     internal fun receive(context: Context, finished: () -> Unit, collect: Boolean) {
@@ -68,8 +76,8 @@ object SystemMonitorWidget {
                     reconcileSchedule(app)
                     if (collect) refreshAndRender(app) else render(app)
                 }
-            } catch (_: Exception) {
-                // Never leave a broadcast pending when collection, scheduling, or rendering fails.
+            } catch (error: Exception) {
+                Log.e(TAG, "Unable to process System Monitor widget broadcast", error)
             } finally {
                 handler.removeCallbacks(finish)
                 finish.run()
@@ -86,8 +94,10 @@ object SystemMonitorWidget {
             } catch (cancelled: CancellationException) {
                 recordFailure(context)
                 runCatching { render(context) }
+                    .onFailure { Log.e(TAG, "Unable to render stale metrics after refresh cancellation", it) }
                 throw cancelled
-            } catch (_: Exception) {
+            } catch (error: Exception) {
+                Log.e(TAG, "Unable to collect System Monitor metrics; retaining last snapshot", error)
                 recordFailure(context)
             }
             render(context)
@@ -191,18 +201,16 @@ object SystemMonitorWidget {
 
         views.setTextViewText(R.id.monitor_widget_ram, value("Available RAM"))
         views.setTextViewText(R.id.monitor_widget_storage_val, value("Available internal storage"))
-        views.setTextViewText(R.id.monitor_widget_storage, "Storage: ${value("Available internal storage")}")
 
         val batteryPct = value("Battery")
         val charging = value("Charging")
         val batteryText = if (batteryPct != "Unavailable") {
             if (charging != "Unavailable" && charging.isNotBlank()) "$batteryPct · $charging" else batteryPct
         } else "Unavailable"
-        views.setTextViewText(R.id.monitor_widget_battery_val, batteryPct)
-        views.setTextViewText(R.id.monitor_widget_battery, "Battery: $batteryText")
+        views.setTextViewText(R.id.monitor_widget_battery_val, batteryText)
 
         // App cache metric
-        val cacheVal = values["Clarity app storage: cache (subset of data)"]?.takeIf { it.isNotBlank() } ?: "0 B"
+        val cacheVal = value("Clarity app storage: cache (subset of data)")
         views.setTextViewText(R.id.monitor_widget_cache_val, cacheVal)
 
         views.setTextViewText(R.id.monitor_widget_android, "Android: ${value("Android")}")
@@ -285,8 +293,8 @@ class SystemMonitorWidgetWorker(context: Context, params: WorkerParameters) : Wo
         return try {
             runBlocking { SystemMonitorWidget.refreshAndRender(applicationContext) }
             Result.success()
-        } catch (_: Exception) {
-            // Periodic work already retries at the next interval; don't start a second poll loop.
+        } catch (error: Exception) {
+            Log.e("SystemMonitorWidget", "Periodic System Monitor update failed; next attempt is at the scheduled interval", error)
             Result.success()
         }
     }
