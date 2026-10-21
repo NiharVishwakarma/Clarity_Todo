@@ -33,7 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
+import androidx.core.graphics.drawable.toBitmap
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.darktodo.R
@@ -202,7 +202,11 @@ private fun VaultAppearancePreview(style: VaultAppearance) {
         horizontalArrangement = Arrangement.spacedBy(14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Image(painterResource(R.drawable.clarity_suite_icon), null, Modifier.size(62.dp))
+        val icon = remember(context) {
+            val size = (62 * context.resources.displayMetrics.density).toInt().coerceAtLeast(1)
+            requireNotNull(context.getDrawable(R.mipmap.ic_clarity_suite)).toBitmap(size, size).asImageBitmap()
+        }
+        Image(icon, null, Modifier.size(62.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Image(titleBitmap, title, alignment = Alignment.CenterStart)
             Image(statusBitmap, status, alignment = Alignment.CenterStart)

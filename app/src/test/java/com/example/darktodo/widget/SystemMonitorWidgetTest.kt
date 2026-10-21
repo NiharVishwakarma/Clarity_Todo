@@ -91,7 +91,7 @@ class SystemMonitorWidgetTest {
         assertTrue(source.contains("views.setOnClickPendingIntent(R.id.monitor_widget_more,"))
     }
 
-    @Test fun remoteViewsTextActionsTargetTextViewsInsteadOfMetricContainers() {
+    @Test fun everyTextFieldHasATypedBitmapTargetAndKeepsMetricContainerClicks() {
         val main = File("src/main").let { if (it.isDirectory) it else File("app/src/main") }
         val android = "http://schemas.android.com/apk/res/android"
         val layout = DocumentBuilderFactory.newInstance().apply { isNamespaceAware = true }
@@ -101,13 +101,24 @@ class SystemMonitorWidgetTest {
             .filter { it.hasAttributeNS(android, "id") }
             .associateBy { it.getAttributeNS(android, "id").substringAfter('/') }
         val source = File(main, "java/com/example/darktodo/widget/SystemMonitorWidget.kt").readText()
-        val textActions = Regex(
-            """views\.(?:setTextViewText|setInt)\(\s*R\.id\.(\w+)\s*,"""
+        val textImages = Regex(
+            """R\.id\.(monitor_widget_\w+) to R\.id\.(monitor_widget_\w+_image)"""
         ).findAll(source).toList()
-        assertTrue("Must verify actual text bindings", textActions.isNotEmpty())
-        textActions.forEach { action ->
-            val id = action.groupValues[1]
-            assertEquals("Invalid RemoteViews text target: $id", "TextView", elements[id]?.tagName)
+        val textIds = elements.filterValues { it.tagName == "TextView" }.keys
+        assertEquals(textIds, textImages.map { it.groupValues[1] }.toSet())
+        textImages.forEach { action ->
+            assertEquals("ImageView", elements[action.groupValues[2]]?.tagName)
+        }
+        assertTrue(source.contains("SystemMonitorWidgetRendering.text("))
+        assertTrue(source.contains("views.setContentDescription(image, text)"))
+        assertTrue(source.contains("style.titleWeight"))
+        assertTrue(source.contains("style.valueWeight"))
+        val renderer = File(main, "java/com/example/darktodo/widget/SystemMonitorWidgetRendering.kt").readText()
+        assertTrue(renderer.contains("LocalWidgetFonts.typeface(context, style.fontFileId)"))
+        assertTrue(renderer.contains("Typeface.create(style.fontFamily"))
+        assertTrue(renderer.contains("StaticLayout.Builder.obtain("))
+        listOf("refresh", "downloads", "clear_cache", "compact_clear", "more").forEach {
+            assertTrue("Bitmap action must remain clickable: $it", source.contains("views.setOnClickPendingIntent(R.id.monitor_widget_${it}_image,"))
         }
         listOf("storage", "battery").forEach { name ->
             assertEquals("LinearLayout", elements["monitor_widget_$name"]?.tagName)

@@ -1,5 +1,16 @@
 # Change History
 
+## 2026-10-21 - Reuse the app's adaptive icon in Vault widgets
+
+- Switched Vault's live widget, picker fallback and Compose appearance preview from the raw PNG to the existing `ic_clarity_suite` adaptive launcher resource. The Compose preview rasterizes that drawable because `painterResource` does not support adaptive icons.
+- Kept the 62dp icon area, aspect fit, layout and unlock action unchanged. No app launcher assets, adaptive layers or manifest entries were changed. Updated the resource contract and branding documentation; device rendering remains unverified.
+
+## 2026-10-21 - Apply saved fonts to the live System Monitor widget
+
+- Wired all live monitor lettering to the existing bitmap-text renderer, following Vault's RemoteViews pattern: built-in/imported font family, title/value weight, size and color now reach the launcher, not just the settings preview. Kept native TextViews for initial/picker layout only.
+- Added bounded multiline rendering for details, values and the essential summary; original metric containers and bitmap action images retain supported PendingIntents, and text images expose full content descriptions.
+- Updated monitor contracts for every text/image pair, font selection/weight wiring and interactive images; updated project memory/map. No dependencies, new font catalog, polling, permissions or preference schema changes. Local XML/source/whitespace checks are separate from CI compilation and physical-launcher font verification.
+
 ## 2026-10-21 - Prefer wide System Monitor placement
 
 - Requested a five-column default width (320dp fallback on older launchers), keeping the existing 240dp initial height, three-cell height and 220dp resize minima. Launchers control the actual span; existing instances are not forcibly resized.

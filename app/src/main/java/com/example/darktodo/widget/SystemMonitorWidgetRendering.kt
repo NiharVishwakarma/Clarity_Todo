@@ -8,6 +8,8 @@ import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.Typeface
 import android.os.Build
+import android.text.Layout
+import android.text.StaticLayout
 import android.text.TextPaint
 import android.text.TextUtils
 import com.example.darktodo.data.LocalWidgetFonts
@@ -27,7 +29,8 @@ object SystemMonitorWidgetRendering {
         colorHex: String,
         appearance: SystemMonitorAppearance,
         weight: Int = 400,
-        maxWidthDp: Float = 200f
+        maxWidthDp: Float = 200f,
+        maxLines: Int = 1
     ): Bitmap {
         val style = appearance.sanitized()
         val metrics = context.resources.displayMetrics
@@ -42,18 +45,24 @@ object SystemMonitorWidgetRendering {
         }
         val padding = ceil(2 * scale).toInt()
         val width = (maxWidthDp.coerceIn(1f, 600f) * scale).toInt().coerceAtLeast(1)
-        val clipped = TextUtils.ellipsize(
-            text, paint, (width - padding * 2).coerceAtLeast(1).toFloat(),
-            TextUtils.TruncateAt.END
-        ).toString()
-        val fm = paint.fontMetrics
+        val contentWidth = (width - padding * 2).coerceAtLeast(1)
+        val layout = StaticLayout.Builder.obtain(text, 0, text.length, paint, contentWidth)
+            .setAlignment(Layout.Alignment.ALIGN_NORMAL)
+            .setIncludePad(false)
+            .setMaxLines(maxLines.coerceIn(1, 4))
+            .setEllipsize(TextUtils.TruncateAt.END)
+            .setEllipsizedWidth(contentWidth)
+            .build()
         val bitmap = Bitmap.createBitmap(
-            (ceil(paint.measureText(clipped)).toInt() + padding * 2).coerceIn(1, width),
-            (ceil(fm.descent - fm.ascent).toInt() + padding * 2).coerceAtLeast(1),
+            width,
+            (layout.height + padding * 2).coerceAtLeast(1),
             Bitmap.Config.ARGB_8888
         )
         bitmap.density = (metrics.densityDpi * scale / metrics.density).toInt()
-        Canvas(bitmap).drawText(clipped, padding.toFloat(), padding - fm.ascent, paint)
+        Canvas(bitmap).apply {
+            translate(padding.toFloat(), padding.toFloat())
+            layout.draw(this)
+        }
         return bitmap
     }
 

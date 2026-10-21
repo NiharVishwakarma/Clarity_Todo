@@ -49,8 +49,9 @@ Launcher icon resources under `app/src/main/`: `AndroidManifest.xml` →
 `res/mipmap-anydpi-v26/ic_clarity_suite*.xml` → `res/drawable/ic_clarity_suite_foreground.xml` →
 `res/drawable/clarity_suite_icon.png`. Related test: `LauncherIconResourceContractTest.kt`
 (relative to the test prefix above). Keep only one artwork variant.
-The same `clarity_suite_icon.png` is used by `res/layout/vault_widget.xml`,
-`res/drawable/vault_widget_preview.xml` and `ui/VaultAppearanceScreen.kt`.
+Vault's `res/layout/vault_widget.xml`, `res/drawable/vault_widget_preview.xml`
+and `ui/VaultAppearanceScreen.kt` reuse `mipmap/ic_clarity_suite` directly,
+including its adaptive layers; Compose rasterizes the drawable for its preview.
 The adaptive wrapper uses a full-bleed charcoal background and centered 90dp
 foreground, avoiding a padded tile nested inside the OEM mask. The shared PNG
 and Vault widget sizing/tap behavior are unchanged; OEM masks remain platform-controlled.
@@ -59,8 +60,10 @@ Widget resources: `app/src/main/res/layout/` (live/preview RemoteViews),
 `app/src/main/res/xml/` (provider metadata), `app/src/main/res/drawable/`
 (backgrounds/icons), and `app/src/main/res/values/` (strings/themes/dimensions).
 Start with the provider's referenced resources rather than scanning all artwork.
-System Monitor's `widget/SystemMonitorWidgetRendering.kt` draws outer and card
-layers; its settings preview shares the outer renderer. Preferences in
+System Monitor's `widget/SystemMonitorWidgetRendering.kt` draws bounded text,
+outer and card layers; its settings preview shares these rendering helpers.
+`widget/SystemMonitorWidget.kt` binds live text ImageViews with accessibility
+descriptions, retaining native TextViews for initial/picker layout. Preferences in
 `data/SystemMonitorAppearance.kt` preserve independent color/opacity and wallpaper
 selection, reusing the Calendar background default for an unset outer color.
 
