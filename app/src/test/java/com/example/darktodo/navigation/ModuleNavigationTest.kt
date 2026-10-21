@@ -104,4 +104,11 @@ class ModuleNavigationTest {
         assertEquals(ModuleNavigation.VAULT, ModuleNavigation.moduleFor("VaultAppearance", "Tasks"))
         assertEquals(BackStep.GoTo(ModuleRoute("Vault")), ModuleNavigation.backStep("VaultAppearance", "Tasks", 0))
     }
+
+    @Test fun systemMonitorAppearanceBelongsToInfo() {
+        assertEquals(ModuleNavigation.INFO, ModuleNavigation.moduleFor("SystemMonitorAppearance", "Tasks"))
+        assertEquals(ModuleNavigation.INFO, ModuleNavigation.moduleFor("SystemMonitorWallpaper", "Tasks"))
+        assertEquals(BackStep.GoTo(ModuleRoute("Info")), ModuleNavigation.backStep("SystemMonitorAppearance", "Tasks", 0))
+        assertEquals(BackStep.GoTo(ModuleRoute("SystemMonitorAppearance")), ModuleNavigation.backStep("SystemMonitorWallpaper", "Tasks", 0))
+    }
 }

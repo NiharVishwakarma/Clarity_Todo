@@ -64,7 +64,7 @@ private val securityKeys = setOf("Security patch", "OS build time (not install d
     "Device lock configured", "Storage encryption status")
 
 @Composable
-fun InfoScreen(onSnapshotUpdated: () -> Unit = {}) {
+fun InfoScreen(onOpenAppearance: (() -> Unit)? = null, onSnapshotUpdated: () -> Unit = {}) {
     MaterialTheme(colorScheme = darkColorScheme(
         primary = UiTokens.Accent, onPrimary = UiTokens.Ink,
         primaryContainer = UiTokens.SurfaceRaised, onPrimaryContainer = UiTokens.Ink,
@@ -76,13 +76,13 @@ fun InfoScreen(onSnapshotUpdated: () -> Unit = {}) {
         outline = UiTokens.Subdued
     )) {
         Surface(color = UiTokens.Background, contentColor = UiTokens.Ink, modifier = Modifier.fillMaxSize()) {
-            InfoMonitorContent(onSnapshotUpdated)
+            InfoMonitorContent(onOpenAppearance, onSnapshotUpdated)
         }
     }
 }
 
 @Composable
-private fun InfoMonitorContent(onSnapshotUpdated: () -> Unit) {
+private fun InfoMonitorContent(onOpenAppearance: (() -> Unit)? = null, onSnapshotUpdated: () -> Unit) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val scope = rememberCoroutineScope()
@@ -175,7 +175,12 @@ private fun InfoMonitorContent(onSnapshotUpdated: () -> Unit) {
     val sections = listOf("Device", "Memory", "Storage", "Battery", "Security and updates", "Downloads and reports", "Maintenance")
     LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
-            Text("Local device monitor · no root · no cloud upload", style = MaterialTheme.typography.bodySmall)
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("Local device monitor · no root · no cloud upload", style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+                if (onOpenAppearance != null) {
+                    SettingsGearButton("System Monitor widget appearance", onClick = onOpenAppearance)
+                }
+            }
             sections.chunked(2).forEach { pair ->
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     pair.forEach { title ->

@@ -444,9 +444,17 @@ class MainActivity : FragmentActivity() {
                     }
                     VaultScreen()
                 }
-                page == "Info" -> com.example.darktodo.ui.InfoScreen {
-                    com.example.darktodo.widget.SystemMonitorWidget.renderAll(context)
-                }
+                page == "Info" -> com.example.darktodo.ui.InfoScreen(
+                    onOpenAppearance = { page = "SystemMonitorAppearance" },
+                    onSnapshotUpdated = {
+                        com.example.darktodo.widget.SystemMonitorWidget.renderAll(context)
+                    }
+                )
+                page == "SystemMonitorAppearance" -> com.example.darktodo.ui.SystemMonitorAppearanceScreen(
+                    onBack = { page = "Info" },
+                    onOpenWallpaper = { wallpaperTarget = it; page = "SystemMonitorWallpaper" }
+                )
+                page == "SystemMonitorWallpaper" -> WidgetBackgroundEditor(wallpaperTarget) { page = "SystemMonitorAppearance" }
                 page == "VaultAppearance" -> com.example.darktodo.ui.VaultAppearanceScreen { page = "Vault" }
                 page == "Settings" -> GlobalSettingsScreen(
                     onOpenPermissions = { page = "Permissions" },

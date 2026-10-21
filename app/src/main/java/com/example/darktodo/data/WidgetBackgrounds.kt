@@ -21,6 +21,7 @@ import kotlin.math.max
 object WidgetBackgrounds {
     const val TODO = "todo"
     const val CALENDAR = "calendar"
+    const val SYSTEM_MONITOR = "system_monitor"
     const val STICKER = "sticker"
     const val NOTE_PREFIX = "note_"
 

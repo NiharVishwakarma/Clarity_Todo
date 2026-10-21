@@ -4,24 +4,75 @@
     android:height="260dp"
     android:viewportWidth="300"
     android:viewportHeight="260">
+    <!-- Outer background -->
     <path
         android:fillColor="#1A1A20"
         android:pathData="M20,0 H280 Q300,0 300,20 V240 Q300,260 280,260 H20 Q0,260 0,240 V20 Q0,0 20,0 Z" />
+    <!-- Header title -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M20,24 H188 V32 H20 Z" />
-    <path
-        android:fillColor="@android:color/transparent"
-        android:strokeColor="#FF8A96"
-        android:strokeWidth="2"
-        android:pathData="M266,21 A9,9 0,1 0,271 32 M267,17 L267,24 L260,24" />
-    <path
-        android:fillColor="#DDDEE5"
-        android:pathData="M20,64 H168 V72 H20 Z M20,100 H210 V108 H20 Z M20,136 H196 V144 H20 Z M20,172 H184 V180 H20 Z" />
+        android:pathData="M20,20 H140 V28 H20 Z" />
+    <!-- Header subtitle -->
     <path
         android:fillColor="#B9BBC8"
-        android:pathData="M20,222 H160 V228 H20 Z" />
+        android:pathData="M20,32 H100 V38 H20 Z" />
+    <!-- Refresh text / icon indicator -->
     <path
         android:fillColor="#FF8A96"
-        android:pathData="M214,222 H278 V228 H214 Z" />
+        android:pathData="M240,22 H280 V28 H240 Z" />
+
+    <!-- Card 1 (RAM) -->
+    <path
+        android:fillColor="#25252D"
+        android:pathData="M16,52 H142 Q148,52 148,58 V106 Q148,112 142,112 H16 Q10,112 10,106 V58 Q10,52 16,52 Z" />
+    <path
+        android:fillColor="#B9BBC8"
+        android:pathData="M20,62 H90 V68 H20 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M20,76 H110 V86 H20 Z" />
+
+    <!-- Card 2 (Storage) -->
+    <path
+        android:fillColor="#25252D"
+        android:pathData="M158,52 H284 Q290,52 290,58 V106 Q290,112 284,112 H158 Q152,112 152,106 V58 Q152,52 158,52 Z" />
+    <path
+        android:fillColor="#B9BBC8"
+        android:pathData="M162,62 H220 V68 H162 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M162,76 H250 V86 H162 Z" />
+
+    <!-- Card 3 (Battery) -->
+    <path
+        android:fillColor="#25252D"
+        android:pathData="M16,122 H142 Q148,122 148,128 V176 Q148,182 142,182 H16 Q10,182 10,176 V128 Q10,122 16,122 Z" />
+    <path
+        android:fillColor="#B9BBC8"
+        android:pathData="M20,132 H70 V138 H20 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M20,146 H80 V156 H20 Z" />
+
+    <!-- Card 4 (App cache) -->
+    <path
+        android:fillColor="#25252D"
+        android:pathData="M158,122 H284 Q290,122 290,128 V176 Q290,182 284,182 H158 Q152,182 152,176 V128 Q152,122 158,122 Z" />
+    <path
+        android:fillColor="#B9BBC8"
+        android:pathData="M162,132 H230 V138 H162 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M162,146 H230 V156 H162 Z" />
+    <path
+        android:fillColor="#FF8A96"
+        android:pathData="M162,164 H224 V170 H162 Z" />
+
+    <!-- Footer -->
+    <path
+        android:fillColor="#B9BBC8"
+        android:pathData="M20,230 H160 V236 H20 Z" />
+    <path
+        android:fillColor="#FF8A96"
+        android:pathData="M224,228 H280 V236 H224 Z" />
 </vector>
