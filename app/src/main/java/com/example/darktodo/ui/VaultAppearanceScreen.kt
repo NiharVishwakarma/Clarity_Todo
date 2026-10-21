@@ -146,7 +146,7 @@ fun VaultAppearanceScreen(onBack: () -> Unit) {
             HexColorField("Title color", style.titleColor, book, { book = it }) { update(style.copy(titleColor = it)) }
             HexColorField("Status color", style.statusColor, book, { book = it }) { update(style.copy(statusColor = it)) }
             HexColorField("Accent / outline color", style.accentColor, book, { book = it }) { update(style.copy(accentColor = it)) }
-            Text("Accent colors the card outline; the original Vault artwork is never tinted.", color = UiTokens.Muted)
+            Text("Accent colors the card outline; the Clarity artwork is never tinted.", color = UiTokens.Muted)
         }
         CollapsibleSettingsSection(
             title = "Background",
@@ -202,7 +202,7 @@ private fun VaultAppearancePreview(style: VaultAppearance) {
         horizontalArrangement = Arrangement.spacedBy(14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Image(painterResource(R.drawable.vault_widget_icon), null, Modifier.size(62.dp))
+        Image(painterResource(R.drawable.clarity_suite_icon), null, Modifier.size(62.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Image(titleBitmap, title, alignment = Alignment.CenterStart)
             Image(statusBitmap, status, alignment = Alignment.CenterStart)

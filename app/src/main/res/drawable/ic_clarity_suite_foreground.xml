@@ -1,3 +1,3 @@
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:drawable="@drawable/clarity_suite_icon" android:gravity="center" android:width="70dp" android:height="70dp" />
+    <item android:drawable="@drawable/clarity_suite_icon" android:gravity="center" android:width="60dp" android:height="60dp" />
 </layer-list>

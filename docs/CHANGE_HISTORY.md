@@ -1,5 +1,12 @@
 # Change History
 
+## 2026-10-21 - Clean icon boundary and share official branding with Vault
+
+- Cleaned only the shared 1024px PNG's edge alpha (near-transparent noise and tiny silhouette spurs), retaining interior RGB/alpha, proportions, C emblem, red swoosh and shading. Recentered the silhouette by a two-pixel vertical translation.
+- Removed the opaque black/red adaptive-background painting while retaining existing resource names and adaptive-icon wiring. Reduced the centered foreground from 70dp to 60dp after circular-mask simulation exposed corner clipping; the complete artwork now fits the 66dp adaptive safe circle. OEM launcher masks, shadows or backplates remain outside app control; physical-launcher verification is still needed.
+- Reused `clarity_suite_icon.png` in the Vault live widget, drawable picker preview and appearance preview, and removed the unreferenced safe illustration. Kept icon areas, aspect fitting, layout, text, styling and unlock behavior unchanged.
+- Updated launcher/widget resource contracts, repository map and project memory. Lightweight PNG/XML/reference/diff checks and desktop size/mask visual simulations are used; no local Android build or device-rendering success is claimed.
+
 ## 2026-10-21 - Fix Info header compilation import
 
 - Added the missing `androidx.compose.ui.Alignment` import used by the Info header row, fixing the `Unresolved reference 'Alignment'` error reported by GitHub Actions at `:app:compileDebugKotlin`.

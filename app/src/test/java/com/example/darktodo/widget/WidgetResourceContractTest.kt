@@ -75,16 +75,18 @@ class WidgetResourceContractTest {
         }
     }
 
-    @Test fun vaultUsesTheSameLargerArtworkInLiveAndPickerResources() {
+    @Test fun vaultReusesOfficialClarityArtworkWithoutChangingItsIconArea() {
         val icon = xml("res/layout/vault_widget.xml").withId("vault_widget_icon")
         assertEquals("62dp", icon.attr("layout_height"))
         assertEquals("wrap_content", icon.attr("layout_width"))
         assertEquals("true", icon.attr("adjustViewBounds"))
         assertEquals("fitCenter", icon.attr("scaleType"))
-        assertEquals("@drawable/vault_widget_icon", icon.attr("src"))
-        val artwork = File(main, "res/drawable/vault_widget_icon.png")
-        assertTrue("Uploaded Vault widget artwork must exist", artwork.isFile)
-        assertTrue("Uploaded Vault widget artwork must not be empty", artwork.length() > 0)
+        assertEquals("@drawable/clarity_suite_icon", icon.attr("src"))
+        val artwork = File(main, "res/drawable/clarity_suite_icon.png")
+        assertTrue("Shared Clarity artwork must exist", artwork.isFile)
+        assertTrue("Shared Clarity artwork must not be empty", artwork.length() > 0)
+        val appearance = File(main, "java/com/example/darktodo/ui/VaultAppearanceScreen.kt").readText()
+        assertTrue(appearance.contains("painterResource(R.drawable.clarity_suite_icon)"))
         val previewIcon = xml("res/drawable/vault_widget_preview.xml").elements().single { it.attr("drawable") == icon.attr("src") }
         assertEquals("62dp", previewIcon.attr("height"))
         assertEquals("62dp", previewIcon.attr("width"))
