@@ -5,7 +5,7 @@ import org.json.JSONObject
 
 /** Typed JSON form of SharedPreferences contents so a restore reproduces every value with its original type. */
 object BackupCodec {
-    const val VERSION = 1
+    const val VERSION = 2
 
     fun encodePrefs(values: Map<String, *>): JSONObject {
         val out = JSONObject()

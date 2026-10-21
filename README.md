@@ -66,8 +66,20 @@ Manual, automatic and pre-restore Safety points show their type, size and format
 when available. Automatic backups keep the existing change-triggered, debounced,
 network-constrained schedule; this is not a periodic/daily schedule.
 
+The **Automatic backup** switch beside the backup controls persists across app
+restarts. Turning it off cancels queued automatic work without deleting backups
+or disabling manual backup/restore. An upload already in progress may finish
+safely. Turning it on requests the existing unique, network-constrained job;
+repeated changes do not create parallel scheduled jobs. The existing setup
+behavior is retained: backup starts paused before setup; the first successful
+manual backup/restore enables automation only if no explicit choice was saved.
+Manual actions never override an explicit Off choice.
+The first-launch "No backup found", then "Start fresh" path also retains its existing
+automation setup; choosing Start Fresh when a backup was found leaves it off.
+
 Snapshots use unique Google Drive file IDs in the existing private `appDataFolder`,
-with dated names, checksum metadata and the existing version-1 JSON format.
+with dated names and checksum metadata. New snapshots use version-2 JSON with a
+size/SHA-256 asset manifest; version-1 backups remain restorable.
 Retries reuse a durable reserved ID and payload rather than appending duplicates.
 The old `clarity-backup.json` appears as a Legacy backup without migration or
 deletion; its displayed date is Drive's last modification time, not an invented
@@ -96,12 +108,34 @@ The vault stays encrypted; master passwords and biometric keys are not uploaded.
 Unlock a restored vault with its original master password. Without that password,
 preflight can check its header and transport integrity, not authenticate/decrypt
 its contents. A snapshot without a vault preserves the current vault; legacy
-snapshots without Notes preserve current Notes. Imported fonts are not backed up.
+snapshots without Notes preserve current Notes. Version-1 backups also preserve
+newer appearance/font stores and their assets when those sections are absent.
 Successful restore reloads the app and refreshes its affected widgets.
 Offline/access-expiry failures display an error; reconnect/refresh and retry.
 **Delete backup history** explicitly deletes all Clarity restore points, including
 legacy and Safety copies, and pauses automatic backup; it does not delete local
 data or unrelated Drive files.
+
+Version-2 backups include tasks/history, Notes, app and widget appearance settings
+(including System Monitor and Vault), saved default styles, navigation preferences,
+imported font registry metadata and actual font files, and private
+To-Do/Calendar/Notes/System Monitor wallpaper files. Stable font IDs and logical
+asset names preserve references without depending on another device's paths;
+font/image validation happens before replacement and rendering caches are cleared.
+Repeated restores replace these assets rather than appending duplicate records.
+
+The last saved System Monitor snapshot is included as historical data, not live
+statistics for the destination device. It is labelled as restored until refreshed.
+Monitor polling does not itself schedule cloud uploads; the saved snapshot travels
+with manual backups or existing change-triggered backups.
+
+Biometric credentials and Android Keystore keys cannot be transferred. After a
+restore, unlock with the original vault master password and enable biometric
+unlock again in Vault Security. Disposable caches, other apps' private data,
+launcher-specific widget placements, Downloads and reports exported through the
+document picker are not packaged. Clarity does not maintain private managed
+copies of those external Downloads/reports or request broader storage permissions.
+Vault widget appearance currently has no background-image setting.
 
 ### Release signing
 
@@ -123,10 +157,10 @@ Active tasks use the `active_tasks_v1` preference key. Activity records use `tas
 
 ## Current implementation notes
 
-The To-Do and Calendar widget font selectors support importing local `.ttf`, `.otf`, and `.ttc` files on Android 9 and newer. The app copies selected files into its private storage and applies them to widget text; the font files are not uploaded or shared. Imported fonts stay available for either widget until app data is cleared or the app is uninstalled. Android 8 and older continue to use the built-in widget font options.
+The To-Do and Calendar widget font selectors support importing local `.ttf`, `.otf`, and `.ttc` files on Android 9 and newer. The app copies selected files into its private storage and applies them to widget text; optional Drive backups include these private copies and their registry. Imported fonts stay available for either widget until app data is cleared or the app is uninstalled, and version-2 backups can restore them. Android 8 and older continue to use the built-in widget font options.
 
 The To-Do widget uses a scrollable collection to show the full task list while keeping its count panel, refresh action, and Add task action fixed. It does not have a clear-completed control; clear completed tasks from the app. Tapping a task row, title, or checkbox toggles completion. Use the up/down controls in the app to reorder tasks within the incomplete or completed group; the widget follows that order. Long-press any task in the app for Edit or Delete actions; deletion requires confirmation. Widget countdowns use the same formatter as the Tasks screen and include minutes. Android limits periodic widget refreshes to at least 30 minutes; the widget also refreshes on task changes, reminder milestones, and system updates. While the app is foregrounded, it refreshes displayed countdowns once per minute.
 
-To-Do and Calendar appearance settings provide five Android system font families and support importing local `.ttf`, `.otf`, and `.ttc` files on Android 9 and newer. The app also has a separate typography selector. Imported fonts are copied to private app storage; they are not uploaded or shared. The repository contains a Nunito license notice but does not currently bundle Nunito font files or provide Nunito weight/italic controls.
+To-Do and Calendar appearance settings provide five Android system font families and support importing local `.ttf`, `.otf`, and `.ttc` files on Android 9 and newer. The app also has a separate typography selector. Imported fonts are copied to private app storage and included in optional Drive backups, not publicly shared. The repository contains a Nunito license notice but does not currently bundle Nunito font files or provide Nunito weight/italic controls.
 
-The Vault widget is only a locked shortcut into the app. Vault credentials are not displayed in the widget. The vault is encrypted and stored locally outside device backup; there is no cloud sync or vault recovery service.
+The Vault widget is only a locked shortcut into the app. Vault credentials are not displayed in the widget. The vault is encrypted and stored locally outside Android device backup; optional Clarity Drive snapshots include the encrypted file. There is no cloud sync or master-password recovery service.

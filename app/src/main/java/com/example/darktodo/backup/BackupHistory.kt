@@ -54,7 +54,7 @@ internal object BackupHistory {
 
     // Legacy and unverified/unknown-format files are never automatically removed.
     fun excess(points: List<BackupPoint>, protectedIds: Set<String> = emptySet()): List<BackupPoint> =
-        newestFirst(points.filter { !it.legacy && it.verified && it.sha256 != null && it.createdAt != null && it.version == BackupCodec.VERSION })
+        newestFirst(points.filter { !it.legacy && it.verified && it.sha256 != null && it.createdAt != null && it.version in 1..BackupCodec.VERSION })
             .drop(LIMIT).filterNot { it.id in protectedIds }
 
     fun verify(point: BackupPoint, bytes: ByteArray) {

@@ -62,6 +62,10 @@ object WidgetBackgrounds {
     /** Same cached image for UI code (Compose previews). Never recycle it. */
     fun image(context: Context, key: String): Bitmap? = source(context, key)
 
+    internal fun invalidateAfterRestore() {
+        synchronized(sources) { sources.clear() }
+    }
+
     /** Average relative luminance (0..1) of the saved image before any fade, or null when there is none. */
     fun averageLuminance(context: Context, key: String): Float? {
         val cached = cachedSource(context, key) ?: return null

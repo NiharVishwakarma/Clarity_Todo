@@ -195,7 +195,8 @@ private fun InfoMonitorContent(onOpenAppearance: (() -> Unit)? = null, onSnapsho
                 Button(enabled = !working && !pickerPending, onClick = { work { refresh(); message = "Snapshot refreshed." } }) { Text("Refresh") }
                 if (working) OutlinedButton(onClick = { operation?.cancel() }) { Text("Cancel") }
             }
-            Text(MonitorFormats.snapshotStatus(snapshot?.capturedAt, now, refreshing || loadingSnapshot, refreshFailed),
+            Text(if (snapshot?.restoredFromBackup == true) "Restored snapshot · Refresh for this device" else
+                MonitorFormats.snapshotStatus(snapshot?.capturedAt, now, refreshing || loadingSnapshot, refreshFailed),
                 color = if (refreshFailed || snapshot?.let { MonitorFormats.snapshotStale(it.capturedAt, now, false) } == true)
                     UiTokens.Accent else UiTokens.Muted,
                 style = MaterialTheme.typography.bodySmall)

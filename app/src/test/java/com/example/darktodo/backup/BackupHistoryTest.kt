@@ -30,11 +30,16 @@ class BackupHistoryTest {
         assertEquals(emptyList<BackupPoint>(), BackupHistory.excess(points.take(10)))
     }
 
+    @Test fun retentionLimitIsSharedAcrossSupportedSchemaVersions() {
+        val points = (1..12).map { point(it).copy(version = if (it % 2 == 0) 2 else 1) }
+        assertEquals(listOf("id2", "id1"), BackupHistory.excess(points).map { it.id })
+    }
+
     @Test fun neverPrunesLegacyUnverifiedUnsupportedUnknownDateOrProtectedPoints() {
         val points = (1..12).map(::point)
         val special = listOf(
             point(100).copy(legacy = true), point(101).copy(verified = false),
-            point(102).copy(version = 2), point(103).copy(sha256 = null), point(104).copy(createdAt = null)
+            point(102).copy(version = BackupCodec.VERSION + 1), point(103).copy(sha256 = null), point(104).copy(createdAt = null)
         )
         assertEquals(listOf("id2"), BackupHistory.excess(points + special, setOf("id1")).map { it.id })
     }

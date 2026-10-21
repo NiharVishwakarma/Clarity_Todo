@@ -1,5 +1,13 @@
 # Change History
 
+## 2026-10-21 - Portable backup assets and automatic backup control
+
+- Extended snapshots to version 2 with an explicit size/SHA-256 asset manifest. Added original imported-font registry metadata/files, System Monitor/Vault appearance, System Monitor wallpaper and historical snapshot, saved styles and navigation preferences. Kept version-1 restore support and existing encrypted Vault/Notes/wallpaper coverage.
+- Validate font references/headers and Android font parsing, image dimensions and monitor JSON before replacement. Restore writes assets to private managed paths, removes obsolete registered assets, invalidates rendering caches, refreshes all widget types and labels restored monitor values until refreshed. Existing verified cloud/local Safety copies and rollback remain; process death during a multi-store restore can still require manual Safety recovery.
+- Added the persistent Automatic backup switch using the existing unique, 20-second debounced, network-constrained WorkManager job. Off cancels queued work, preserves cloud backups and manual operations, and is rechecked by workers before backup/retry. An in-flight upload may finish safely. Explicit Off is not overridden by manual backup/restore; existing paused-before-setup behavior is retained.
+- Keystore/biometric keys and wrappers remain non-exportable; users unlock with their original master password and re-enable biometrics. Disposable caches, other apps' private data and external Downloads/SAF exports remain excluded because Clarity has no managed copies. Updated backup help, README, project memory and repository map to match actual packaging and restore paths.
+- Validation: 41 focused JVM tests cover typed preference/schema/asset round trips, font IDs/references, legacy compatibility, integrity/rejection cases, retention and scheduling/UI source contracts. This is not an Android build or live WorkManager/Drive test. No local Gradle/Android SDK is available; the existing Actions workflow is unchanged. Device backup/restore, biometric re-enrollment, reboot scheduling and launcher rendering remain unverified.
+
 ## 2026-10-21 - Reuse the app's adaptive icon in Vault widgets
 
 - Switched Vault's live widget, picker fallback and Compose appearance preview from the raw PNG to the existing `ic_clarity_suite` adaptive launcher resource. The Compose preview rasterizes that drawable because `painterResource` does not support adaptive icons.

@@ -1,8 +1,7 @@
 # Repository map
 
-Navigation aid, not a specification: verify paths and relevant source before editing.
-Paths below are repository-relative; directory prefixes are explicitly identified.
-Keep this map focused on structure and checks, not change logs or copied source.
+Navigation aid, not a specification: verify source before editing.
+Paths are repository-relative; keep this map focused on structure and checks.
 
 ## Architecture and entry points
 
@@ -43,7 +42,7 @@ Tests listed are related JVM coverage, not end-to-end guarantees.
 | Vault widget appearance | `data/VaultAppearance.kt`, `ui/VaultAppearanceScreen.kt`, `widget/VaultWidget.kt` | appearance defaults/bounds and rendering contracts |
 | Appearance, fonts, backgrounds | `data/WidgetPrefs.kt`, `data/CalendarWidgetPrefs.kt`, `data/AppTypographySettings.kt`, `data/WidgetTypography.kt`, `data/LocalWidgetFonts.kt`, `data/ImportedFontCatalog.kt`, `data/WidgetBackgrounds.kt`, `data/StyleSnapshot.kt`, `WidgetBackgroundEditor.kt`, `ui/ColorPickerDialog.kt`, `ui/ClarityUi.kt` (shared settings sections), `widget/WidgetFontLayouts.kt` | `data/ImportedFontCatalogTest.kt`, `widget/WidgetFontLayoutsTest.kt`, `data/WidgetCardTransparencyTest.kt`, `ui/SettingsOrganizationContractTest.kt` |
 | Navigation | `navigation/ModuleNavigation.kt`, `navigation/ModulePrefs.kt`, `MainActivity.kt` | `navigation/ModuleNavigationTest.kt` |
-| Google Drive backup/history/restore | `BackupScreens.kt`, `backup/BackupManager.kt`, `backup/BackupHistory.kt`, `backup/BackupSnapshot.kt`, `backup/BackupCodec.kt`, `backup/BackupScheduler.kt`, `backup/DriveClient.kt` | `backup/BackupCodecTest.kt`, `backup/BackupConnectionContractTest.kt`, `backup/BackupHistoryTest.kt`, `backup/BackupSnapshotTest.kt`, `backup/BackupHistoryContractTest.kt`; no Drive/restore integration tests |
+| Google Drive backup/history/restore | `BackupScreens.kt`, `backup/BackupManager.kt`, `backup/BackupHistory.kt`, `backup/BackupSnapshot.kt`, `backup/BackupCodec.kt`, `backup/BackupScheduler.kt`, `backup/DriveClient.kt` | `backup/` JVM tests, including `BackupAutomationContractTest.kt`; no Drive/restore integration tests |
 
 Launcher icon resources under `app/src/main/`: `AndroidManifest.xml` →
 `res/mipmap-anydpi-v26/ic_clarity_suite*.xml` → `res/drawable/ic_clarity_suite_foreground.xml` →
@@ -90,15 +89,16 @@ Source paths here use the same implementation prefix as the table.
   and device-bound biometric wrapping via Android Keystore.
 - `monitor/MonitorRepository.kt` collects public-API snapshots off-main, serializes
   refreshes, and retains the last successful snapshot in `noBackupFilesDir`.
-  Info and the monitor widget share it; no monitor data enters the Drive allowlist.
+  Info/widget share it; Drive includes historical state, not disposable caches/reports.
 - `ui/InfoScreen.kt` owns SAF consent, explicit document exports and cache confirmation.
   Monitor polling is separate from task countdown alarms.
 - `data/VaultAppearance.kt` stores global widget-only appearance independently
   of Vault authentication; appearance writes refresh all Vault instances.
 - `ClarityApplication.kt` → `backup/BackupScheduler.kt` installs preference listeners
   and debounces eligible changes into network-constrained WorkManager work.
+  The persisted UI toggle cancels automatic work when off; manual actions remain.
   `backup/BackupManager.kt` defines the backup preference/file allow-list and restore
-  flow; follow it for data inclusion, validation, and post-restore refresh behavior.
+  flow: v2 assets use size/hash manifests; v1 preserves absent newer sections.
 - `backup/BackupHistory.kt` orders legacy/immutable Drive points and retains 10 verified
   new points; `backup/BackupSnapshot.kt` validates restore plans before writes.
   The manager journals reserved IDs/payloads for retries and creates cloud/local
@@ -114,7 +114,7 @@ Source paths use the implementation prefix from the feature table.
   and email scopes); `backup/DriveClient.kt`: Drive v3 REST over HTTPS using
   `HttpURLConnection`, restricted to `appDataFolder`. Preferences are not
   application-encrypted in the backup; the vault blob remains encrypted.
-  Imported fonts and device-bound biometric keys are not backed up.
+  Fonts are included; biometric keys are not. Restore requires password/re-enrollment.
 - `reminders/ReminderScheduler.kt`: AlarmManager, notifications, and system-event
   recovery receivers; exact-alarm and notification permissions affect delivery.
 - `widget/`: AppWidgetProvider/RemoteViews and launcher interactions.

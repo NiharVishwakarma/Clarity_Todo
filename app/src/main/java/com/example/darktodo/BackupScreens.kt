@@ -25,6 +25,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -170,7 +171,10 @@ internal fun BackupHelpButton() {
     if (open) BackupInfoDialog("About Google Drive backup", onDismiss = { open = false }) {
         HelpItem("Where backups go", "Backups are saved in Clarity's private app-data folder in your Google Drive. Clarity requests access to that folder only, not to the rest of your Drive.")
         HelpItem("Vault", "Only the vault's encrypted file is uploaded. Your master password and the biometric key are not uploaded; the biometric key stays in this device's Keystore and is not restored, so after a restore you unlock with your master password.")
-        HelpItem("What is included", "Tasks and history, Notes, Calendar and To-Do settings, app typography, widget backgrounds and wallpapers, and the vault file. Imported custom fonts are not backed up. Apart from the vault, this data is stored as ordinary data in the private folder; Clarity does not add its own encryption to it.")
+        HelpItem("Included", "Tasks and history, Notes, app and widget appearance settings, saved default styles, imported font files and their registry, To-Do/Calendar/Notes/System Monitor wallpapers, the last saved System Monitor snapshot, and the encrypted vault. Apart from the vault, this data is ordinary data in your private Drive folder; Clarity does not add its own encryption to it.")
+        HelpItem("Not included", "Android Keystore keys and biometric credentials, disposable caches, other apps' private data, and files kept outside Clarity (including Downloads and reports exported through Android's document picker). Those external files are not managed copies in Clarity. Older backups cannot contain newly supported assets.")
+        HelpItem("System Monitor", "The last saved snapshot is historical data from the original device. After restoring, Refresh collects current values for this device. Monitor polling does not itself trigger cloud backups.")
+        HelpItem("After restoring a vault", "Unlock with that vault's master password, then enable fingerprint unlock again in Vault Security. Device-bound biometric keys cannot be transferred. No password or unwrapped biometric secret is uploaded.")
         HelpItem("Snapshots", "The latest ${BackupManager.RETENTION_LIMIT} verified new snapshots are kept, including Safety points. Older ones are removed only after a new upload is verified. Legacy backups are kept separately. Restoring first creates a Safety point and does not delete history.")
         HelpItem("Deleting", "Delete backup history permanently removes every Clarity restore point from your Drive app-data folder and turns automatic backup off. Data on this device is not changed. Disconnecting keeps your cloud backups.")
     }
@@ -272,17 +276,17 @@ internal fun BackupSettingsSection() {
                             when (action) {
                                 BackupAuthorization.CONNECT -> {
                                     if (BackupManager.findBackup(token) == null) {
-                                        BackupManager.setAutoEnabled(context, true)
                                         BackupManager.backupNow(context, token, operationId = backupOperation ?: error("Missing backup operation ID.")).let {
                                             if (!it.ok) throw java.io.IOException(it.message)
+                                            BackupManager.enableAutoIfUnset(context)
                                             it.message
                                         }
                                     } else "Connected. Existing restore points were kept. Open Backup history to choose one, or Backup now to create another."
                                 }
                                 BackupAuthorization.BACKUP -> {
-                                    BackupManager.setAutoEnabled(context, true)
                                     BackupManager.backupNow(context, token, operationId = backupOperation ?: error("Missing backup operation ID.")).let {
                                         if (!it.ok) throw java.io.IOException(it.message)
+                                        BackupManager.enableAutoIfUnset(context)
                                         it.message
                                     }
                                 }
@@ -342,6 +346,23 @@ internal fun BackupSettingsSection() {
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Automatic backup", color = SecInk, fontWeight = FontWeight.SemiBold)
+                Text("Automatically back up your Clarity data.", color = SecMuted, fontSize = 12.sp)
+                Text(if (auto) "On" else "Off", color = SecAccent, fontSize = 12.sp)
+            }
+            Switch(
+                checked = auto,
+                enabled = email != null,
+                onCheckedChange = {
+                    BackupManager.setAutoEnabled(context, it)
+                    revision++
+                    message = if (it) "Automatic backup enabled."
+                        else "Automatic backup is off. Cloud backups are kept. An upload already in progress may finish safely."
+                }
+            )
+        }
         message?.let { Text(it, color = SecAccent, fontSize = 13.sp) }
         lastError?.takeIf { it != message }?.let { Text("Last backup attempt failed: $it", color = SecAccent, fontSize = 12.sp) }
         if (!idle) Text("Working…", color = SecMuted, fontSize = 13.sp)
@@ -387,7 +408,7 @@ internal fun BackupSettingsSection() {
     }
 
     if (showSettings) BackupInfoDialog("Backup settings", onDismiss = { showSettings = false }) {
-        HelpItem("Automatic backup: $autoLabel", "Automatic backup turns on after Back up now or a restore. Changes to tasks and settings are then uploaded in the background when the network is available.")
+        HelpItem("Automatic backup: $autoLabel", "Use the switch beside the backup controls. Changes are grouped for 20 seconds and uploaded when a network is available; Android may delay them. Turning it off keeps cloud backups and leaves manual backup/restore available. Your explicit choice is not changed by a manual backup or restore.")
         HelpItem("Retention", "The latest ${BackupManager.RETENTION_LIMIT} verified new snapshots are kept, including Safety points. This limit is fixed. Legacy backups are kept separately.")
     }
 
@@ -399,7 +420,7 @@ internal fun BackupSettingsSection() {
         lastError?.let { HelpItem("Last failed attempt", it) }
         if (email != null && !auto) HelpItem(
             "Why is it paused?",
-            "Clarity does not record the reason. Automatic backup is off until you run Back up now or restore a backup. It is also turned off by disconnecting, choosing Start Fresh, or deleting backup history."
+            "Use the Automatic backup switch to resume. It can also be turned off by disconnecting, choosing Start Fresh, or deleting backup history. Manual backup and restore do not override your explicit choice."
         )
     }
 
@@ -417,7 +438,7 @@ internal fun BackupSettingsSection() {
 
     confirm?.let { action ->
         val (title, body) = when (action) {
-            BackupConfirm.BACKUP -> "Back up now?" to "This creates a new restore point and turns automatic backup on. The latest ${BackupManager.RETENTION_LIMIT} new snapshots are kept; legacy backups are kept separately."
+            BackupConfirm.BACKUP -> "Back up now?" to "This creates a new restore point without changing your automatic backup choice. The latest ${BackupManager.RETENTION_LIMIT} new snapshots are kept; legacy backups are kept separately."
             BackupConfirm.RESTORE -> "Restore selected backup?" to
                 "${selected?.let(::backupDate) ?: "Date unavailable"}\nID: ${selectedId.orEmpty()}\n\nThis replaces current tasks, notes, settings and any backed-up encrypted vault with this snapshot. If it has no vault, your existing vault is kept. You will need the selected vault's master password. A verified Safety restore point is created first; if that fails, nothing is restored. Other restore points are not changed."
             BackupConfirm.DELETE -> "Delete all cloud backups?" to "All Clarity restore points, including legacy and Safety backups, will be permanently deleted from this account's private app-data folder. Automatic backup stops. Data on this device is not changed."
@@ -559,7 +580,7 @@ internal fun WelcomeBackGate(onFinished: (restored: Boolean) -> Unit) {
                         Text("No backup found", color = SecInk, fontSize = 22.sp, fontWeight = FontWeight.Bold)
                         Text("No backup was found in this Google account. No local data was changed.", color = SecMuted, fontSize = 14.sp, textAlign = TextAlign.Center)
                         ActionRow("Start fresh") {
-                            BackupManager.setAutoEnabled(context, true)
+                            BackupManager.enableAutoIfUnset(context)
                             BackupManager.markOnboarded(context)
                             onFinished(false)
                         }

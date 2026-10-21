@@ -12,12 +12,13 @@ import androidx.work.WorkManager
 import androidx.work.Worker
 import androidx.work.WorkerParameters
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 
 /** Debounced, network-constrained background backup. Work only runs once the user has enabled automatic backup. */
 object BackupScheduler {
     private const val WORK_NAME = "clarity-backup"
     private val listeners = mutableListOf<SharedPreferences.OnSharedPreferenceChangeListener>()
-    @Volatile private var suspended = false
+    private val suspensions = AtomicInteger()
 
     fun install(app: Application) {
         BackupManager.PREF_FILES.forEach { name ->
@@ -27,9 +28,10 @@ object BackupScheduler {
         }
     }
 
+    @Synchronized
     fun requestBackup(context: Context) {
         val app = context.applicationContext
-        if (suspended || !BackupManager.autoEnabled(app)) return
+        if (suspensions.get() > 0 || !BackupManager.autoEnabled(app) || BackupManager.email(app) == null) return
         val request = OneTimeWorkRequestBuilder<BackupWorker>()
             .setInitialDelay(20, TimeUnit.SECONDS)
             .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
@@ -38,22 +40,23 @@ object BackupScheduler {
         WorkManager.getInstance(app).enqueueUniqueWork(WORK_NAME, ExistingWorkPolicy.REPLACE, request)
     }
 
+    @Synchronized
     fun cancel(context: Context) { WorkManager.getInstance(context.applicationContext).cancelUniqueWork(WORK_NAME) }
 
     /** Runs [block] without treating its own writes (a restore) as user changes. */
     fun <T> withSuspended(block: () -> T): T {
-        suspended = true
-        try { return block() } finally { suspended = false }
+        suspensions.incrementAndGet()
+        try { return block() } finally { suspensions.decrementAndGet() }
     }
 }
 
 class BackupWorker(context: Context, params: WorkerParameters) : Worker(context, params) {
     override fun doWork(): Result {
-        if (!BackupManager.autoEnabled(applicationContext)) return Result.success()
+        if (isStopped || !BackupManager.autoEnabled(applicationContext)) return Result.success()
         val outcome = BackupManager.backupNow(applicationContext, automatic = true, operationId = id.toString())
         return when {
             outcome.ok -> Result.success()
-            outcome.retry -> Result.retry()
+            outcome.retry && !isStopped && BackupManager.autoEnabled(applicationContext) -> Result.retry()
             else -> Result.failure()
         }
     }

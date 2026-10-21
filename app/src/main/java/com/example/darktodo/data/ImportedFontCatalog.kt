@@ -20,6 +20,8 @@ internal class ImportedFontCatalog(private val onReadError: (File, IOException) 
     private data class Asset(val stamp: Stamp, val hash: String, val label: String?)
     private val assets = mutableMapOf<String, Asset>()
 
+    fun invalidate() { assets.clear() }
+
     fun hash(file: File): String {
         val digest = MessageDigest.getInstance("SHA-256")
         file.inputStream().buffered().use { input ->

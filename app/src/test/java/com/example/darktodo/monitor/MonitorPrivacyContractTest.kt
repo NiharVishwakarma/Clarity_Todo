@@ -21,22 +21,21 @@ class MonitorPrivacyContractTest {
         assertFalse(repository.contains("getSharedPreferences"))
     }
 
-    @Test fun cloudBackupAllowListsExcludeMonitorSnapshotsReportsAndPreferences() {
+    @Test fun cloudBackupIncludesOnlyPortableMonitorStateAndNotReportsOrCaches() {
         val backup = source("backup/BackupManager.kt")
-        val preferences = Regex("""val preferenceFiles\s*=\s*listOf\(([^)]*)\)""")
-            .find(source("backup/BackupSnapshot.kt"))!!.groupValues[1]
-        val names = Regex(""""([^"]+)"""").findAll(preferences).map { it.groupValues[1] }.toSet()
-        assertEquals(setOf("todo_store", "calendar_widget_settings", "app_typography",
-            "widget_backgrounds", "vault_auth", "sticker_store"), names)
-        assertFalse(names.any { it.contains("monitor", ignoreCase = true) || it.contains("report", ignoreCase = true) })
+        assertTrue(source("backup/BackupSnapshot.kt").contains("\"system_monitor_widget_appearance\""))
+        assertTrue(backup.contains("MonitorRepository.backupBytes(context)"))
+        assertTrue(backup.contains("MonitorRepository.restoreBytes(context"))
         val blobs = backup.substringAfter("private fun blobFiles(").substringBefore("/** Replaces local data")
-        val fixedNames = Regex(""""([^"]+)"\s+to\s+""").findAll(blobs).map { it.groupValues[1] }.toSet()
-        assertEquals(setOf("vault", "wallpaper_todo", "wallpaper_calendar"), fixedNames)
+        val fixedNames = Regex(""""([^"]+)"\s+to\s+""")
+            .findAll(blobs.substringBefore("val fontPrefs")).map { it.groupValues[1] }.toSet()
+        assertEquals(setOf("vault", "wallpaper_todo", "wallpaper_calendar", "wallpaper_system_monitor"), fixedNames)
         assertTrue(blobs.contains("""files["wallpaper_note_${'$'}{note.id}"]"""))
-        assertFalse(blobs.contains("monitor", ignoreCase = true))
         assertFalse(blobs.contains("report", ignoreCase = true))
         assertFalse(blobs.contains("listFiles"))
         assertFalse(blobs.contains(".walk"))
+        assertFalse(blobs.contains("cacheDir"))
+        assertFalse(source("monitor/MonitorRepository.kt").contains("BackupScheduler.requestBackup"))
     }
 
     @Test fun reportsWriteOnlyToUserSelectedDestinationWithoutPrivateCopies() {

@@ -6,6 +6,8 @@ import android.util.AtomicFile
 import com.example.darktodo.data.LocalVaultStore
 import com.example.darktodo.data.StickerStore
 import com.example.darktodo.data.WidgetBackgrounds
+import com.example.darktodo.data.LocalWidgetFonts
+import com.example.darktodo.monitor.MonitorRepository
 import com.google.android.gms.auth.api.identity.AuthorizationRequest
 import com.google.android.gms.auth.api.identity.Identity
 import com.google.android.gms.common.api.Scope
@@ -41,9 +43,18 @@ object BackupManager {
     fun onboarded(context: Context): Boolean = state(context).getBoolean("onboarded", false)
 
     fun setConnected(context: Context, email: String?) { state(context).edit().putString("email", email ?: "Google account").apply() }
-    fun setAutoEnabled(context: Context, enabled: Boolean) { state(context).edit().putBoolean("auto", enabled).apply() }
+    fun setAutoEnabled(context: Context, enabled: Boolean) {
+        state(context).edit().putBoolean("auto", enabled).apply()
+        if (enabled) BackupScheduler.requestBackup(context) else BackupScheduler.cancel(context)
+    }
+    fun enableAutoIfUnset(context: Context) {
+        if (!state(context).contains("auto")) state(context).edit().putBoolean("auto", true).apply()
+    }
     fun markOnboarded(context: Context) { state(context).edit().putBoolean("onboarded", true).apply() }
-    fun disconnect(context: Context) { state(context).edit().remove("email").putBoolean("auto", false).remove("status").apply() }
+    fun disconnect(context: Context) {
+        setAutoEnabled(context, false)
+        state(context).edit().remove("email").remove("status").apply()
+    }
 
     /** True only on a clean first launch: no local tasks, history or vault and the prompt was not answered yet. */
     fun needsWelcome(context: Context): Boolean {
@@ -70,11 +81,22 @@ object BackupManager {
         val prefs = JSONObject()
         PREF_FILES.forEach { name -> prefs.put(name, BackupCodec.encodePrefs(context.getSharedPreferences(name, Context.MODE_PRIVATE).all)) }
         val files = JSONObject()
-        blobs.forEach { (name, file) ->
-            if (file.isFile) files.put(name, Base64.encodeToString(file.readBytes(), Base64.NO_WRAP))
+        val assets = JSONObject()
+        fun add(name: String, bytes: ByteArray) {
+            files.put(name, Base64.encodeToString(bytes, Base64.NO_WRAP))
+            assets.put(name, JSONObject().put("size", bytes.size).put("sha256", BackupHistory.digest(bytes)))
         }
+        blobs.forEach { (name, file) ->
+            if (file.isFile) {
+                if (name.startsWith("font_") && file.length() > BackupSnapshot.MAX_FONT_BYTES) {
+                    throw IOException("An imported font exceeds the supported 20 MB limit.")
+                }
+                add(name, file.readBytes())
+            } else if (name.startsWith("font_")) throw IOException("An imported font is missing: ${file.name}")
+        }
+        MonitorRepository.backupBytes(context)?.let { add("monitor_snapshot", it) }
         return JSONObject().put("version", BackupCodec.VERSION).put("createdAt", System.currentTimeMillis())
-            .put("prefs", prefs).put("files", files).toString()
+            .put("prefs", prefs).put("files", files).put("assets", assets).toString()
     }
 
     /** Fixed allow-list of backed up files, so a backup can never write outside these locations. */
@@ -82,8 +104,14 @@ object BackupManager {
         val files = linkedMapOf(
             "vault" to LocalVaultStore.file(context),
             "wallpaper_todo" to WidgetBackgrounds.file(context, WidgetBackgrounds.TODO),
-            "wallpaper_calendar" to WidgetBackgrounds.file(context, WidgetBackgrounds.CALENDAR)
+            "wallpaper_calendar" to WidgetBackgrounds.file(context, WidgetBackgrounds.CALENDAR),
+            "wallpaper_system_monitor" to WidgetBackgrounds.file(context, WidgetBackgrounds.SYSTEM_MONITOR)
         )
+        val fontPrefs = context.getSharedPreferences("widget_fonts", Context.MODE_PRIVATE).all
+            .mapNotNull { (key, value) -> value?.let { key to it } }.toMap()
+        BackupSnapshot.fontIds(mapOf("widget_fonts" to fontPrefs)).forEach { id ->
+            files["font_$id"] = LocalWidgetFonts.backupFile(context, id)
+        }
         // One image per note. Names are built from stored note ids, never taken from the backup file.
         StickerStore.load(context).forEach { note ->
             files["wallpaper_note_${note.id}"] = WidgetBackgrounds.file(context, WidgetBackgrounds.noteKey(note.id))
@@ -97,6 +125,7 @@ object BackupManager {
         val plan = BackupSnapshot.decode(json)
         val decodedPrefs = plan.prefs
         val decodedFiles = plan.files
+        val previousFiles = blobFiles(context)
         BackupScheduler.withSuspended {
             decodedPrefs.forEach { (name, values) ->
                 val editor = context.getSharedPreferences(name, Context.MODE_PRIVATE).edit().clear()
@@ -112,15 +141,23 @@ object BackupManager {
                 }
                 check(editor.commit()) { "Could not write restored settings." }
             }
-            blobFiles(context).forEach { (name, target) ->
+            (previousFiles + blobFiles(context)).forEach { (name, target) ->
                 if (name.startsWith("wallpaper_note_") && !decodedPrefs.containsKey("sticker_store")) return@forEach
+                if (name.startsWith("font_") && !decodedPrefs.containsKey("widget_fonts")) return@forEach
+                if (name == "wallpaper_system_monitor" && !decodedPrefs.containsKey("system_monitor_widget_appearance")) return@forEach
                 val bytes = decodedFiles[name]
                 if (bytes != null && bytes.isNotEmpty()) {
+                    check(target.parentFile?.let { it.isDirectory || it.mkdirs() } == true) { "Could not create an asset folder." }
                     writeAtomic(AtomicFile(target), bytes)
                 } else if (name != "vault" && target.exists() && !target.delete()) {
-                    throw IOException("Could not replace a restored background image.")
+                    throw IOException("Could not replace a restored asset.")
                 }
             }
+            if (decodedPrefs.containsKey("system_monitor_widget_appearance")) {
+                MonitorRepository.restoreBytes(context, decodedFiles["monitor_snapshot"])
+            }
+            LocalWidgetFonts.invalidateAfterRestore()
+            WidgetBackgrounds.invalidateAfterRestore()
             // The biometric key lives in this device's Keystore and cannot be restored; unlock with the master password first.
             LocalVaultStore.usePasswordAuthentication(context)
         }
@@ -128,6 +165,7 @@ object BackupManager {
         com.example.darktodo.widget.CalendarWidget.updateAll(context)
         com.example.darktodo.widget.StickerWidget.updateAll(context)
         com.example.darktodo.widget.VaultWidget.updateAll(context)
+        com.example.darktodo.widget.SystemMonitorWidget.renderAll(context)
         return decodedFiles["vault"]?.isNotEmpty() == true
     }
 
@@ -175,7 +213,7 @@ object BackupManager {
 
     fun findBackup(token: String): BackupPoint? = history(token).firstOrNull()
 
-    /** Downloads and applies the cloud backup, enabling automatic backup afterwards. Returns whether it held a vault. */
+    /** Applies an exact restore point, preserving an explicit automatic-backup choice. */
     @Synchronized
     fun restore(context: Context, token: String, backupId: String): Boolean {
         val remote = history(token).firstOrNull { it.id == backupId }
@@ -184,27 +222,30 @@ object BackupManager {
         BackupHistory.verify(remote, bytes)
         val json = bytes.toString(Charsets.UTF_8)
         val plan = BackupSnapshot.decode(bytes)
-        validateImages(plan)
+        validateAssets(context, plan)
         // Cloud safety snapshot is mandatory; no pruning while the selected point is in use.
         val safety = buildSnapshot(context)
         uploadSnapshot(context, token, "safety", UUID.randomUUID().toString(), safety)
         val recovery = AtomicFile(File(context.noBackupFilesDir, "backup-restore-safety.json"))
         writeAtomic(recovery, safety.toByteArray(Charsets.UTF_8))
-        val hadVault = try {
-            applySnapshot(context, json)
-        } catch (error: Exception) {
+        val hadVault = MonitorRepository.withRefreshPaused {
             try {
-                applySnapshot(context, safety)
-                if (!BackupSnapshot.decode(safety).files.containsKey("vault")) {
-                    val vault = LocalVaultStore.file(context)
-                    if (vault.exists() && !vault.delete()) throw IOException("Could not recover the previous empty vault state.")
+                applySnapshot(context, json)
+            } catch (error: Exception) {
+                try {
+                    applySnapshot(context, safety)
+                    if (!BackupSnapshot.decode(safety).files.containsKey("vault")) {
+                        val vault = LocalVaultStore.file(context)
+                        if (vault.exists() && !vault.delete()) throw IOException("Could not recover the previous empty vault state.")
+                    }
+                } catch (rollback: Exception) {
+                    throw IOException("Restore failed and automatic recovery failed. A local safety copy and a Safety restore point were retained. Restore the Safety point before making further changes.", rollback)
                 }
-            } catch (rollback: Exception) {
-                throw IOException("Restore failed and automatic recovery failed. A local safety copy and a Safety restore point were retained. Restore the Safety point before making further changes.", rollback)
+                throw IOException("Restore failed. Previous data was recovered; the Safety point is also available.", error)
             }
-            throw IOException("Restore failed. Previous data was recovered; the Safety point is also available.", error)
         }
-        state(context).edit().putBoolean("auto", true).putString("status", "Restored selected backup").apply()
+        enableAutoIfUnset(context)
+        state(context).edit().putString("status", "Restored selected backup").apply()
         return hadVault
     }
 
@@ -244,17 +285,17 @@ object BackupManager {
             val point = DriveClient.metadata(token, completedId) ?: throw IOException("The completed backup was removed.")
             val bytes = DriveClient.download(token, point.id)
             BackupHistory.verify(point, bytes)
-            validateImages(BackupSnapshot.decode(bytes))
+            validateAssets(context, BackupSnapshot.decode(bytes))
             return point
         }
         history(token).firstOrNull { it.operationId == operationId }?.let {
             val bytes = DriveClient.download(token, it.id)
             BackupHistory.verify(it, bytes)
-            validateImages(BackupSnapshot.decode(bytes))
+            validateAssets(context, BackupSnapshot.decode(bytes))
             return it
         }
         val payload = capturedPayload ?: buildSnapshot(context)
-        validateImages(BackupSnapshot.decode(payload))
+        validateAssets(context, BackupSnapshot.decode(payload))
         pending = JSONObject().put("id", DriveClient.generateId(token)).put("operation", operationId)
             .put("account", currentEmail).put("type", type).put("payload", payload)
         writeAtomic(journal, pending.toString().toByteArray(Charsets.UTF_8))
@@ -265,12 +306,12 @@ object BackupManager {
 
     private fun finishUpload(context: Context, token: String, pending: JSONObject): BackupPoint {
         val bytes = pending.getString("payload").toByteArray(Charsets.UTF_8)
-        validateImages(BackupSnapshot.decode(pending.getString("payload")))
+        validateAssets(context, BackupSnapshot.decode(pending.getString("payload")))
         val hash = BackupHistory.digest(bytes)
         val time = JSONObject(pending.getString("payload")).getLong("createdAt")
         val properties = JSONObject().put("clarityBackup", BackupHistory.MARKER)
             .put("snapshotTime", time.toString()).put("backupType", pending.getString("type"))
-            .put("schema", BackupCodec.VERSION.toString()).put("sha256", hash)
+            .put("schema", JSONObject(pending.getString("payload")).getInt("version").toString()).put("sha256", hash)
             .put("operationId", pending.getString("operation"))
         val id = pending.getString("id")
         var point = DriveClient.upload(token, id, "clarity-backup-$time-$id.json", bytes, properties)
@@ -278,7 +319,7 @@ object BackupManager {
         val downloaded = DriveClient.download(token, point.id)
         BackupHistory.verify(point, downloaded)
         if (!downloaded.contentEquals(bytes)) throw IOException("Uploaded snapshot verification failed. The previous backups were kept.")
-        validateImages(BackupSnapshot.decode(downloaded))
+        validateAssets(context, BackupSnapshot.decode(downloaded))
         if (!point.verified) point = DriveClient.markVerified(token, point.id, properties)
         val editor = state(context).edit().putLong("last", time).putString("status", "Backed up")
             .remove("last_error")
@@ -301,11 +342,22 @@ object BackupManager {
         }
     }
 
-    private fun validateImages(plan: BackupSnapshot.Plan) {
-        plan.files.filterKeys { it != "vault" }.values.forEach { image ->
+    private fun validateAssets(context: Context, plan: BackupSnapshot.Plan) {
+        plan.files.filterKeys { it.startsWith("wallpaper_") }.values.forEach { image ->
             val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
             android.graphics.BitmapFactory.decodeByteArray(image, 0, image.size, bounds)
             if (bounds.outWidth <= 0 || bounds.outHeight <= 0) throw IOException("A backed-up image is damaged. Nothing was restored.")
+        }
+        plan.files.filterKeys { it.startsWith("font_") }.forEach { (_, bytes) ->
+            val temporary = File.createTempFile("restore-font-", ".tmp", context.cacheDir)
+            try {
+                temporary.writeBytes(bytes)
+                if (android.graphics.Typeface.Builder(temporary).build() == null) {
+                    throw IOException("Android could not read a backed-up font. Nothing was restored.")
+                }
+            } finally {
+                if (!temporary.delete()) android.util.Log.w("BackupManager", "Could not remove font validation temporary file.")
+            }
         }
     }
 }

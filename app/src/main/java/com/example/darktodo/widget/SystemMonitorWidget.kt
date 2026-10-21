@@ -185,7 +185,8 @@ object SystemMonitorWidget {
             }.orEmpty()
             text(
                 R.id.monitor_widget_updated,
-                SystemMonitorWidgetState.status(capturedAt, failedAt, System.currentTimeMillis(), time)
+                if (snapshot?.restoredFromBackup == true) "Restored snapshot · Refresh" else
+                    SystemMonitorWidgetState.status(capturedAt, failedAt, System.currentTimeMillis(), time)
             )
             val refreshAction = PendingIntent.getBroadcast(
                 context, id,

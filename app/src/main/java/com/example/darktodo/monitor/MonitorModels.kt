@@ -7,7 +7,7 @@ import java.util.TimeZone
 
 const val UNAVAILABLE = "Unavailable"
 
-data class MonitorSnapshot(val capturedAt: Long, val values: Map<String, String>)
+data class MonitorSnapshot(val capturedAt: Long, val values: Map<String, String>, val restoredFromBackup: Boolean = false)
 
 object MonitorFormats {
     const val STALE_AFTER_MILLIS = 60 * 60 * 1000L

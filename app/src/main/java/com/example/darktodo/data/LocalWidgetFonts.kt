@@ -204,4 +204,18 @@ object LocalWidgetFonts {
     }
 
     private fun root(context: Context) = File(context.applicationContext.filesDir, "widget-fonts")
+
+    internal fun backupFile(context: Context, id: String): File {
+        require(id.matches(Regex("^[a-f0-9-]+\\.(ttf|otf|ttc)$"))) { "Invalid imported font identifier." }
+        return File(root(context), id)
+    }
+
+    @Synchronized
+    internal fun invalidateAfterRestore() {
+        listRaw = null
+        listEntries = emptyList()
+        synchronized(typefaceCache) { typefaceCache.clear() }
+        textBitmaps.evictAll()
+        catalog.invalidate()
+    }
 }

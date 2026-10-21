@@ -21,6 +21,7 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.runBlocking
 import org.json.JSONObject
 import java.io.File
 
@@ -30,11 +31,37 @@ object MonitorRepository {
 
     private fun file(context: Context) = AtomicFile(File(context.noBackupFilesDir, "monitor-snapshot.json"))
 
+    internal fun <T> withRefreshPaused(block: () -> T): T = runBlocking {
+        refreshLock.withLock { block() }
+    }
+
+    internal fun backupBytes(context: Context): ByteArray? = synchronized(diskLock) {
+        val snapshot = file(context)
+        if (!snapshot.baseFile.exists() && !File(snapshot.baseFile.path + ".bak").exists()) null
+        else snapshot.readFully()
+    }
+
+    internal fun restoreBytes(context: Context, bytes: ByteArray?) = synchronized(diskLock) {
+        val snapshot = file(context)
+        if (bytes == null) snapshot.delete() else {
+            val output = snapshot.startWrite()
+            try {
+                val restored = JSONObject(bytes.toString(Charsets.UTF_8)).put("restoredFromBackup", true)
+                output.write(restored.toString().toByteArray(Charsets.UTF_8))
+                snapshot.finishWrite(output)
+            } catch (error: Exception) {
+                snapshot.failWrite(output)
+                throw error
+            }
+        }
+    }
+
     fun last(context: Context): MonitorSnapshot? = synchronized(diskLock) {
         try {
             val json = file(context).openRead().bufferedReader().use { JSONObject(it.readText()) }
             val values = json.getJSONObject("values")
-            MonitorSnapshot(json.getLong("capturedAt"), values.keys().asSequence().associateWith { values.getString(it) })
+            MonitorSnapshot(json.getLong("capturedAt"), values.keys().asSequence().associateWith { values.getString(it) },
+                json.optBoolean("restoredFromBackup", false))
         } catch (_: Exception) { null }
     }
 
