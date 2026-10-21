@@ -1,5 +1,17 @@
 # Change History
 
+## 2026-10-21 - Prefer wide System Monitor placement
+
+- Requested a five-column default width (320dp fallback on older launchers), keeping the existing 240dp initial height, three-cell height and 220dp resize minima. Launchers control the actual span; existing instances are not forcibly resized.
+- Updated the metadata contract and project memory. XML and whitespace checks are available; no Android build or launcher placement test was performed.
+
+## 2026-10-21 - Wire monitor surfaces and responsive sizing; remove nested launcher tile
+
+- Changed only the adaptive wrapper (90dp centered artwork, opaque charcoal full-bleed backing) to prevent a small rounded-square icon inside the launcher's black-filled mask. Shared PNG/Vault artwork is unchanged; Android may mask the outer tile. Desktop circular/rounded-mask inspection is not an OEM device test.
+- Replaced static metric-card drawable fills with shared rendered card ImageViews, applying saved color, opacity and radius. Outer preview/widget rendering now shares one path; wallpaper opacity applies to the composed background once. Choosing a solid color switches off wallpaper without deleting it; a persisted switch restores it. Black is a valid stored color; missing outer color reuses the Calendar default, with 100% opacity. Existing stored choices remain intact.
+- Reworked monitor layout into weighted two-column metric rows, full-width OS/security details, separate battery status and a bottom timestamp/action area. Initial height is 240dp, resize minimum is 220dp, default grid is 4x3. Compact/font-scaled layouts link explicitly to omitted OS/security details in Info; very limited scaled height uses a RAM/battery summary with All details and a separate cache action. Applied saved native text sizes, retained Refresh/Downloads/cache confirmation and serialized rendering to prevent older appearance updates overwriting newer ones.
+- Extended resource, sizing, color/alpha (0/59/100%) and preference-flow contracts; updated repository map and project memory. Local Gradle debug build is blocked by the missing Gradle runner/wrapper, and the editor test tool discovers no Kotlin tests. XML/reference/diff and desktop asset checks are available; CI and physical-device persistence/resize/action checks remain required.
+
 ## 2026-10-21 - Fix monitor RemoteViews targets and icon test compilation
 
 - Fixed invalid text actions on the System Monitor's storage and battery `LinearLayout` click containers. Values now update only their child `TextView`s, preserving the settings actions and displaying charging status with battery percentage.

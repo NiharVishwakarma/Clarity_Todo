@@ -21,10 +21,11 @@ data class SystemMonitorAppearance(
     val valueColor: String = "#FFFFFF",
     val secondaryColor: String = "#DDDEE5",
     val accentColor: String = "#FF8A96",
-    val backgroundColor: String = "#1A1A20",
+    val backgroundColor: String = CalendarWidgetPrefs().background,
     val cardBackgroundColor: String = "#25252D",
-    val backgroundOpacityPercent: Int = 95,
+    val backgroundOpacityPercent: Int = 100,
     val cardOpacityPercent: Int = 90,
+    val wallpaperEnabled: Boolean = true,
     val cornerRadiusDp: Int = 20,
     val cardCornerRadiusDp: Int = 12
 ) {
@@ -96,6 +97,7 @@ object SystemMonitorAppearancePrefs {
             cardBackgroundColor = text("card_background_color", defaults.cardBackgroundColor),
             backgroundOpacityPercent = number("background_opacity", defaults.backgroundOpacityPercent).toInt(),
             cardOpacityPercent = number("card_opacity", defaults.cardOpacityPercent).toInt(),
+            wallpaperEnabled = values["wallpaper_enabled"] as? Boolean ?: defaults.wallpaperEnabled,
             cornerRadiusDp = number("corner_radius", defaults.cornerRadiusDp).toInt(),
             cardCornerRadiusDp = number("card_corner_radius", defaults.cardCornerRadiusDp).toInt()
         ).sanitized()
@@ -114,6 +116,7 @@ object SystemMonitorAppearancePrefs {
             .putString("card_background_color", style.cardBackgroundColor)
             .putInt("background_opacity", style.backgroundOpacityPercent)
             .putInt("card_opacity", style.cardOpacityPercent)
+            .putBoolean("wallpaper_enabled", style.wallpaperEnabled)
             .putInt("corner_radius", style.cornerRadiusDp)
             .putInt("card_corner_radius", style.cardCornerRadiusDp).apply()
         SystemMonitorWidget.renderAll(context)

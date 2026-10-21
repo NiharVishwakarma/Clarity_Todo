@@ -6,7 +6,7 @@
     android:viewportHeight="260">
     <!-- Outer background -->
     <path
-        android:fillColor="#1A1A20"
+        android:fillColor="#000000"
         android:pathData="M20,0 H280 Q300,0 300,20 V240 Q300,260 280,260 H20 Q0,260 0,240 V20 Q0,0 20,0 Z" />
     <!-- Header title -->
     <path
@@ -68,6 +68,9 @@
         android:fillColor="#FF8A96"
         android:pathData="M162,164 H224 V170 H162 Z" />
 
+    <path
+        android:fillColor="#DDDEE5"
+        android:pathData="M20,194 H186 V200 H20 Z M20,206 H210 V212 H20 Z" />
     <!-- Footer -->
     <path
         android:fillColor="#B9BBC8"

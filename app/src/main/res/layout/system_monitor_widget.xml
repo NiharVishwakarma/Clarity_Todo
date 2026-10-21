@@ -1,308 +1,162 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/monitor_widget_root"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="@android:color/transparent">
-
-    <!-- Outer background image view for custom color / alpha / corner radius / wallpaper rendering -->
+    android:layout_width="match_parent" android:layout_height="match_parent">
     <ImageView
         android:id="@+id/monitor_widget_bg_image"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:src="@drawable/system_monitor_widget_background"
-        android:scaleType="fitXY" />
-
+        android:layout_width="match_parent" android:layout_height="match_parent"
+        android:src="@drawable/system_monitor_widget_background" android:scaleType="fitXY"
+        android:importantForAccessibility="no" />
     <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:orientation="vertical"
-        android:padding="12dp">
-
-        <!-- Header: Title + Subtitle and Refresh button -->
+        android:layout_width="match_parent" android:layout_height="match_parent"
+        android:orientation="vertical" android:padding="10dp">
         <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:layout_marginBottom="8dp">
-
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="center_vertical">
             <LinearLayout
                 android:id="@+id/monitor_widget_info"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:orientation="vertical">
-
-                <TextView
-                    android:id="@+id/monitor_widget_title"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="System Monitor"
-                    android:textColor="#FFFFFF"
-                    android:textSize="15sp"
-                    android:textStyle="bold"
-                    android:maxLines="1"
-                    android:ellipsize="end" />
-
-                <TextView
-                    android:id="@+id/monitor_widget_model"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Device overview"
-                    android:textColor="#B9BBC8"
-                    android:textSize="11sp"
-                    android:maxLines="1"
-                    android:ellipsize="end" />
+                android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                android:orientation="vertical" android:contentDescription="Open full system information">
+                <TextView android:id="@+id/monitor_widget_title"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:text="System Monitor" android:textColor="#FFFFFF" android:textSize="15sp"
+                    android:textStyle="bold" android:maxLines="1" android:ellipsize="end" />
+                <TextView android:id="@+id/monitor_widget_model"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:text="Device overview" android:textColor="#B9BBC8" android:textSize="11sp"
+                    android:maxLines="1" android:ellipsize="end" />
             </LinearLayout>
-
-            <TextView
-                android:id="@+id/monitor_widget_refresh"
-                android:layout_width="wrap_content"
-                android:layout_height="32dp"
-                android:gravity="center"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp"
-                android:contentDescription="Refresh system metrics"
-                android:text="Refresh"
-                android:maxLines="1"
-                android:ellipsize="end"
-                android:textColor="#FF8A96"
-                android:textSize="12sp" />
+            <TextView android:id="@+id/monitor_widget_refresh"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:minHeight="32dp" android:gravity="center" android:paddingStart="6dp"
+                android:paddingEnd="6dp" android:text="Refresh" android:contentDescription="Refresh system metrics"
+                android:textColor="#FF8A96" android:textSize="12sp" android:maxLines="1" android:ellipsize="end" />
         </LinearLayout>
-
-        <!-- Metric Grid (Two columns) -->
-        <!-- Row 1: RAM and Storage -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:baselineAligned="false"
-            android:layout_marginBottom="6dp">
-
-            <!-- Card 1: Available RAM -->
+        <LinearLayout android:id="@+id/monitor_widget_metrics"
+            android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
+            android:orientation="vertical" android:layout_marginTop="6dp" android:layout_marginBottom="6dp">
             <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:layout_marginEnd="4dp"
-                android:background="@drawable/system_monitor_card_background"
-                android:padding="8dp"
-                android:orientation="vertical">
-
-                <TextView
-                    android:id="@+id/monitor_widget_ram_label"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Available RAM"
-                    android:textColor="#B9BBC8"
-                    android:textSize="11sp"
-                    android:maxLines="1"
-                    android:ellipsize="end" />
-
-                <TextView
-                    android:id="@+id/monitor_widget_ram"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Unavailable"
-                    android:textColor="#FFFFFF"
-                    android:textSize="14sp"
-                    android:textStyle="bold"
-                    android:maxLines="1"
-                    android:ellipsize="end" />
+                android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
+                android:orientation="horizontal" android:baselineAligned="false" android:layout_marginBottom="3dp">
+                <FrameLayout android:layout_width="0dp" android:layout_height="match_parent"
+                    android:layout_weight="1" android:layout_marginEnd="3dp">
+                    <ImageView android:id="@+id/monitor_widget_ram_bg"
+                        android:layout_width="match_parent" android:layout_height="match_parent"
+                        android:scaleType="fitXY" android:importantForAccessibility="no" />
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent"
+                        android:orientation="vertical" android:gravity="center_vertical" android:padding="6dp">
+                        <TextView android:id="@+id/monitor_widget_ram_label"
+                            android:layout_width="match_parent" android:layout_height="wrap_content"
+                            android:text="Available RAM" android:textColor="#B9BBC8" android:textSize="11sp"
+                            android:maxLines="1" android:ellipsize="end" />
+                        <TextView android:id="@+id/monitor_widget_ram"
+                            android:layout_width="match_parent" android:layout_height="wrap_content"
+                            android:text="Unavailable" android:textColor="#FFFFFF" android:textSize="14sp"
+                            android:textStyle="bold" android:maxLines="2" android:ellipsize="end" />
+                    </LinearLayout>
+                </FrameLayout>
+                <FrameLayout android:layout_width="0dp" android:layout_height="match_parent"
+                    android:layout_weight="1" android:layout_marginStart="3dp">
+                    <ImageView android:id="@+id/monitor_widget_storage_bg"
+                        android:layout_width="match_parent" android:layout_height="match_parent"
+                        android:scaleType="fitXY" android:importantForAccessibility="no" />
+                    <LinearLayout android:id="@+id/monitor_widget_storage"
+                        android:layout_width="match_parent" android:layout_height="match_parent"
+                        android:orientation="vertical" android:gravity="center_vertical" android:padding="6dp"
+                        android:contentDescription="Open storage settings">
+                        <TextView android:id="@+id/monitor_widget_storage_label"
+                            android:layout_width="match_parent" android:layout_height="wrap_content"
+                            android:text="Storage available" android:textColor="#B9BBC8" android:textSize="11sp"
+                            android:maxLines="1" android:ellipsize="end" />
+                        <TextView android:id="@+id/monitor_widget_storage_val"
+                            android:layout_width="match_parent" android:layout_height="wrap_content"
+                            android:text="Unavailable" android:textColor="#FFFFFF" android:textSize="14sp"
+                            android:textStyle="bold" android:maxLines="2" android:ellipsize="end" />
+                    </LinearLayout>
+                </FrameLayout>
             </LinearLayout>
-
-            <!-- Card 2: Storage -->
             <LinearLayout
-                android:id="@+id/monitor_widget_storage"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:layout_marginStart="4dp"
-                android:background="@drawable/system_monitor_card_background"
-                android:padding="8dp"
-                android:contentDescription="Open storage settings"
-                android:orientation="vertical">
-
-                <TextView
-                    android:id="@+id/monitor_widget_storage_label"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Storage"
-                    android:textColor="#B9BBC8"
-                    android:textSize="11sp"
-                    android:maxLines="1"
-                    android:ellipsize="end" />
-
-                <TextView
-                    android:id="@+id/monitor_widget_storage_val"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Unavailable"
-                    android:textColor="#FFFFFF"
-                    android:textSize="14sp"
-                    android:textStyle="bold"
-                    android:maxLines="1"
-                    android:ellipsize="end" />
+                android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
+                android:orientation="horizontal" android:baselineAligned="false" android:layout_marginTop="3dp">
+                <FrameLayout android:layout_width="0dp" android:layout_height="match_parent"
+                    android:layout_weight="1" android:layout_marginEnd="3dp">
+                    <ImageView android:id="@+id/monitor_widget_battery_bg"
+                        android:layout_width="match_parent" android:layout_height="match_parent"
+                        android:scaleType="fitXY" android:importantForAccessibility="no" />
+                    <LinearLayout android:id="@+id/monitor_widget_battery"
+                        android:layout_width="match_parent" android:layout_height="match_parent"
+                        android:orientation="vertical" android:gravity="center_vertical" android:padding="6dp"
+                        android:contentDescription="Open battery settings">
+                        <TextView android:id="@+id/monitor_widget_battery_label"
+                            android:layout_width="match_parent" android:layout_height="wrap_content"
+                            android:text="Battery" android:textColor="#B9BBC8" android:textSize="11sp"
+                            android:maxLines="1" android:ellipsize="end" />
+                        <TextView android:id="@+id/monitor_widget_battery_val"
+                            android:layout_width="match_parent" android:layout_height="wrap_content"
+                            android:text="Unavailable" android:textColor="#FFFFFF" android:textSize="14sp"
+                            android:textStyle="bold" android:maxLines="2" android:ellipsize="end" />
+                        <TextView android:id="@+id/monitor_widget_charging"
+                            android:layout_width="match_parent" android:layout_height="wrap_content"
+                            android:textColor="#DDDEE5" android:textSize="10sp"
+                            android:maxLines="2" android:ellipsize="end" />
+                    </LinearLayout>
+                </FrameLayout>
+                <FrameLayout android:layout_width="0dp" android:layout_height="match_parent"
+                    android:layout_weight="1" android:layout_marginStart="3dp">
+                    <ImageView android:id="@+id/monitor_widget_cache_bg"
+                        android:layout_width="match_parent" android:layout_height="match_parent"
+                        android:scaleType="fitXY" android:importantForAccessibility="no" />
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent"
+                        android:orientation="vertical" android:gravity="center_vertical" android:padding="6dp">
+                        <TextView android:id="@+id/monitor_widget_cache_label"
+                            android:layout_width="match_parent" android:layout_height="wrap_content"
+                            android:text="Clarity cache" android:textColor="#B9BBC8" android:textSize="11sp"
+                            android:maxLines="1" android:ellipsize="end" />
+                        <TextView android:id="@+id/monitor_widget_cache_val"
+                            android:layout_width="match_parent" android:layout_height="wrap_content"
+                            android:text="Unavailable" android:textColor="#FFFFFF" android:textSize="14sp"
+                            android:textStyle="bold" android:maxLines="2" android:ellipsize="end" />
+                        <TextView android:id="@+id/monitor_widget_clear_cache"
+                            android:layout_width="match_parent" android:layout_height="wrap_content"
+                            android:text="Clear cache" android:textColor="#FF8A96" android:textSize="11sp"
+                            android:maxLines="1" android:ellipsize="end" android:paddingTop="2dp" />
+                    </LinearLayout>
+                </FrameLayout>
             </LinearLayout>
         </LinearLayout>
-
-        <!-- Row 2: Battery and App cache -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:baselineAligned="false"
-            android:layout_marginBottom="6dp">
-
-            <!-- Card 3: Battery -->
-            <LinearLayout
-                android:id="@+id/monitor_widget_battery"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:layout_marginEnd="4dp"
-                android:background="@drawable/system_monitor_card_background"
-                android:padding="8dp"
-                android:contentDescription="Open battery settings"
-                android:orientation="vertical">
-
-                <TextView
-                    android:id="@+id/monitor_widget_battery_label"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Battery"
-                    android:textColor="#B9BBC8"
-                    android:textSize="11sp"
-                    android:maxLines="1"
-                    android:ellipsize="end" />
-
-                <TextView
-                    android:id="@+id/monitor_widget_battery_val"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Unavailable"
-                    android:textColor="#FFFFFF"
-                    android:textSize="14sp"
-                    android:textStyle="bold"
-                    android:maxLines="1"
-                    android:ellipsize="end" />
-            </LinearLayout>
-
-            <!-- Card 4: App cache + Clear cache button -->
-            <LinearLayout
-                android:id="@+id/monitor_widget_cache_card"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:layout_marginStart="4dp"
-                android:background="@drawable/system_monitor_card_background"
-                android:padding="8dp"
-                android:orientation="vertical">
-
-                <TextView
-                    android:id="@+id/monitor_widget_cache_label"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="App cache"
-                    android:textColor="#B9BBC8"
-                    android:textSize="11sp"
-                    android:maxLines="1"
-                    android:ellipsize="end" />
-
-                <TextView
-                    android:id="@+id/monitor_widget_cache_val"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Measuring…"
-                    android:textColor="#FFFFFF"
-                    android:textSize="14sp"
-                    android:textStyle="bold"
-                    android:maxLines="1"
-                    android:ellipsize="end" />
-
-                <TextView
-                    android:id="@+id/monitor_widget_clear_cache"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:paddingTop="2dp"
-                    android:text="Clear cache ›"
-                    android:textColor="#FF8A96"
-                    android:textSize="11sp"
-                    android:maxLines="1"
-                    android:ellipsize="end" />
-            </LinearLayout>
+        <TextView android:id="@+id/monitor_widget_summary"
+            android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
+            android:gravity="center_vertical" android:textColor="#FFFFFF" android:textSize="12sp"
+            android:maxLines="4" android:ellipsize="end" android:visibility="gone" />
+        <LinearLayout android:id="@+id/monitor_widget_details"
+            android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
+            <TextView android:id="@+id/monitor_widget_android"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:text="Android: Unavailable" android:textColor="#DDDEE5" android:textSize="10sp"
+                android:maxLines="2" android:ellipsize="end" />
+            <TextView android:id="@+id/monitor_widget_security"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:text="Security patch: Unavailable" android:textColor="#DDDEE5" android:textSize="10sp"
+                android:maxLines="2" android:ellipsize="end" />
         </LinearLayout>
-
-        <!-- Expanded details (Android version & Security patch) -->
-        <LinearLayout
-            android:id="@+id/monitor_widget_details"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:layout_marginBottom="6dp"
-            android:visibility="gone">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal">
-
-                <TextView
-                    android:id="@+id/monitor_widget_android"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:maxLines="1"
-                    android:ellipsize="end"
-                    android:text="Android: Unavailable"
-                    android:textColor="#DDDEE5"
-                    android:textSize="11sp" />
-
-                <TextView
-                    android:id="@+id/monitor_widget_security"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:maxLines="1"
-                    android:ellipsize="end"
-                    android:text="Security patch: Unavailable"
-                    android:textColor="#DDDEE5"
-                    android:textSize="11sp" />
-            </LinearLayout>
-        </LinearLayout>
-
-        <!-- Footer: Updated status and Downloads action -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:layout_marginTop="2dp">
-
-            <TextView
-                android:id="@+id/monitor_widget_updated"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:maxLines="2"
-                android:ellipsize="end"
-                android:text="Not updated · Tap Refresh"
-                android:textColor="#B9BBC8"
-                android:textSize="10sp" />
-
-            <TextView
-                android:id="@+id/monitor_widget_downloads"
-                android:layout_width="wrap_content"
-                android:layout_height="28dp"
-                android:gravity="center"
-                android:paddingStart="6dp"
-                android:paddingEnd="6dp"
-                android:text="Downloads"
-                android:maxLines="1"
-                android:ellipsize="end"
-                android:textColor="#FF8A96"
-                android:textSize="11sp" />
+        <TextView android:id="@+id/monitor_widget_updated"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="Not updated" android:textColor="#B9BBC8" android:textSize="10sp"
+            android:maxLines="2" android:ellipsize="end" android:layout_marginTop="4dp" />
+        <TextView android:id="@+id/monitor_widget_compact_clear"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="Clear Clarity cache" android:textColor="#FF8A96" android:textSize="11sp"
+            android:maxLines="1" android:ellipsize="end" android:visibility="gone" />
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="center_vertical">
+            <TextView android:id="@+id/monitor_widget_more"
+                android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                android:text="More info" android:textColor="#FF8A96" android:textSize="11sp"
+                android:maxLines="2" android:ellipsize="end" android:paddingTop="3dp" />
+            <TextView android:id="@+id/monitor_widget_downloads"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="Downloads" android:textColor="#FF8A96" android:textSize="11sp"
+                android:maxLines="1" android:ellipsize="end" android:paddingStart="6dp" android:paddingTop="3dp" />
         </LinearLayout>
     </LinearLayout>
 </FrameLayout>

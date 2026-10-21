@@ -71,16 +71,20 @@ object SystemMonitorWidgetRendering {
         val bounds = RectF(stroke / 2, stroke / 2, width - stroke / 2, height - stroke / 2)
         val radius = style.cornerRadiusDp * scale
 
-        // Check if user set wallpaper image for system monitor
-        val hasWallpaper = WidgetBackgrounds.has(context, WidgetBackgrounds.SYSTEM_MONITOR)
-        if (hasWallpaper) {
-            WidgetBackgrounds.renderPx(context, WidgetBackgrounds.SYSTEM_MONITOR, width.toFloat(), height.toFloat(), radius)?.let {
-                canvas.drawBitmap(it, 0f, 0f, null)
-            }
-        } else {
-            val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = style.backgroundArgb() }
-            canvas.drawRoundRect(bounds, radius, radius, fillPaint)
+        val layer = canvas.saveLayerAlpha(bounds, style.backgroundArgb() ushr 24)
+        val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = StickerHex.toArgb(style.backgroundColor)
         }
+        canvas.drawRoundRect(bounds, radius, radius, fillPaint)
+        if (style.wallpaperEnabled) WidgetBackgrounds.renderPx(
+            context, WidgetBackgrounds.SYSTEM_MONITOR, width.toFloat(), height.toFloat(), radius
+        )?.let { wallpaper ->
+            canvas.drawBitmap(
+                wallpaper, null, bounds,
+                Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+            )
+        }
+        canvas.restoreToCount(layer)
 
         // Draw outline border
         val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {

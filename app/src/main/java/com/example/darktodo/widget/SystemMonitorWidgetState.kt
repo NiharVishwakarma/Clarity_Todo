@@ -1,11 +1,14 @@
 package com.example.darktodo.widget
 
 internal object SystemMonitorWidgetState {
-    const val COMPACT_MIN_HEIGHT_DP = 260
-    const val EXPANDED_HEIGHT_DP = 340
+    const val COMPACT_MIN_HEIGHT_DP = 220
     const val STALE_AFTER_MS = 60 * 60 * 1000L
 
-    fun expanded(minHeight: Int) = minHeight >= EXPANDED_HEIGHT_DP
+    fun showDetails(height: Int, fontScale: Float) =
+        height >= (240 * fontScale.coerceAtLeast(1f)).toInt()
+
+    fun essentialOnly(height: Int, fontScale: Float) =
+        height < (180 * fontScale.coerceAtLeast(1f)).toInt()
 
     fun value(values: Map<String, String>, key: String): String =
         values[key]?.takeIf { it.isNotBlank() } ?: "Unavailable"

@@ -39,8 +39,8 @@ class LauncherIconResourceContractTest {
         val item = foreground.getElementsByTagName("item").item(0) as Element
         assertEquals("@drawable/clarity_suite_icon", item.attr("drawable"))
         assertEquals("center", item.attr("gravity"))
-        assertEquals("60dp", item.attr("width"))
-        assertEquals("60dp", item.attr("height"))
+        assertEquals("90dp", item.attr("width"))
+        assertEquals("90dp", item.attr("height"))
         val image = File(main, "res/drawable/clarity_suite_icon.png")
         assertTrue("Uploaded launcher artwork must exist", image.isFile)
         assertTrue("Uploaded launcher artwork must not be empty", image.length() > 0)
@@ -55,10 +55,10 @@ class LauncherIconResourceContractTest {
         assertEquals(listOf("res/drawable/clarity_suite_icon.png"), variants)
     }
 
-    @Test fun adaptiveBackgroundDoesNotAddAnOpaqueBackplate() {
+    @Test fun adaptiveBackgroundUsesAnOpaqueFullBleedSurface() {
         val paths = xml("res/drawable/ic_clarity_vault_background.xml").getElementsByTagName("path")
         assertEquals(1, paths.length)
-        assertEquals("#00000000", (paths.item(0) as Element).attr("fillColor"))
+        assertEquals("#17171D", (paths.item(0) as Element).attr("fillColor"))
     }
 
     @Test fun sharedArtworkIsA1024PixelRgbaPng() {

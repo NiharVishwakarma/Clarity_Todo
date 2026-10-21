@@ -51,14 +51,18 @@ Launcher icon resources under `app/src/main/`: `AndroidManifest.xml` →
 (relative to the test prefix above). Keep only one artwork variant.
 The same `clarity_suite_icon.png` is used by `res/layout/vault_widget.xml`,
 `res/drawable/vault_widget_preview.xml` and `ui/VaultAppearanceScreen.kt`.
-The adaptive background resource is transparent and the centered 60dp foreground
-keeps the artwork inside the 66dp safe circle; launcher/OEM masks and effects
-remain platform-controlled. Vault widget sizing and tap behavior are unchanged.
+The adaptive wrapper uses a full-bleed charcoal background and centered 90dp
+foreground, avoiding a padded tile nested inside the OEM mask. The shared PNG
+and Vault widget sizing/tap behavior are unchanged; OEM masks remain platform-controlled.
 
 Widget resources: `app/src/main/res/layout/` (live/preview RemoteViews),
 `app/src/main/res/xml/` (provider metadata), `app/src/main/res/drawable/`
 (backgrounds/icons), and `app/src/main/res/values/` (strings/themes/dimensions).
 Start with the provider's referenced resources rather than scanning all artwork.
+System Monitor's `widget/SystemMonitorWidgetRendering.kt` draws outer and card
+layers; its settings preview shares the outer renderer. Preferences in
+`data/SystemMonitorAppearance.kt` preserve independent color/opacity and wallpaper
+selection, reusing the Calendar background default for an unset outer color.
 
 ## Shared state and data flow
 

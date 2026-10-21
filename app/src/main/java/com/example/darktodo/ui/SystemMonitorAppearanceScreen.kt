@@ -6,7 +6,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,6 +20,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -170,15 +170,26 @@ fun SystemMonitorAppearanceScreen(onBack: () -> Unit, onOpenWallpaper: (String) 
             onExpandedChange = { backgroundExpanded = it },
             icon = ClarityIcons.Background
         ) {
-            HexColorField("Widget background color", style.backgroundColor, book, { book = it }) { update(style.copy(backgroundColor = it)) }
+            HexColorField("Widget background color", style.backgroundColor, book, { book = it }) {
+                update(style.copy(backgroundColor = it, wallpaperEnabled = false))
+            }
             MonitorSlider("Background opacity", style.backgroundOpacityPercent.toFloat(), 0f..100f, "%", onFinished = ::commitPreview) {
                 preview(style.copy(backgroundOpacityPercent = it.toInt()))
             }
             val wpStatus = if (WidgetBackgrounds.has(context, WidgetBackgrounds.SYSTEM_MONITOR))
                 "${WidgetBackgrounds.fade(context, WidgetBackgrounds.SYSTEM_MONITOR)}% fade" else "Not set"
             SettingsNavRow(ClarityIcons.Wallpapers, "Widget wallpaper image", "", wpStatus) {
+                update(style.copy(wallpaperEnabled = true))
                 onOpenWallpaper(WidgetBackgrounds.SYSTEM_MONITOR)
             }
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("Use saved wallpaper", color = UiTokens.Ink, modifier = Modifier.weight(1f))
+                Switch(
+                    checked = style.wallpaperEnabled,
+                    onCheckedChange = { update(style.copy(wallpaperEnabled = it)) }
+                )
+            }
+            Text("Choosing a background color switches to solid color without deleting the saved wallpaper. Card opacity affects only the four metric cards.", color = UiTokens.Muted)
         }
 
         MonitorSlider("Widget corner radius", style.cornerRadiusDp.toFloat(), 0f..36f, "dp", onFinished = ::commitPreview) { preview(style.copy(cornerRadiusDp = it.toInt())) }
@@ -214,16 +225,14 @@ private fun SystemMonitorAppearancePreview(style: SystemMonitorAppearance) {
     val ramLblBitmap = remember(style) {
         SystemMonitorWidgetRendering.text(context, "Available RAM", style.labelSizeSp, style.labelColor, style, 400, 120f).asImageBitmap()
     }
-    val shape = RoundedCornerShape(style.cornerRadiusDp.dp)
     val cardShape = RoundedCornerShape(style.cardCornerRadiusDp.dp)
+    val background = SystemMonitorWidgetRendering.background(context, style, 300, 160).asImageBitmap()
 
     Box(
         Modifier.fillMaxWidth().heightIn(min = 140.dp)
-            .background(Color(style.backgroundArgb()), shape)
-            .border(1.dp, Color(style.outlineArgb()), shape)
-            .padding(12.dp)
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Image(background, null, Modifier.matchParentSize(), contentScale = androidx.compose.ui.layout.ContentScale.FillBounds)
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Image(titleBitmap, "System Monitor")
                 Text("Refresh", color = Color(android.graphics.Color.parseColor(style.accentColor)), fontSize = 11.sp)

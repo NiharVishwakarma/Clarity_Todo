@@ -9,12 +9,15 @@ import org.junit.Test
 import org.w3c.dom.Element
 
 class SystemMonitorWidgetTest {
-    @Test fun resizingUsesEachInstancesMinimumHeight() {
-        assertFalse(SystemMonitorWidgetState.expanded(0))
-        assertFalse(SystemMonitorWidgetState.expanded(260))
-        assertFalse(SystemMonitorWidgetState.expanded(339))
-        assertTrue(SystemMonitorWidgetState.expanded(340))
-        assertTrue(SystemMonitorWidgetState.expanded(400))
+    @Test fun detailsRespectAvailableHeightAndFontScale() {
+        assertFalse(SystemMonitorWidgetState.showDetails(220, 1f))
+        assertTrue(SystemMonitorWidgetState.showDetails(260, 1f))
+        assertFalse(SystemMonitorWidgetState.showDetails(300, 1.5f))
+        assertTrue(SystemMonitorWidgetState.showDetails(480, 2f))
+        assertFalse(SystemMonitorWidgetState.essentialOnly(220, 1f))
+        assertTrue(SystemMonitorWidgetState.essentialOnly(220, 2f))
+        assertTrue(SystemMonitorWidgetState.essentialOnly(240, 1.5f))
+        assertFalse(SystemMonitorWidgetState.essentialOnly(480, 2f))
     }
 
     @Test fun missingAndPartialMetricsNeverBecomeFabricatedNumbers() {
@@ -71,21 +74,21 @@ class SystemMonitorWidgetTest {
         }
     }
 
-    @Test fun compactMinimumAndExpandedThresholdReserveRoomForLargerFonts() {
+    @Test fun resizingUsesCompactMetadataAndExplicitAccessToHiddenDetails() {
         val main = File("src/main").let { if (it.isDirectory) it else File("app/src/main") }
         val android = "http://schemas.android.com/apk/res/android"
         val provider = DocumentBuilderFactory.newInstance().apply { isNamespaceAware = true }
             .newDocumentBuilder().parse(File(main, "res/xml/system_monitor_widget_info.xml")).documentElement
         val minimum = SystemMonitorWidgetState.COMPACT_MIN_HEIGHT_DP
-        assertEquals("${minimum}dp", provider.getAttributeNS(android, "minHeight"))
+        assertEquals("240dp", provider.getAttributeNS(android, "minHeight"))
         assertEquals("${minimum}dp", provider.getAttributeNS(android, "minResizeHeight"))
-        assertEquals("4", provider.getAttributeNS(android, "targetCellHeight"))
-        // Conservative doubled-font row budgets, including font padding and a two-line timestamp.
-        val compactBudget = 40 + 38 + 34 + 34 + 34 + 56 + 20
-        assertTrue("Compact content must fit its declared minimum", minimum >= compactBudget)
-        assertTrue("Expanded rows need additional font-scaling headroom",
-            SystemMonitorWidgetState.EXPANDED_HEIGHT_DP >= minimum + 2 * 34)
-        assertFalse(SystemMonitorWidgetState.expanded(minimum))
+        assertEquals("3", provider.getAttributeNS(android, "targetCellHeight"))
+        assertEquals("5", provider.getAttributeNS(android, "targetCellWidth"))
+        assertEquals("320dp", provider.getAttributeNS(android, "minWidth"))
+        assertEquals("220dp", provider.getAttributeNS(android, "minResizeWidth"))
+        val source = File(main, "java/com/example/darktodo/widget/SystemMonitorWidget.kt").readText()
+        assertTrue(source.contains("Android & patch details"))
+        assertTrue(source.contains("views.setOnClickPendingIntent(R.id.monitor_widget_more,"))
     }
 
     @Test fun remoteViewsTextActionsTargetTextViewsInsteadOfMetricContainers() {
@@ -158,9 +161,63 @@ class SystemMonitorWidgetTest {
         assertEquals("#B9BBC8", defaults.labelColor)
         assertEquals("#FFFFFF", defaults.valueColor)
         assertEquals("#FF8A96", defaults.accentColor)
-        assertEquals("#1A1A20", defaults.backgroundColor)
+        assertEquals(com.example.darktodo.data.CalendarWidgetPrefs().background, defaults.backgroundColor)
+        assertEquals(100, defaults.backgroundOpacityPercent)
         assertEquals("#25252D", defaults.cardBackgroundColor)
         assertEquals(20, defaults.cornerRadiusDp)
         assertEquals(12, defaults.cardCornerRadiusDp)
+    }
+
+    @Test fun cardAndOuterOpacityPreserveColorAndRemainIndependent() {
+        val defaults = com.example.darktodo.data.SystemMonitorAppearance.DEFAULT
+        listOf("#000000" to 0x000000, "#FF0000" to 0xFF0000).forEach { (color, rgb) ->
+            listOf(0 to 0, 59 to 150, 100 to 255).forEach { (percent, alpha) ->
+                val style = defaults.copy(
+                    backgroundColor = color, backgroundOpacityPercent = percent,
+                    cardBackgroundColor = color, cardOpacityPercent = percent
+                ).sanitized()
+                assertEquals(alpha, style.cardBackgroundArgb().ushr(24))
+                assertEquals(rgb, style.cardBackgroundArgb() and 0xFFFFFF)
+                assertEquals(alpha, style.backgroundArgb().ushr(24))
+                assertEquals(rgb, style.backgroundArgb() and 0xFFFFFF)
+                assertEquals(style.cardBackgroundArgb(), style.copy(backgroundOpacityPercent = 25).cardBackgroundArgb())
+                assertEquals(style.backgroundArgb(), style.copy(cardOpacityPercent = 25).backgroundArgb())
+            }
+        }
+    }
+
+    @Test fun savedCardPreferencesReachLiveImageLayersAndRefreshDoesNotWriteAppearance() {
+        val main = File("src/main").let { if (it.isDirectory) it else File("app/src/main") }
+        val source = File(main, "java/com/example/darktodo/widget/SystemMonitorWidget.kt").readText()
+        assertTrue(source.contains("SystemMonitorAppearancePrefs.load(context)"))
+        assertTrue(source.contains("SystemMonitorWidgetRendering.cardBackground("))
+        listOf("ram", "storage", "battery", "cache").forEach {
+            assertTrue(source.contains("R.id.monitor_widget_${it}_bg"))
+        }
+        assertFalse(source.contains("SystemMonitorAppearancePrefs.save("))
+        assertFalse(source.contains("SystemMonitorAppearancePrefs.reset("))
+        val prefs = File(main, "java/com/example/darktodo/data/SystemMonitorAppearance.kt").readText()
+        listOf("background_color", "background_opacity", "card_background_color", "card_opacity", "wallpaper_enabled").forEach {
+            assertTrue("Preference must be loaded and saved: $it", prefs.split("\"$it\"").size >= 3)
+        }
+    }
+
+    @Test fun metricGridUsesSpareHeightAndEachCardHasAnIndependentImageLayer() {
+        val main = File("src/main").let { if (it.isDirectory) it else File("app/src/main") }
+        val android = "http://schemas.android.com/apk/res/android"
+        val layout = DocumentBuilderFactory.newInstance().apply { isNamespaceAware = true }
+            .newDocumentBuilder().parse(File(main, "res/layout/system_monitor_widget.xml")).documentElement
+        val nodes = layout.getElementsByTagName("*")
+        val elements = (0 until nodes.length).map { nodes.item(it) as Element }
+        fun element(id: String) = elements.single { it.getAttributeNS(android, "id") == "@+id/monitor_widget_$id" }
+        assertEquals("0dp", element("metrics").getAttributeNS(android, "layout_height"))
+        assertEquals("1", element("metrics").getAttributeNS(android, "layout_weight"))
+        listOf("ram", "storage", "battery", "cache").forEach {
+            assertEquals("ImageView", element("${it}_bg").tagName)
+        }
+        listOf("android", "security").forEach {
+            assertEquals("match_parent", element(it).getAttributeNS(android, "layout_width"))
+            assertEquals("2", element(it).getAttributeNS(android, "maxLines"))
+        }
     }
 }

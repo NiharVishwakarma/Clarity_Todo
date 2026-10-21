@@ -13,6 +13,7 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
 import android.util.Log
+import android.util.TypedValue
 import android.view.View
 import android.widget.RemoteViews
 import androidx.work.ExistingPeriodicWorkPolicy
@@ -46,6 +47,7 @@ object SystemMonitorWidget {
     private const val TIMEOUT_MS = 6_500L
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val refreshLock = Mutex()
+    private val renderLock = Any()
 
     fun refreshAll(context: Context) {
         val app = context.applicationContext
@@ -130,7 +132,7 @@ object SystemMonitorWidget {
         }
     }
 
-    private fun render(context: Context) {
+    private fun render(context: Context) = synchronized(renderLock) {
         val manager = AppWidgetManager.getInstance(context)
         val snapshot = MonitorRepository.last(context)
         val style = SystemMonitorAppearancePrefs.load(context)
@@ -140,16 +142,43 @@ object SystemMonitorWidget {
             val options = manager.getAppWidgetOptions(id)
             val width = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 250).coerceIn(120, 800)
             val height = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 260).coerceIn(100, 800)
-            val expanded = SystemMonitorWidgetState.expanded(height)
-            views.setViewVisibility(R.id.monitor_widget_details, if (expanded) View.VISIBLE else View.GONE)
+            val details = SystemMonitorWidgetState.showDetails(height, context.resources.configuration.fontScale)
+            val essential = SystemMonitorWidgetState.essentialOnly(height, context.resources.configuration.fontScale)
+            views.setViewVisibility(R.id.monitor_widget_details, if (details) View.VISIBLE else View.GONE)
+            views.setViewVisibility(R.id.monitor_widget_metrics, if (essential) View.GONE else View.VISIBLE)
+            views.setViewVisibility(R.id.monitor_widget_summary, if (essential) View.VISIBLE else View.GONE)
+            views.setViewVisibility(R.id.monitor_widget_model, if (essential) View.GONE else View.VISIBLE)
+            views.setViewVisibility(R.id.monitor_widget_compact_clear, if (essential) View.VISIBLE else View.GONE)
+            views.setTextViewText(
+                R.id.monitor_widget_more,
+                if (essential) "All details" else if (details) "More info" else "Android & patch details"
+            )
+            views.setOnClickPendingIntent(R.id.monitor_widget_more, activity(context, id, "info", null))
 
             // Render customized background (including wallpaper support if configured)
             views.setImageViewBitmap(
                 R.id.monitor_widget_bg_image,
                 SystemMonitorWidgetRendering.background(context, style, width, height)
             )
+            val card = SystemMonitorWidgetRendering.cardBackground(
+                style, (width - 26) / 2, ((height - if (details) 128 else 96) / 2).coerceAtLeast(48)
+            )
+            listOf(
+                R.id.monitor_widget_ram_bg, R.id.monitor_widget_storage_bg,
+                R.id.monitor_widget_battery_bg, R.id.monitor_widget_cache_bg
+            ).forEach { views.setImageViewBitmap(it, card) }
 
             bindMetrics(views, snapshot, style)
+            if (essential) {
+                val values = snapshot?.values.orEmpty()
+                views.setTextViewText(
+                    R.id.monitor_widget_summary,
+                    "RAM: ${SystemMonitorWidgetState.value(values, "Available RAM")}\n" +
+                        "Battery: ${SystemMonitorWidgetState.value(values, "Battery")}"
+                )
+                views.setTextViewTextSize(R.id.monitor_widget_title, TypedValue.COMPLEX_UNIT_SP, 13f)
+                views.setTextViewTextSize(R.id.monitor_widget_updated, TypedValue.COMPLEX_UNIT_SP, 8f)
+            }
             val capturedAt = snapshot?.capturedAt
             val time = capturedAt?.takeIf { it > 0 }?.let {
                 DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(it))
@@ -174,15 +203,12 @@ object SystemMonitorWidget {
                 .setAction(SystemMonitorActionActivity.ACTION_CLEAR_CACHE_PROMPT)
                 .setData(Uri.parse("clarity://system-monitor/clear-cache/$id"))
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            views.setOnClickPendingIntent(
-                R.id.monitor_widget_clear_cache,
-                PendingIntent.getActivity(
-                    context,
-                    id * 10 + 4,
-                    clearCacheIntent,
-                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-                )
+            val clearCacheAction = PendingIntent.getActivity(
+                context, id * 10 + 4, clearCacheIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
+            views.setOnClickPendingIntent(R.id.monitor_widget_clear_cache, clearCacheAction)
+            views.setOnClickPendingIntent(R.id.monitor_widget_compact_clear, clearCacheAction)
 
             manager.updateAppWidget(id, views)
         }
@@ -204,10 +230,8 @@ object SystemMonitorWidget {
 
         val batteryPct = value("Battery")
         val charging = value("Charging")
-        val batteryText = if (batteryPct != "Unavailable") {
-            if (charging != "Unavailable" && charging.isNotBlank()) "$batteryPct · $charging" else batteryPct
-        } else "Unavailable"
-        views.setTextViewText(R.id.monitor_widget_battery_val, batteryText)
+        views.setTextViewText(R.id.monitor_widget_battery_val, batteryPct)
+        views.setTextViewText(R.id.monitor_widget_charging, charging)
 
         // App cache metric
         val cacheVal = value("Clarity app storage: cache (subset of data)")
@@ -241,6 +265,24 @@ object SystemMonitorWidget {
         views.setInt(R.id.monitor_widget_android, "setTextColor", secondaryColor)
         views.setInt(R.id.monitor_widget_security, "setTextColor", secondaryColor)
         views.setInt(R.id.monitor_widget_updated, "setTextColor", labelColor)
+        views.setInt(R.id.monitor_widget_more, "setTextColor", accentColor)
+        views.setInt(R.id.monitor_widget_charging, "setTextColor", secondaryColor)
+        views.setInt(R.id.monitor_widget_summary, "setTextColor", valueColor)
+        views.setInt(R.id.monitor_widget_compact_clear, "setTextColor", accentColor)
+
+        views.setTextViewTextSize(R.id.monitor_widget_title, TypedValue.COMPLEX_UNIT_SP, style.titleSizeSp)
+        listOf(
+            R.id.monitor_widget_ram, R.id.monitor_widget_storage_val,
+            R.id.monitor_widget_battery_val, R.id.monitor_widget_cache_val
+        ).forEach { views.setTextViewTextSize(it, TypedValue.COMPLEX_UNIT_SP, style.valueSizeSp) }
+        listOf(
+            R.id.monitor_widget_model, R.id.monitor_widget_ram_label, R.id.monitor_widget_storage_label,
+            R.id.monitor_widget_battery_label, R.id.monitor_widget_cache_label
+        ).forEach { views.setTextViewTextSize(it, TypedValue.COMPLEX_UNIT_SP, style.labelSizeSp) }
+        listOf(
+            R.id.monitor_widget_android, R.id.monitor_widget_security,
+            R.id.monitor_widget_charging, R.id.monitor_widget_updated
+        ).forEach { views.setTextViewTextSize(it, TypedValue.COMPLEX_UNIT_SP, style.detailSizeSp) }
     }
 
     private fun activity(context: Context, id: Int, action: String, destination: Intent?): PendingIntent {
