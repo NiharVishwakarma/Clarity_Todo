@@ -14,4 +14,10 @@
     <string name="vault_widget_setup_status">Set up your vault · Tap to begin</string>
     <string name="vault_widget_locked_content_description">Open Clarity Vault authentication</string>
     <string name="vault_widget_setup_content_description">Set up Clarity Vault</string>
+    <string name="wallpaper_widget_title">Clarity Wallpaper Studio</string>
+    <string name="wallpaper_widget_description">Create and apply an offline procedural wallpaper</string>
+    <string name="wallpaper_widget_content_description">Clarity Wallpaper Studio</string>
+    <string name="wallpaper_widget_preview_description">Wallpaper preview</string>
+    <string name="wallpaper_widget_status_default">Tap to create.</string>
+    <string name="wallpaper_widget_action">Generate &amp; Apply</string>
 </resources>

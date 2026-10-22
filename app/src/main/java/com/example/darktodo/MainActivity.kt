@@ -267,8 +267,18 @@ class MainActivity : FragmentActivity() {
     var permissionRevision by remember { mutableIntStateOf(0) }
     @Suppress("UNUSED_VARIABLE") val permissionStatusRevision = permissionRevision
     val notificationPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { permissionRevision++ }
+    com.example.darktodo.ui.FirstLaunchPermissionOnboarding(
+        remindersEnabled = tasks.any { !it.completed && it.reminderType != "none" },
+        permissionRevision = permissionRevision,
+        onPermissionStateChanged = { permissionRevision++ }
+    )
     fun requestReminderNotificationPermissionIfNeeded() {
-        if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+        val onboardingPrefs = context.getSharedPreferences("permission_onboarding", Context.MODE_PRIVATE)
+        if (Build.VERSION.SDK_INT >= 33 &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED &&
+            !onboardingPrefs.getBoolean("notification_requested", false)
+        ) {
+            onboardingPrefs.edit().putBoolean("notification_requested", true).apply()
             notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
     }
@@ -481,8 +491,22 @@ class MainActivity : FragmentActivity() {
                     exactAlarmsEnabled = com.example.darktodo.reminders.ReminderScheduler.canScheduleExactly(context),
                     onBack = { page = "Settings" },
                     onRequestNotifications = { if (Build.VERSION.SDK_INT >= 33) notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) else permissionRevision++ },
-                    onNotificationSettings = { context.startActivity(Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)) },
-                    onExactAlarmSettings = { runCatching { context.startActivity(Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, android.net.Uri.parse("package:${context.packageName}"))) } }
+                    onNotificationSettings = {
+                        try {
+                            context.startActivity(Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName))
+                        } catch (error: Exception) {
+                            android.util.Log.e("MainActivity", "Unable to open notification settings", error)
+                            android.widget.Toast.makeText(context, "Could not open notification settings.", android.widget.Toast.LENGTH_LONG).show()
+                        }
+                    },
+                    onExactAlarmSettings = {
+                        try {
+                            context.startActivity(Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, android.net.Uri.parse("package:${context.packageName}")))
+                        } catch (error: Exception) {
+                            android.util.Log.e("MainActivity", "Unable to open exact-alarm settings", error)
+                            android.widget.Toast.makeText(context, "Could not open Alarms & reminders settings.", android.widget.Toast.LENGTH_LONG).show()
+                        }
+                    }
                 )
                 page == "TodoSettings" || page == "CalendarSettings" -> SettingsScreen(
                     screen = page,
@@ -524,7 +548,7 @@ class MainActivity : FragmentActivity() {
                     onCalendarReset = { CalendarWidgetSettings.reset(context); refreshSettings(); com.example.darktodo.widget.CalendarWidget.updateAll(context) }
                 )
                 page == "Quotes" -> com.example.darktodo.ui.ComingSoonScreen(com.example.darktodo.ui.ClarityIcons.Quotes, "Quotes", "Browse and save motivational quotes here in a future update.")
-                page == "Wallpapers" -> com.example.darktodo.ui.ComingSoonScreen(com.example.darktodo.ui.ClarityIcons.Wallpapers, "Wallpapers", "A wallpaper library is planned. Widget backgrounds can be set today in Settings, under Personalization.")
+                page == "Wallpapers" -> com.example.darktodo.ui.WallpaperStudioScreen()
                 page == "Stickers" -> com.example.darktodo.ui.NotesScreen(initialEditId = pendingNoteId, onInitialEditHandled = { pendingNoteId = null }, onOpenNoteSettings = { id -> noteSettingsId = id; page = "StickerSettings" })
                 page == "StickerSettings" -> com.example.darktodo.ui.NoteSettingsScreen(noteSettingsId.orEmpty(), onBack = { page = "Stickers" })
                 page == "SupportClarity" -> com.example.darktodo.ui.SupportClarityScreen { page = "Settings" }

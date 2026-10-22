@@ -1,5 +1,12 @@
 # Change History
 
+## 2026-10-22 - Add procedural Wallpaper Studio and apply widget
+
+- Replaced the Wallpapers placeholder with an offline Canvas-based generator shared by the Compose Studio and a new RemoteViews widget. Added 12 seeded styles, color/palette/customization controls, local saved PNGs, export and home/lock/both apply actions.
+- Added a private widget-action receiver and unique expedited WorkManager work so a deliberate widget tap generates a fresh image and only reports success after WallpaperManager succeeds. Widget refresh does not apply wallpapers. Kept the Worker name/constructor for minified builds and declared SET_WALLPAPER.
+- Added first-launch notification explanation/request and a separate exact-alarm settings offer only when existing reminders need it and access is missing. Skips are allowed; reminders retain the existing inexact fallback.
+- Added focused model/resource contract tests and updated project memory/repository navigation. Android build/device validation remains pending because the local Gradle executable/wrapper is unavailable.
+
 ## 2026-10-21 - Portable backup assets and automatic backup control
 
 - Extended snapshots to version 2 with an explicit size/SHA-256 asset manifest. Added original imported-font registry metadata/files, System Monitor/Vault appearance, System Monitor wallpaper and historical snapshot, saved styles and navigation preferences. Kept version-1 restore support and existing encrypted Vault/Notes/wallpaper coverage.

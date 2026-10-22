@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:label="@string/wallpaper_widget_title"
+    android:minWidth="250dp"
+    android:minHeight="88dp"
+    android:minResizeWidth="220dp"
+    android:minResizeHeight="72dp"
+    android:targetCellWidth="4"
+    android:targetCellHeight="1"
+    android:initialLayout="@layout/wallpaper_widget"
+    android:previewImage="@drawable/wallpaper_widget_preview"
+    android:previewLayout="@layout/wallpaper_widget"
+    android:description="@string/wallpaper_widget_description"
+    android:resizeMode="horizontal|vertical"
+    android:widgetCategory="home_screen"
+    android:updatePeriodMillis="0" />

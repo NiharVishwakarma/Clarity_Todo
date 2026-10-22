@@ -19,4 +19,8 @@
     public <init>(android.content.Context, androidx.work.WorkerParameters);
 }
 
+-keep class com.example.darktodo.widget.WallpaperApplyWorker {
+    public <init>(android.content.Context, androidx.work.WorkerParameters);
+}
+
 -keep class com.example.darktodo.widget.StickerWidgetConfigActivity { *; }
