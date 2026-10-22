@@ -56,6 +56,22 @@ class WidgetResourceContractTest {
         assertTrue(manifest.any { it.tagName == "activity" && "com.example.darktodo${it.attr("name")}" == provider.attr("configure") })
     }
 
+    @Test fun notesWidgetCanShowAndRefreshLocalRandomQuotes() {
+        val manifest = xml("AndroidManifest.xml").elements()
+        assertTrue(manifest.any {
+            it.tagName == "receiver" &&
+                it.attr("name") == ".widget.StickerWidgetActionReceiver" &&
+                it.attr("exported") == "false"
+        })
+        val widget = File(main, "java/com/example/darktodo/widget/StickerWidget.kt").readText()
+        val config = File(main, "java/com/example/darktodo/widget/StickerWidgetConfigActivity.kt").readText()
+        assertTrue(config.contains("Random quotes"))
+        assertTrue(widget.contains("QuoteLibrary.choose("))
+        assertTrue(widget.contains("QuoteLibrary.recordViewed(context, quote)"))
+        assertTrue(widget.contains("PendingIntent.getBroadcast(context, id, next, flags)"))
+        assertTrue(widget.contains("Tap to show another quote."))
+    }
+
     @Test fun everyTodoFontLayoutKeepsBackgroundBehindAnUnfadedCollection() {
         val names = listOf("todo_widget", "todo_widget_imported_font", "todo_widget_sans_serif",
             "todo_widget_sans_serif_condensed", "todo_widget_sans_serif_light", "todo_widget_serif", "todo_widget_monospace")

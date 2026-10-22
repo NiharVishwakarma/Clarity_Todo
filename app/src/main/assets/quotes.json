@@ -1,0 +1,130 @@
+[
+  {
+    "id": "franklin-poor-richard-well-done",
+    "text": "Well done is better than well said.",
+    "author": "Benjamin Franklin",
+    "topic": "success",
+    "source": "Poor Richard's Almanack, 1732–1758",
+    "sourceUrl": "https://hamilton.gilderlehrman.org/supporting-document/poor-richards-almanac"
+  },
+  {
+    "id": "franklin-poor-richard-early-to-bed",
+    "text": "Early to bed and early to rise, makes a man healthy, wealthy, and wise.",
+    "author": "Benjamin Franklin",
+    "topic": "discipline",
+    "source": "Poor Richard's Almanack, 1732–1758",
+    "sourceUrl": "https://hamilton.gilderlehrman.org/supporting-document/poor-richards-almanac"
+  },
+  {
+    "id": "franklin-poor-richard-learn",
+    "text": "Being ignorant is not so much a shame, as being unwilling to learn.",
+    "author": "Benjamin Franklin",
+    "topic": "wisdom",
+    "source": "Poor Richard's Almanack selections",
+    "sourceUrl": "https://hamilton.gilderlehrman.org/supporting-document/poor-richards-almanac"
+  },
+  {
+    "id": "franklin-poor-richard-creditors",
+    "text": "Creditors have better memories than debtors.",
+    "author": "Benjamin Franklin",
+    "topic": "wisdom",
+    "source": "Poor Richard's Almanack selections",
+    "sourceUrl": "https://hamilton.gilderlehrman.org/supporting-document/poor-richards-almanac"
+  },
+  {
+    "id": "franklin-poor-richard-glass-houses",
+    "text": "Don't throw stones at your neighbors, if your own windows are glass.",
+    "author": "Benjamin Franklin",
+    "topic": "wisdom",
+    "source": "Poor Richard's Almanack selections",
+    "sourceUrl": "https://hamilton.gilderlehrman.org/supporting-document/poor-richards-almanac"
+  },
+  {
+    "id": "franklin-poor-richard-write",
+    "text": "If you would not be forgotten as soon as you are dead and rotten, either write things worth reading, or do things worth writing.",
+    "author": "Benjamin Franklin",
+    "topic": "success",
+    "source": "Poor Richard's Almanack selections",
+    "sourceUrl": "https://hamilton.gilderlehrman.org/supporting-document/poor-richards-almanac"
+  },
+  {
+    "id": "franklin-poor-richard-secret",
+    "text": "Three may keep a secret, if two of them are dead.",
+    "author": "Benjamin Franklin",
+    "topic": "dark",
+    "source": "Poor Richard's Almanack selections",
+    "sourceUrl": "https://hamilton.gilderlehrman.org/supporting-document/poor-richards-almanac"
+  },
+  {
+    "id": "franklin-poor-richard-razor",
+    "text": "To be intimate with a foolish friend, is like going to bed with a razor.",
+    "author": "Benjamin Franklin",
+    "topic": "love",
+    "source": "Poor Richard's Almanack selections",
+    "sourceUrl": "https://hamilton.gilderlehrman.org/supporting-document/poor-richards-almanac"
+  },
+  {
+    "id": "aurelius-meditations-thoughts",
+    "text": "The soul becomes dyed with the colour of its thoughts.",
+    "author": "Marcus Aurelius",
+    "topic": "stoicism",
+    "source": "Meditations, Book 2, Section 16, translated by George Long",
+    "sourceUrl": "https://www.gutenberg.org/ebooks/2680"
+  },
+  {
+    "id": "shakespeare-sonnet-116",
+    "text": "Love is not love which alters when it alteration finds.",
+    "author": "William Shakespeare",
+    "topic": "love",
+    "source": "Sonnet 116",
+    "sourceUrl": "https://www.gutenberg.org/ebooks/1041"
+  },
+  {
+    "id": "henley-invictus",
+    "text": "I am the master of my fate, I am the captain of my soul.",
+    "author": "William Ernest Henley",
+    "topic": "mental-strength",
+    "source": "Invictus",
+    "sourceUrl": "https://www.gutenberg.org/ebooks/26785"
+  },
+  {
+    "id": "aurelius-meditations-universe",
+    "text": "The universe is transformation: life is opinion.",
+    "author": "Marcus Aurelius",
+    "topic": "spirituality",
+    "source": "Meditations, Book 4, Section 3, translated by George Long",
+    "sourceUrl": "https://www.gutenberg.org/ebooks/2680"
+  },
+  {
+    "id": "shakespeare-sonnet-18",
+    "text": "Shall I compare thee to a summer's day?",
+    "author": "William Shakespeare",
+    "topic": "love",
+    "source": "Sonnet 18",
+    "sourceUrl": "https://www.gutenberg.org/ebooks/1041"
+  },
+  {
+    "id": "shakespeare-sonnet-29-gratitude",
+    "text": "For thy sweet love remembered such wealth brings\nThat then I scorn to change my state with kings.",
+    "author": "William Shakespeare",
+    "topic": "happiness",
+    "source": "Sonnet 29",
+    "sourceUrl": "https://www.gutenberg.org/ebooks/1041"
+  },
+  {
+    "id": "blake-auguries-grain",
+    "text": "To see a World in a Grain of Sand",
+    "author": "William Blake",
+    "topic": "creativity",
+    "source": "Auguries of Innocence",
+    "sourceUrl": "https://www.gutenberg.org/ebooks/574"
+  },
+  {
+    "id": "poe-raven-darkness",
+    "text": "Deep into that darkness peering, long I stood there wondering, fearing",
+    "author": "Edgar Allan Poe",
+    "topic": "dark",
+    "source": "The Raven",
+    "sourceUrl": "https://www.gutenberg.org/ebooks/1065"
+  }
+]

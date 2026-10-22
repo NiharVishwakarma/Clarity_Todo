@@ -1,20 +1,20 @@
 package com.example.darktodo.ui
 
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -69,7 +69,6 @@ private val noteFieldColors @Composable get() = OutlinedTextFieldDefaults.colors
  * The Notes tab. Tap a card to edit, tap its gear for that note's styling, long-press for rename, duplicate and delete.
  * [initialEditId] opens that note's editor straight away (used when a home-screen note is tapped).
  */
-@OptIn(ExperimentalFoundationApi::class)
 @Composable fun NotesScreen(initialEditId: String? = null, onInitialEditHandled: () -> Unit = {}, onOpenNoteSettings: (String) -> Unit = {}) {
     val context = LocalContext.current
     val haptics = LocalHapticFeedback.current
@@ -94,33 +93,49 @@ private val noteFieldColors @Composable get() = OutlinedTextFieldDefaults.colors
                 Text("Notes \uD83D\uDCDD", color = UiTokens.Ink, fontSize = 22.sp, fontWeight = FontWeight.Bold)
                 Text("Quick notes that stay in view", color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp)
             }
-            if (notes.isEmpty()) EmptyState(ClarityIcons.Stickers, "No Notes Yet \uD83D\uDCDD", "Tap + to jot down a quick note.")
-            else LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            LazyColumn(
+                modifier = Modifier.weight(1f).fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
-                contentPadding = PaddingValues(bottom = 88.dp),
-                modifier = Modifier.fillMaxSize()
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 88.dp)
             ) {
-                items(StickerOps.display(notes), key = { it.id }) { note ->
-                    val style = NoteAppearance.effectiveStyle(context, StickerStyle.resolve(note, global), note.id)
-                    Box(
-                        Modifier.combinedClickable(
-                            interactionSource = remember { MutableInteractionSource() }, indication = null,
-                            onClick = { editing = note },
-                            onLongClick = { haptics.performHapticFeedback(HapticFeedbackType.LongPress); actionsFor = note }
+                if (notes.isEmpty()) {
+                    item {
+                        Text(
+                            "No Notes Yet \uD83D\uDCDD\nTap + to jot down a quick note.",
+                            color = UiTokens.Muted,
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 28.dp),
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
                         )
-                    ) {
-                        NoteSurface(note.title, note.content, style, WidgetBackgrounds.noteKey(note.id)) {
-                            Box(
-                                Modifier.size(28.dp).clickable { onOpenNoteSettings(note.id) }
-                                    .semantics { contentDescription = "Settings for ${note.title.ifBlank { "this note" }}" },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                ClarityGlyph(Icons.Outlined.Settings, tint = Color(StickerHex.toArgb(style.text)).copy(alpha = .9f), size = 20.dp)
+                    }
+                } else {
+                    items(StickerOps.display(notes).chunked(2), key = { it.first().id }) { rowNotes ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            rowNotes.forEach { note ->
+                                val style = NoteAppearance.effectiveStyle(context, StickerStyle.resolve(note, global), note.id)
+                                Box(
+                                    Modifier.weight(1f).combinedClickable(
+                                        interactionSource = remember { MutableInteractionSource() }, indication = null,
+                                        onClick = { editing = note },
+                                        onLongClick = { haptics.performHapticFeedback(HapticFeedbackType.LongPress); actionsFor = note }
+                                    )
+                                ) {
+                                    NoteSurface(note.title, note.content, style, WidgetBackgrounds.noteKey(note.id)) {
+                                        Box(
+                                            Modifier.size(28.dp).clickable { onOpenNoteSettings(note.id) }
+                                                .semantics { contentDescription = "Settings for ${note.title.ifBlank { "this note" }}" },
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            ClarityGlyph(Icons.Outlined.Settings, tint = Color(StickerHex.toArgb(style.text)).copy(alpha = .9f), size = 20.dp)
+                                        }
+                                    }
+                                }
                             }
+                            if (rowNotes.size == 1) Spacer(Modifier.weight(1f))
                         }
                     }
+                }
+                item {
+                    QuotesSection()
                 }
             }
         }

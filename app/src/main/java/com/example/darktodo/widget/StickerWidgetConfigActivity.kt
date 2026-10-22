@@ -18,21 +18,40 @@ class StickerWidgetConfigActivity : Activity() {
         if (widgetId == AppWidgetManager.INVALID_APPWIDGET_ID) { finish(); return }
 
         val notes = StickerOps.display(StickerStore.load(this))
+        val manager = AppWidgetManager.getInstance(this)
         fun finishWith(noteId: String?) {
             if (noteId != null) StickerWidget.setNote(this, widgetId, noteId)
-            StickerWidget.update(this, AppWidgetManager.getInstance(this), widgetId)
+            else StickerWidget.setNoteMode(this, widgetId)
+            StickerWidget.update(this, manager, widgetId)
             setResult(RESULT_OK, Intent().putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId))
             finish()
         }
 
-        val dialog = AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert).setTitle("Choose a note")
-        if (notes.isEmpty()) {
-            dialog.setMessage("You have no notes yet. Create one in Clarity and it will appear on this widget.")
-                .setPositiveButton("OK") { _, _ -> finishWith(null) }
-        } else {
-            val labels = notes.map { note -> note.title.ifBlank { note.content.take(40) }.ifBlank { "Untitled" } }.toTypedArray()
-            dialog.setItems(labels) { _, which -> finishWith(notes[which].id) }
+        fun chooseNote() {
+            val dialog = AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert).setTitle("Choose a note")
+            if (notes.isEmpty()) {
+                dialog.setMessage("You have no notes yet. Create one in Clarity and it will appear on this widget.")
+                    .setPositiveButton("OK") { _, _ -> finishWith(null) }
+            } else {
+                val labels = notes.map { note -> note.title.ifBlank { note.content.take(40) }.ifBlank { "Untitled" } }.toTypedArray()
+                dialog.setItems(labels) { _, which -> finishWith(notes[which].id) }
+            }
+            dialog.setOnCancelListener { finish() }.show()
         }
-        dialog.setOnCancelListener { finish() }.show()
+
+        AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+            .setTitle("Choose widget content")
+            .setItems(arrayOf("A note", "Random quotes (tap widget for next)")) { _, which ->
+                if (which == 0) {
+                    chooseNote()
+                } else {
+                    StickerWidget.setQuoteMode(this, widgetId)
+                    StickerWidget.nextQuote(this, manager, widgetId)
+                    setResult(RESULT_OK, Intent().putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId))
+                    finish()
+                }
+            }
+            .setOnCancelListener { finish() }
+            .show()
     }
 }

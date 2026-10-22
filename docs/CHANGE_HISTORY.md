@@ -1,5 +1,15 @@
 # Change History
 
+## 2026-10-22 - Add random Quotes mode to the Notes widget
+
+- Extended the existing Notes widget setup to offer a configured note or random local quotes. Quote mode reuses the widget renderer and selected Notes topics, avoids recently shown quotes, and shows another quote when tapped; existing note-mode click behavior is preserved.
+- Added a private action receiver and widget contract coverage. No additional widget provider or network dependency was introduced. Android build and launcher validation remain pending.
+
+## 2026-10-22 - Add local Quotes section under Notes
+
+- Added a separately collapsible Quotes section beneath the existing Notes list, with persisted expansion/topic/custom-interest state, a bundled locally attributed collection, recent-quote avoidance, Favorites, history browsing, copy and share actions, and a lightweight layered dark presentation.
+- Kept existing note storage and widget behavior unchanged; no API requests or new dependencies were added. Categories without licensed bundled matches show a useful empty state. Android build/test validation remains unavailable locally.
+
 ## 2026-10-22 - Recover Wallpaper widget after interrupted work
 
 - Removed the receiver's persistent running-flag tap gate, which could remain stuck after process death and prevent later wallpaper requests. The Worker now sets the running state when it actually starts; unique `KEEP` work still prevents duplicate concurrent applies.

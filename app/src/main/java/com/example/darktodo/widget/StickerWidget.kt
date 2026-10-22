@@ -3,6 +3,7 @@ package com.example.darktodo.widget
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
+import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -26,6 +27,7 @@ import com.example.darktodo.MainActivity
 import com.example.darktodo.R
 import com.example.darktodo.data.LocalWidgetFonts
 import com.example.darktodo.data.NoteAppearance
+import com.example.darktodo.data.QuoteLibrary
 import com.example.darktodo.data.Sticker
 import com.example.darktodo.data.StickerHex
 import com.example.darktodo.data.StickerOps
@@ -36,7 +38,7 @@ import com.example.darktodo.data.WidgetBackgrounds
 import kotlin.math.max
 import kotlin.math.min
 
-/** Home-screen note. Tapping it opens the note in Clarity for editing; the note is chosen when the widget is placed. */
+/** Notes widget: configured notes open for editing; quote mode advances to another local quote on tap. */
 class StickerWidgetReceiver : AppWidgetProvider() {
     override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
         ids.forEach { StickerWidget.update(context, manager, it) }
@@ -51,10 +53,20 @@ class StickerWidgetReceiver : AppWidgetProvider() {
     }
 }
 
+class StickerWidgetActionReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action != StickerWidget.ACTION_NEXT_QUOTE) return
+        val id = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
+        if (id == AppWidgetManager.INVALID_APPWIDGET_ID) return
+        StickerWidget.nextQuote(context, AppWidgetManager.getInstance(context), id)
+    }
+}
+
 object StickerWidget {
     private const val PREFS = "sticker_widget_selection"
     private const val TAG = "StickerWidget"
     private const val MAX_PIXELS = 120_000
+    const val ACTION_NEXT_QUOTE = "com.example.darktodo.action.NEXT_WIDGET_QUOTE"
 
     fun updateAll(context: Context) {
         val manager = AppWidgetManager.getInstance(context)
@@ -67,13 +79,24 @@ object StickerWidget {
         val options = manager.getAppWidgetOptions(id)
         val wDp = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 300).coerceAtLeast(40)
         val hDp = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 70).coerceAtLeast(40)
-        val note = selected(context, id)
+        val quoteMode = isQuoteMode(context, id)
+        val quote = if (quoteMode) currentQuote(context, id) else null
+        val note = if (quoteMode) null else selected(context, id)
         val style = if (note != null) NoteAppearance.effectiveStyle(context, StickerStore.styleFor(context, note), note.id) else StickerStore.globalStyle(context)
         val customTypeface = LocalWidgetFonts.typeface(context, style.fontFileId)
-        Log.d(TAG, "update id=$id note=${note?.id} family=${style.fontFamily} fontFile=${style.fontFileId} loaded=${customTypeface != null} size=${style.fontSizeSp} weight=${style.fontWeight}")
+        Log.d(TAG, "update id=$id quote=${quote?.id} note=${note?.id} family=${style.fontFamily} fontFile=${style.fontFileId} loaded=${customTypeface != null} size=${style.fontSizeSp} weight=${style.fontWeight}")
         val bitmap = render(
-            title = note?.title?.ifBlank { "Untitled note" } ?: "No notes yet \uD83D\uDCDD",
-            content = note?.content ?: "Open Clarity and create a note to see it here.",
+            title = when {
+                quoteMode -> ""
+                note != null -> note.title.ifBlank { "Untitled note" }
+                else -> "No notes yet \uD83D\uDCDD"
+            },
+            content = when {
+                quote != null -> quote.attributedText()
+                quoteMode -> "No local quotes match your selected topics. Choose another topic in Notes."
+                note != null -> note.content
+                else -> "Open Clarity and create a note to see it here."
+            },
             style = style,
             widthPx = (wDp * density).toInt(),
             heightPx = (hDp * density).toInt(),
@@ -84,17 +107,31 @@ object StickerWidget {
         )
         val views = RemoteViews(context.packageName, R.layout.sticker_widget)
         views.setImageViewBitmap(R.id.sticker_widget_image, bitmap)
-        views.setContentDescription(R.id.sticker_widget_image, note?.let { "${it.title}. ${it.content}. Opens the note for editing" } ?: "No notes yet")
-        val open = Intent(context, MainActivity::class.java)
-            .setAction(MainActivity.ACTION_OPEN_NOTE)
-            .setData(android.net.Uri.parse("clarity://notes/open/$id"))
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-        if (note != null) {
-            open.putExtra(MainActivity.EXTRA_NOTE_ID, note.id)
-                .setData(android.net.Uri.parse("clarity://note/open/${note.id}"))
-        }
+        views.setContentDescription(
+            R.id.sticker_widget_image,
+            if (quoteMode) "${quote?.attributedText() ?: "No quote available"}. Tap to show another quote."
+            else note?.let { "${it.title}. ${it.content}. Opens the note for editing" } ?: "No notes yet"
+        )
         val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        views.setOnClickPendingIntent(R.id.sticker_widget_root, PendingIntent.getActivity(context, id, open, flags))
+        if (quoteMode) {
+            val next = Intent(context, StickerWidgetActionReceiver::class.java)
+                .setAction(ACTION_NEXT_QUOTE)
+                .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id)
+            views.setOnClickPendingIntent(
+                R.id.sticker_widget_root,
+                PendingIntent.getBroadcast(context, id, next, flags)
+            )
+        } else {
+            val open = Intent(context, MainActivity::class.java)
+                .setAction(MainActivity.ACTION_OPEN_NOTE)
+                .setData(android.net.Uri.parse("clarity://notes/open/$id"))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            if (note != null) {
+                open.putExtra(MainActivity.EXTRA_NOTE_ID, note.id)
+                    .setData(android.net.Uri.parse("clarity://note/open/${note.id}"))
+            }
+            views.setOnClickPendingIntent(R.id.sticker_widget_root, PendingIntent.getActivity(context, id, open, flags))
+        }
         manager.updateAppWidget(id, views)
     }
 
@@ -108,11 +145,59 @@ object StickerWidget {
 
     /** Remembers which note a widget instance shows. */
     fun setNote(context: Context, widgetId: Int, noteId: String) {
-        prefs(context).edit().putString("w_$widgetId", noteId).apply()
+        prefs(context).edit().putString("w_$widgetId", noteId).putBoolean("quote_mode_$widgetId", false).apply()
+    }
+
+    fun setNoteMode(context: Context, widgetId: Int) {
+        prefs(context).edit().putBoolean("quote_mode_$widgetId", false).apply()
+    }
+
+    fun setQuoteMode(context: Context, widgetId: Int) {
+        prefs(context).edit().putBoolean("quote_mode_$widgetId", true).remove("quote_id_$widgetId").apply()
+    }
+
+    fun nextQuote(context: Context, manager: AppWidgetManager, widgetId: Int) {
+        if (!isQuoteMode(context, widgetId)) {
+            update(context, manager, widgetId)
+            return
+        }
+        val quote = QuoteLibrary.choose(
+            QuoteLibrary.load(context),
+            QuoteLibrary.selectedTopics(context),
+            QuoteLibrary.recentIds(context)
+        )
+        if (quote != null) {
+            prefs(context).edit().putString("quote_id_$widgetId", quote.id).apply()
+            QuoteLibrary.recordViewed(context, quote)
+        } else {
+            prefs(context).edit().remove("quote_id_$widgetId").apply()
+        }
+        update(context, manager, widgetId)
     }
 
     fun forget(context: Context, ids: IntArray) {
-        prefs(context).edit().apply { ids.forEach { remove("w_$it") } }.apply()
+        prefs(context).edit().apply {
+            ids.forEach {
+                remove("w_$it")
+                remove("quote_mode_$it")
+                remove("quote_id_$it")
+            }
+        }.apply()
+    }
+
+    private fun isQuoteMode(context: Context, id: Int): Boolean =
+        prefs(context).getBoolean("quote_mode_$id", false)
+
+    private fun currentQuote(context: Context, id: Int) = QuoteLibrary.load(context).let { quotes ->
+        val savedId = prefs(context).getString("quote_id_$id", null)
+        quotes.firstOrNull { it.id == savedId } ?: QuoteLibrary.choose(
+            quotes,
+            QuoteLibrary.selectedTopics(context),
+            QuoteLibrary.recentIds(context)
+        )?.also { quote ->
+            prefs(context).edit().putString("quote_id_$id", quote.id).apply()
+            QuoteLibrary.recordViewed(context, quote)
+        }
     }
 
     private fun resolveTypeface(style: StickerStyle, weight: Int, custom: Typeface?): Typeface {
