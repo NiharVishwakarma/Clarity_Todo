@@ -1,5 +1,6 @@
 package com.example.darktodo.ui
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -8,9 +9,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.weight
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -69,6 +69,7 @@ private val noteFieldColors @Composable get() = OutlinedTextFieldDefaults.colors
  * The Notes tab. Tap a card to edit, tap its gear for that note's styling, long-press for rename, duplicate and delete.
  * [initialEditId] opens that note's editor straight away (used when a home-screen note is tapped).
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable fun NotesScreen(initialEditId: String? = null, onInitialEditHandled: () -> Unit = {}, onOpenNoteSettings: (String) -> Unit = {}) {
     val context = LocalContext.current
     val haptics = LocalHapticFeedback.current

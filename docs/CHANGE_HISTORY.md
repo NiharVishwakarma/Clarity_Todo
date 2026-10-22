@@ -1,6 +1,11 @@
 # Change History
 
-## 2026-10-22 - Add random Quotes mode to the Notes widget
+## 2026-10-22 - Fix Compose compilation for Notes and Quotes
+
+- Removed invalid explicit imports of the internal Compose `weight` property and opted the Notes screen into the experimental `combinedClickable` API used by its existing note cards.
+- CI reported these Kotlin compilation errors; local Gradle validation remains unavailable.
+
+## 2026-10-22 - Add random quotes mode to the Notes widget
 
 - Extended the existing Notes widget setup to offer a configured note or random local quotes. Quote mode reuses the widget renderer and selected Notes topics, avoids recently shown quotes, and shows another quote when tapped; existing note-mode click behavior is preserved.
 - Added a private action receiver and widget contract coverage. No additional widget provider or network dependency was introduced. Android build and launcher validation remain pending.
