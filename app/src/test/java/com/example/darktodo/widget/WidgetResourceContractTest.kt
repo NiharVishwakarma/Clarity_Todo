@@ -75,21 +75,27 @@ class WidgetResourceContractTest {
         }
     }
 
-    @Test fun vaultReusesOfficialClarityArtworkWithoutChangingItsIconArea() {
+    @Test fun vaultWidgetFitsOriginalClarityArtworkInsidePaddedIconArea() {
         val icon = xml("res/layout/vault_widget.xml").withId("vault_widget_icon")
         assertEquals("62dp", icon.attr("layout_height"))
-        assertEquals("wrap_content", icon.attr("layout_width"))
+        assertEquals("62dp", icon.attr("layout_width"))
         assertEquals("true", icon.attr("adjustViewBounds"))
+        assertEquals("2dp", icon.attr("padding"))
         assertEquals("fitCenter", icon.attr("scaleType"))
-        assertEquals("@mipmap/ic_clarity_suite", icon.attr("src"))
+        assertEquals("@drawable/clarity_suite_icon", icon.attr("src"))
         val artwork = File(main, "res/drawable/clarity_suite_icon.png")
         assertTrue("Shared Clarity artwork must exist", artwork.isFile)
         assertTrue("Shared Clarity artwork must not be empty", artwork.length() > 0)
         val appearance = File(main, "java/com/example/darktodo/ui/VaultAppearanceScreen.kt").readText()
-        assertTrue(appearance.contains("context.getDrawable(R.mipmap.ic_clarity_suite)"))
-        val previewIcon = xml("res/drawable/vault_widget_preview.xml").elements().single { it.attr("drawable") == icon.attr("src") }
-        assertEquals("62dp", previewIcon.attr("height"))
-        assertEquals("62dp", previewIcon.attr("width"))
+        assertTrue(appearance.contains("context.getDrawable(R.drawable.clarity_suite_icon)"))
+        assertTrue(appearance.contains("Modifier.size(62.dp).padding(2.dp)"))
+        assertTrue(appearance.contains("ContentScale.Fit"))
+        val previewIcon = xml("res/drawable/vault_widget_preview.xml").elements().single {
+            it.attr("drawable") == icon.attr("src")
+        }
+        assertEquals("58dp", previewIcon.attr("height"))
+        assertEquals("58dp", previewIcon.attr("width"))
+        assertEquals("18dp", previewIcon.attr("left"))
         assertEquals("start|center_vertical", previewIcon.attr("gravity"))
         val provider = xml("res/xml/vault_widget_info.xml")
         assertEquals("@layout/vault_widget", provider.attr("initialLayout"))

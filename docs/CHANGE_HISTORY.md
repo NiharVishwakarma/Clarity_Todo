@@ -1,5 +1,11 @@
 # Change History
 
+## 2026-10-22 - Fit Clarity artwork within widget icon areas
+
+- Switched the Vault and Wallpaper widget icons, plus the Vault appearance preview, from the adaptive launcher drawable to the unchanged original PNG. The adaptive background filled the PNG's existing transparent edge margins.
+- Set explicit FIT_CENTER/ContentScale.Fit scaling and modest additional insets (1dp for the 38dp Wallpaper icon and 2dp for the 62dp Vault icon); kept widget styling and launcher icon resources unchanged.
+- Updated widget resource contracts. Local Gradle/Android launcher validation is unavailable in this workspace.
+
 ## 2026-10-22 - Fix wallpaper widget contract test
 
 - Corrected the widget contract test to read the action label from the button's Android `text` attribute instead of XML text content, resolving the CI test failure.

@@ -204,9 +204,14 @@ private fun VaultAppearancePreview(style: VaultAppearance) {
     ) {
         val icon = remember(context) {
             val size = (62 * context.resources.displayMetrics.density).toInt().coerceAtLeast(1)
-            requireNotNull(context.getDrawable(R.mipmap.ic_clarity_suite)).toBitmap(size, size).asImageBitmap()
+            requireNotNull(context.getDrawable(R.drawable.clarity_suite_icon)).toBitmap(size, size).asImageBitmap()
         }
-        Image(icon, null, Modifier.size(62.dp))
+        Image(
+            icon,
+            null,
+            Modifier.size(62.dp).padding(2.dp),
+            contentScale = androidx.compose.ui.layout.ContentScale.Fit
+        )
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Image(titleBitmap, title, alignment = Alignment.CenterStart)
             Image(statusBitmap, status, alignment = Alignment.CenterStart)

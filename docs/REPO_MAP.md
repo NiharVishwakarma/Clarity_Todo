@@ -50,11 +50,11 @@ Launcher icon resources under `app/src/main/`: `AndroidManifest.xml` →
 `res/drawable/clarity_suite_icon.png`. Related test: `LauncherIconResourceContractTest.kt`
 (relative to the test prefix above). Keep only one artwork variant.
 Vault's `res/layout/vault_widget.xml`, `res/drawable/vault_widget_preview.xml`
-and `ui/VaultAppearanceScreen.kt` reuse `mipmap/ic_clarity_suite` directly,
-including its adaptive layers; Compose rasterizes the drawable for its preview.
-The adaptive wrapper uses a full-bleed charcoal background and centered 90dp
-foreground, avoiding a padded tile nested inside the OEM mask. The shared PNG
-and Vault widget sizing/tap behavior are unchanged; OEM masks remain platform-controlled.
+and `ui/VaultAppearanceScreen.kt` render the original
+`drawable/clarity_suite_icon` with fit scaling and a small inset, preserving its
+transparent artwork margins. Wallpaper uses the same drawable in its 38dp icon
+area; Vault uses 62dp. Launcher icons continue to use the separate adaptive
+`mipmap/ic_clarity_suite` resources.
 
 Widget resources: `app/src/main/res/layout/` (live/preview RemoteViews),
 `app/src/main/res/xml/` (provider metadata), `app/src/main/res/drawable/`

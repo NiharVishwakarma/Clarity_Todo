@@ -37,6 +37,14 @@ class WallpaperWidgetContractTest {
         val layout = xml("res/layout/wallpaper_widget.xml")
         val actionButton = layout.getElementsByTagName("Button").item(0) as? Element
         assertEquals("@string/wallpaper_widget_action", actionButton?.attr("text"))
+        val icon = layout.getElementsByTagName("ImageView").let { images ->
+            (0 until images.length).map { images.item(it) as Element }.single {
+                it.attr("id") == "@+id/wallpaper_widget_icon"
+            }
+        }
+        assertEquals("@drawable/clarity_suite_icon", icon.attr("src"))
+        assertEquals("fitCenter", icon.attr("scaleType"))
+        assertEquals("1dp", icon.attr("padding"))
     }
 
     @Test fun wallpaperApplicationPermissionIsNarrowAndWorkerUsesSharedEngine() {
