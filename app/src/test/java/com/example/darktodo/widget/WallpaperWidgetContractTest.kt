@@ -35,8 +35,8 @@ class WallpaperWidgetContractTest {
         assertEquals("0", providerInfo.attr("updatePeriodMillis"))
         assertEquals("home_screen", providerInfo.attr("widgetCategory"))
         val layout = xml("res/layout/wallpaper_widget.xml")
-        assertTrue(layout.getElementsByTagName("Button").item(0) != null)
-        assertTrue(layout.textContent.contains("@string/wallpaper_widget_action"))
+        val actionButton = layout.getElementsByTagName("Button").item(0) as? Element
+        assertEquals("@string/wallpaper_widget_action", actionButton?.attr("text"))
     }
 
     @Test fun wallpaperApplicationPermissionIsNarrowAndWorkerUsesSharedEngine() {

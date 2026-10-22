@@ -1,5 +1,10 @@
 # Change History
 
+## 2026-10-22 - Fix wallpaper widget contract test
+
+- Corrected the widget contract test to read the action label from the button's Android `text` attribute instead of XML text content, resolving the CI test failure.
+- CI is the available Android test/build validation because this workspace has no Gradle executable or wrapper.
+
 ## 2026-10-22 - Fix onboarding UI token import
 
 - Fixed the missing `UiTokens` import reported by the main-branch Android CI Kotlin compilation for first-launch permission onboarding.
