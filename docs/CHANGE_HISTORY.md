@@ -1,5 +1,10 @@
 # Change History
 
+## 2026-10-22 - Fix onboarding UI token import
+
+- Fixed the missing `UiTokens` import reported by the main-branch Android CI Kotlin compilation for first-launch permission onboarding.
+- Local Gradle verification is unavailable in this workspace; XML/source checks and the GitHub Actions build remain the validation path.
+
 ## 2026-10-22 - Add procedural Wallpaper Studio and apply widget
 
 - Replaced the Wallpapers placeholder with an offline Canvas-based generator shared by the Compose Studio and a new RemoteViews widget. Added 12 seeded styles, color/palette/customization controls, local saved PNGs, export and home/lock/both apply actions.
