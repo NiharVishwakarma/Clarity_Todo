@@ -56,17 +56,17 @@ object ModuleNavigation {
         "To-Do" -> TASKS
         "TodoSettings", "TodoWallpaper" -> TASKS
         "Calendar", "CalendarSettings", "CalendarWallpaper" -> CALENDAR
-        "StickerSettings" -> STICKERS
+        "StickerSettings", "QuotesWidgetSettings" -> STICKERS
         "Vault", "VaultAppearance" -> VAULT
         "Info", "SystemMonitorAppearance", "SystemMonitorWallpaper" -> INFO
         "Quotes" -> QUOTES
         "Stickers" -> STICKERS
         "Wallpapers" -> WALLPAPERS
-        "Settings", "QuotesWidgetSettings", "Permissions", "VaultSecurity", "SupportClarity", "About" -> SETTINGS
+        "Settings", "Permissions", "VaultSecurity", "SupportClarity", "About" -> SETTINGS
         else -> TASKS
     }
 
-    private val settingsSubScreens = setOf("QuotesWidgetSettings", "Permissions", "VaultSecurity", "SupportClarity", "About")
+    private val settingsSubScreens = setOf("Permissions", "VaultSecurity", "SupportClarity", "About")
 
     /** Detail screen -> module screen -> home -> (double back) exit. */
     fun backStep(page: String, todoPage: String, routeDepth: Int): BackStep = when {
@@ -78,7 +78,7 @@ object ModuleNavigation {
         page == "CalendarSettings" -> BackStep.GoTo(ModuleRoute("Calendar"))
         page == "SystemMonitorWallpaper" -> BackStep.GoTo(ModuleRoute("SystemMonitorAppearance"))
         page == "SystemMonitorAppearance" -> BackStep.GoTo(ModuleRoute("Info"))
-        page == "StickerSettings" -> BackStep.GoTo(ModuleRoute("Stickers"))
+        page == "StickerSettings" || page == "QuotesWidgetSettings" -> BackStep.GoTo(ModuleRoute("Stickers"))
         page == "VaultAppearance" -> BackStep.GoTo(ModuleRoute("Vault"))
         page == "To-Do" && todoPage == "Tasks" -> BackStep.AtHome
         else -> BackStep.GoTo(home)

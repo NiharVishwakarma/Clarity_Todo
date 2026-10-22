@@ -466,9 +466,8 @@ class MainActivity : FragmentActivity() {
                 )
                 page == "SystemMonitorWallpaper" -> WidgetBackgroundEditor(wallpaperTarget) { page = "SystemMonitorAppearance" }
                 page == "VaultAppearance" -> com.example.darktodo.ui.VaultAppearanceScreen { page = "Vault" }
-                page == "QuotesWidgetSettings" -> com.example.darktodo.ui.QuotesWidgetSettingsScreen { page = "Settings" }
+                page == "QuotesWidgetSettings" -> com.example.darktodo.ui.QuotesWidgetSettingsScreen { page = "Stickers" }
                 page == "Settings" -> GlobalSettingsScreen(
-                    onOpenQuotesWidget = { page = "QuotesWidgetSettings" },
                     onOpenPermissions = { page = "Permissions" },
                     appFontSettings = appFontSettings,
                     importedFonts = importedWidgetFonts,
@@ -551,7 +550,7 @@ class MainActivity : FragmentActivity() {
                 )
                 page == "Quotes" -> com.example.darktodo.ui.ComingSoonScreen(com.example.darktodo.ui.ClarityIcons.Quotes, "Quotes", "Browse and save motivational quotes here in a future update.")
                 page == "Wallpapers" -> com.example.darktodo.ui.WallpaperStudioScreen()
-                page == "Stickers" -> com.example.darktodo.ui.NotesScreen(initialEditId = pendingNoteId, onInitialEditHandled = { pendingNoteId = null }, onOpenNoteSettings = { id -> noteSettingsId = id; page = "StickerSettings" })
+                page == "Stickers" -> com.example.darktodo.ui.NotesScreen(initialEditId = pendingNoteId, onInitialEditHandled = { pendingNoteId = null }, onOpenNoteSettings = { id -> noteSettingsId = id; page = "StickerSettings" }, onOpenQuotesSettings = { page = "QuotesWidgetSettings" })
                 page == "StickerSettings" -> com.example.darktodo.ui.NoteSettingsScreen(noteSettingsId.orEmpty(), onBack = { page = "Stickers" })
                 page == "SupportClarity" -> com.example.darktodo.ui.SupportClarityScreen { page = "Settings" }
                 page == "About" -> com.example.darktodo.ui.AboutScreen({ page = "Settings" }, runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull() ?: "")
@@ -1251,7 +1250,6 @@ private fun biometricUnavailableMessage(status: Int): String = when (status) {
 }
 
 @Composable private fun GlobalSettingsScreen(
-    onOpenQuotesWidget: () -> Unit,
     onOpenPermissions: () -> Unit,
     appFontSettings: AppFontSettings,
     importedFonts: List<ImportedWidgetFont>,
@@ -1272,7 +1270,6 @@ private fun biometricUnavailableMessage(status: Int): String = when (status) {
     val permissionNeeded = remindersEnabled && !notificationsOkay
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(UiTokens.ControlGap)) {
         SettingsCategoryHeader(ClarityIcons.Personalization, "Personalization")
-        SettingsNavRow(ClarityIcons.Quotes, "Quotes Widget", "Customize your home-screen quote widget", onClick = onOpenQuotesWidget)
         CollapsibleSettingsSection(
             title = "Fonts",
             summary = "Font family · ${selectedFontLabel(appFontSettings.family, appFontSettings.fontFileId, importedFonts)}",

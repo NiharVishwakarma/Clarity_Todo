@@ -52,6 +52,7 @@ import com.example.darktodo.data.QuotesWidgetSettings
 import com.example.darktodo.data.StickerColorBook
 import com.example.darktodo.data.WidgetFontFamily
 import com.example.darktodo.data.WidgetQuoteSelection
+import com.example.darktodo.data.WidgetBackgrounds
 import com.example.darktodo.widget.QuotesWidgetRendering
 import com.example.darktodo.widget.StickerWidget
 import java.io.IOException
@@ -76,7 +77,9 @@ fun QuotesWidgetSettingsScreen(onBack: () -> Unit) {
     val sizes = listOf(300 to 70, 300 to 160, 220 to 220)
     val (width, height) = sizes[previewSize]
     val fontScale = LocalConfiguration.current.fontScale
-    val bitmap = remember(settings, quote, width, height, fontScale) {
+    var imageRevision by remember { mutableStateOf(0) }
+    var editingImage by rememberSaveable { mutableStateOf(false) }
+    val bitmap = remember(settings, quote, width, height, fontScale, imageRevision) {
         QuotesWidgetRendering.render(context, quote, settings, width, height, pool.usedTopicFallback)
     }
     var book by remember { mutableStateOf(StickerColorBook()) }
@@ -87,6 +90,17 @@ fun QuotesWidgetSettingsScreen(onBack: () -> Unit) {
     var layoutExpanded by rememberSettingsSectionExpanded()
     var busy by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf<String?>(null) }
+    if (editingImage) {
+        androidx.activity.compose.BackHandler {
+            editingImage = false
+            imageRevision++
+        }
+        com.example.darktodo.WidgetBackgroundEditor(WidgetBackgrounds.QUOTES) {
+            editingImage = false
+            imageRevision++
+        }
+        return
+    }
     fun update(value: QuotesWidgetSettings) { draftJson = value.sanitized().toJson() }
     fun action(save: Boolean) {
         val pending = settings
@@ -223,6 +237,10 @@ fun QuotesWidgetSettingsScreen(onBack: () -> Unit) {
         }
         CollapsibleSettingsSection("Quote Card", "Independent card colors, corners, padding and border",
             cardExpanded, { cardExpanded = it }, ClarityIcons.Colors) {
+            TextButton(onClick = { editingImage = true }) {
+                Text("Background image", color = UiTokens.Accent)
+            }
+            Text("Choose, crop, fade or remove an image with the same editor used for notes. Image edits save immediately and update quote widgets; other changes use Apply Changes. An image overlays the card fill. Use image fade and text colors for contrast.", color = UiTokens.Muted)
             QuoteChoices("Card background type", QuoteBackground.entries.map { it.label }, settings.backgroundStyle.ordinal) {
                 update(settings.copy(backgroundStyle = QuoteBackground.entries[it]))
             }

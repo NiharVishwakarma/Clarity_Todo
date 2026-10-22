@@ -2,6 +2,7 @@ package com.example.darktodo.widget
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BitmapShader
 import android.graphics.Canvas
 import android.graphics.LinearGradient
 import android.graphics.Paint
@@ -21,6 +22,7 @@ import com.example.darktodo.data.QuoteGradientDirection
 import com.example.darktodo.data.QuotesWidgetPalette
 import com.example.darktodo.data.QuotesWidgetSettings
 import com.example.darktodo.data.StickerHex
+import com.example.darktodo.data.WidgetBackgrounds
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sqrt
@@ -29,7 +31,7 @@ import kotlin.math.sqrt
 object QuotesWidgetRendering {
     fun description(quote: ClarityQuote?, settings: QuotesWidgetSettings, fallback: Boolean): String =
         listOfNotNull(
-            quote?.text ?: "No eligible offline quotes. Allow unverified authors in Settings > Quotes Widget.",
+            quote?.text ?: "No eligible offline quotes. Allow unverified authors in Notes > Quotes settings.",
             quote?.author?.takeIf { settings.showAuthor && it.isNotBlank() },
             quote?.source?.takeIf { settings.showSource && it.isNotBlank() },
             "No matches for selected topics; showing all eligible topics.".takeIf { fallback }
@@ -80,9 +82,27 @@ object QuotesWidgetRendering {
             min(outer.width() / 6f, max(0f, (outer.height() - 44f * d) / 2)))
         val card = RectF(outer.left + outerPad, outer.top + outerPad, outer.right - outerPad, outer.bottom - outerPad)
         val radius = min(s.cornerRadiusDp * d, min(card.width(), card.height()) / 2)
-        val (start, end, ink, authorInk) = QuotesWidgetPalette.resolve(s, quote?.id.orEmpty())
+        val palette = QuotesWidgetPalette.resolve(s, quote?.id.orEmpty())
+        val (start, end) = palette
+        val hasImage = WidgetBackgrounds.has(context, WidgetBackgrounds.QUOTES)
+        val ink = if (hasImage) StickerHex.toArgb(s.textColor) else palette.ink
+        val authorInk = if (hasImage) StickerHex.toArgb(s.authorColor) else palette.authorInk
         fill(card, radius, start, end, s.gradientDirection,
             if (s.backgroundStyle == QuoteBackground.Transparent) 0 else s.cardOpacityPercent, s.shadow)
+        if (hasImage) {
+            val image = WidgetBackgrounds.renderPx(context, WidgetBackgrounds.QUOTES,
+                card.width(), card.height(), radius)
+            if (image != null) {
+                val shader = BitmapShader(image, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP).apply {
+                    setLocalMatrix(android.graphics.Matrix().apply { setTranslate(card.left, card.top) })
+                }
+                canvas.drawRoundRect(card, radius, radius, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    this.shader = shader
+                    alpha = (255 * s.cardOpacityPercent / 100f).toInt()
+                })
+                image.recycle()
+            }
+        }
         val stroke = s.borderWidthDp * d
         if (s.border) border(card, radius, s.borderColor, stroke)
         if (s.outerBorder) border(outer, outerRadius, s.outerBorderColor, outerStroke)

@@ -1,6 +1,8 @@
 package com.example.darktodo.ui
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -38,6 +40,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -70,7 +73,7 @@ private val noteFieldColors @Composable get() = OutlinedTextFieldDefaults.colors
  * [initialEditId] opens that note's editor straight away (used when a home-screen note is tapped).
  */
 @OptIn(ExperimentalFoundationApi::class)
-@Composable fun NotesScreen(initialEditId: String? = null, onInitialEditHandled: () -> Unit = {}, onOpenNoteSettings: (String) -> Unit = {}) {
+@Composable fun NotesScreen(initialEditId: String? = null, onInitialEditHandled: () -> Unit = {}, onOpenNoteSettings: (String) -> Unit = {}, onOpenQuotesSettings: () -> Unit = {}) {
     val context = LocalContext.current
     val haptics = LocalHapticFeedback.current
     var notes by remember { mutableStateOf(StickerStore.load(context)) }
@@ -99,6 +102,9 @@ private val noteFieldColors @Composable get() = OutlinedTextFieldDefaults.colors
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 88.dp)
             ) {
+                item(key = "quotes-widget") {
+                    QuotesTile(onOpenQuotesSettings)
+                }
                 if (notes.isEmpty()) {
                     item {
                         Text(
@@ -196,6 +202,35 @@ private val noteFieldColors @Composable get() = OutlinedTextFieldDefaults.colors
             confirmButton = { TextButton(onClick = { notes = StickerStore.delete(context, note.id); deleting = null }) { Text("Delete", color = UiTokens.Accent) } },
             dismissButton = { TextButton(onClick = { deleting = null }) { Text("Cancel", color = UiTokens.Ink) } }
         )
+    }
+}
+
+@Composable
+private fun QuotesTile(onOpenSettings: () -> Unit) {
+    val context = LocalContext.current
+    val settings = remember { com.example.darktodo.data.QuotesWidgetPrefs.load(context) }
+    val quote = remember { com.example.darktodo.widget.StickerWidget.previewQuote(context) }
+    val bitmap = remember(settings, quote) {
+        com.example.darktodo.widget.QuotesWidgetRendering.render(context, quote, settings, 300, 160)
+    }
+    Surface(shape = RoundedCornerShape(UiTokens.CardRadius), color = UiTokens.SurfaceRaised) {
+        Column(Modifier.fillMaxWidth().padding(12.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                ClarityGlyph(ClarityIcons.Quotes, tint = UiTokens.Accent, size = 20.dp)
+                Text("Quotes", color = UiTokens.Ink, modifier = Modifier.weight(1f).padding(start = 8.dp))
+                Box(
+                    Modifier.size(40.dp).clickable(onClick = onOpenSettings)
+                        .semantics { contentDescription = "Quotes widget settings" },
+                    contentAlignment = Alignment.Center
+                ) {
+                    ClarityGlyph(Icons.Outlined.Settings, tint = UiTokens.Ink, size = 20.dp)
+                }
+            }
+            Image(bitmap.asImageBitmap(),
+                com.example.darktodo.widget.QuotesWidgetRendering.description(quote, settings, false),
+                Modifier.fillMaxWidth().aspectRatio(300f / 160f).clickable(onClick = onOpenSettings))
+            Text("Home-screen quote widget", color = UiTokens.Muted, fontSize = UiTokens.DetailSp.sp)
+        }
     }
 }
 

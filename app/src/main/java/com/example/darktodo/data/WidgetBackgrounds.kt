@@ -23,6 +23,7 @@ object WidgetBackgrounds {
     const val CALENDAR = "calendar"
     const val SYSTEM_MONITOR = "system_monitor"
     const val STICKER = "sticker"
+    const val QUOTES = "quotes"
     const val NOTE_PREFIX = "note_"
 
     /** Image key for one note; the id is made filename-safe. */

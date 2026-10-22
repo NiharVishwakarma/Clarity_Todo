@@ -18,7 +18,7 @@ Paths are repository-relative; keep this map focused on structure and checks.
   - `ui/ClarityUi.kt`: shared Compose controls, transient collapsed section state, icons, and tab bar;
     `ui/ClarityScreens.kt`: placeholder, support, and about screens.
 - Info replaces the active Quotes tab; the legacy route remains a placeholder.
-  Settings → Quotes Widget configures standalone Quotes and legacy quote-mode widgets.
+  Notes → Quotes tile gear configures standalone Quotes and legacy quote-mode widgets.
   Wallpapers uses a procedural local generator; existing widget wallpaper editing remains.
   Support Clarity is a UI preview, not a payment integration.
 
@@ -36,7 +36,7 @@ Tests listed are related JVM coverage, not end-to-end guarantees.
 | Reminders, countdowns, time zones | `reminders/ReminderScheduler.kt`, `reminders/ReminderTiming.kt`, `data/TaskTimeFormatter.kt`, `data/CountdownEditPolicy.kt`, `data/TimeZoneCatalog.kt` | `reminders/ReminderTimingTest.kt`, `data/TaskTimeFormatterTest.kt`, `data/CountdownEditPolicyTest.kt`, `data/TimeZoneCatalogTest.kt` |
 | To-Do widget and task clicks | `widget/TodoWidget.kt`, `widget/TodoWidgetService.kt`, `widget/TaskActionActivity.kt`, `widget/WidgetRefreshScheduler.kt` | `widget/WidgetResourceContractTest.kt`, `data/WidgetCardTransparencyTest.kt` |
 | Wallpaper Studio and apply widget | `data/WallpaperStudio.kt`, `ui/WallpaperStudioScreen.kt`, `widget/WallpaperWidget.kt`, `ui/FirstLaunchPermissionOnboarding.kt` | `data/WallpaperStudioModelTest.kt`, `widget/WallpaperWidgetContractTest.kt` |
-| Notes (legacy “Sticker” names) | `ui/NotesScreen.kt`, `ui/NoteSettings.kt`, `data/StickerStore.kt`, `data/StickerStyle.kt`, `data/NoteAppearance.kt` | `data/StickerOpsTest.kt`, `data/StickerStyleTest.kt`, `data/NoteContrastTest.kt` |
+| Notes and Quotes settings tile (legacy “Sticker” names) | `ui/NotesScreen.kt`, `ui/NoteSettings.kt`, `data/StickerStore.kt`, `data/StickerStyle.kt`, `data/NoteAppearance.kt` | `data/StickerOpsTest.kt`, `data/StickerStyleTest.kt`, `data/NoteContrastTest.kt` |
 | Notes/Quotes widget selection, appearance and rotation | `widget/StickerWidget.kt`, `widget/StickerWidgetConfigActivity.kt`, `widget/QuotesWidgetReceiver.kt`, `widget/QuotesWidgetRendering.kt`, `widget/QuotesWidgetRotation.kt`, `ui/QuotesWidgetSettingsScreen.kt`, `data/QuotesWidgetSettings.kt`, `data/QuoteLibrary.kt`, `assets/quotes.json` | `widget/WidgetResourceContractTest.kt`, `widget/QuotesWidgetContractTest.kt`, `data/QuotesWidgetSettingsTest.kt`, `data/QuoteLibraryTest.kt` |
 | Vault, authentication, audit | `MainActivity.kt`, `VaultSecurityScreen.kt`, `data/LocalVaultStore.kt`, `data/VaultAudit.kt`, `widget/VaultWidget.kt` | `data/VaultAuditTest.kt`, `widget/WidgetResourceContractTest.kt` (icon/preview wiring); no crypto/biometric/UI integration tests |
 | Info metrics, authorized files, reports, cache | `monitor/`, `ui/InfoScreen.kt` | `monitor/` tests; device/provider/settings interactions need runtime checks |

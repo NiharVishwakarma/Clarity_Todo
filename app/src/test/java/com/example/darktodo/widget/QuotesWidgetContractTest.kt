@@ -27,12 +27,22 @@ class QuotesWidgetContractTest {
         assertFalse(source("ui/NotesScreen").contains("QuotesSection("))
     }
 
-    @Test fun quoteSettingsBelongToSettingsTabAndBackReturnsToSettings() {
-        assertEquals(ModuleNavigation.SETTINGS, ModuleNavigation.moduleFor("QuotesWidgetSettings", "Tasks"))
-        assertEquals(BackStep.GoTo(ModuleRoute("Settings")), ModuleNavigation.backStep("QuotesWidgetSettings", "Tasks", 0))
+    @Test fun quoteSettingsBelongToNotesTileAndBackReturnsToNotes() {
+        assertEquals(ModuleNavigation.STICKERS, ModuleNavigation.moduleFor("QuotesWidgetSettings", "Tasks"))
+        assertEquals(BackStep.GoTo(ModuleRoute("Stickers")), ModuleNavigation.backStep("QuotesWidgetSettings", "Tasks", 0))
         val activity = source("MainActivity")
-        assertTrue(activity.contains("SettingsNavRow(ClarityIcons.Quotes, \"Quotes Widget\""))
+        assertFalse(activity.contains("SettingsNavRow(ClarityIcons.Quotes, \"Quotes Widget\""))
+        assertTrue(activity.contains("onOpenQuotesSettings = { page = \"QuotesWidgetSettings\" }"))
+        assertTrue(source("ui/NotesScreen").contains("QuotesTile(onOpenQuotesSettings)"))
         assertTrue(activity.contains("page == \"QuotesWidgetSettings\""))
+    }
+
+    @Test fun quoteImageUsesSharedEditorAndRealWidgetRenderer() {
+        val screen = source("ui/QuotesWidgetSettingsScreen")
+        assertTrue(screen.contains("WidgetBackgroundEditor(WidgetBackgrounds.QUOTES)"))
+        assertTrue(screen.contains("imageRevision++"))
+        assertTrue(source("widget/QuotesWidgetRendering").contains("WidgetBackgrounds.renderPx(context, WidgetBackgrounds.QUOTES"))
+        assertTrue(source("WidgetBackgroundEditor").contains("Quotes widget background image"))
     }
 
     @Test fun schedulerUsesExistingWorkManagerWithRebootRecoveryAndMinimumInterval() {

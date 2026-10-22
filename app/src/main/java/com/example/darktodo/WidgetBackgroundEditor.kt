@@ -133,7 +133,7 @@ internal fun WidgetBackgroundEditor(target: String, onClose: () -> Unit) {
     val scope = rememberCoroutineScope()
     val isTodo = target == WidgetBackgrounds.TODO
     val isNote = target.startsWith(WidgetBackgrounds.NOTE_PREFIX)
-    val aspect = if (isTodo || isNote) 5f / 3f else 6f / 5f
+    val aspect = if (isTodo || isNote || target == WidgetBackgrounds.QUOTES) 5f / 3f else 6f / 5f
     var bitmap by remember { mutableStateOf<Bitmap?>(null) }
     var frame by remember { mutableStateOf(IntSize.Zero) }
     var zoom by remember { mutableFloatStateOf(1f) }
@@ -165,6 +165,7 @@ internal fun WidgetBackgroundEditor(target: String, onClose: () -> Unit) {
                 Text(when {
                     target == WidgetBackgrounds.TODO -> "To-Do widget wallpaper"
                     target == WidgetBackgrounds.SYSTEM_MONITOR -> "System Monitor widget wallpaper"
+                    target == WidgetBackgrounds.QUOTES -> "Quotes widget background image"
                     isNote -> "Note background image"
                     else -> "Calendar widget wallpaper"
                 }, color = EditorInk, fontSize = 20.sp, fontWeight = FontWeight.Bold)

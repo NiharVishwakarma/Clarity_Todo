@@ -5,7 +5,7 @@ Native Kotlin Android task app with To-Do, Calendar, Notes, Quotes, and locked V
 ## Quotes Widget
 
 Place a **Clarity Quotes** widget directly from your home-screen widget picker.
-Open **Settings > Quotes Widget** to configure its topics, attribution, appearance,
+Open **Notes > Quotes tile > gear** to configure its topics, attribution, appearance,
 fonts and rotation. Settings apply globally to Quotes widgets and existing legacy
 Random quotes instances; ordinary notes and note widgets are unchanged.
 Quotes are bundled and work entirely offline.
@@ -21,6 +21,10 @@ The outer widget background and inner quote card have independent solid/gradient
 transparent styles, colors, gradient directions, opacity, borders, radii and padding.
 Typography includes line spacing. Older saved card settings keep their appearance;
 the outer layer defaults to transparent with no padding or border.
+The Quotes tile previews a current widget quote (or an eligible bundled quote before
+placement). Its gear opens the quote-only settings, including the shared background
+image picker/crop/fade editor. Image edits save immediately; other settings use Apply
+Changes. Quote images are device-local and do not change note images or styles.
 
 Manual/Both mode lets you tap for the next quote. Scheduled rotation uses Android
 WorkManager (15 minutes minimum), survives reboot, and can be delayed by Doze or
@@ -29,7 +33,7 @@ Missing topic matches show all eligible quotes with an explanation. Topic aliase
 reuse bundled categories rather than promising new content. Long quotes shrink and
 then ellipsize in small cells; resize the widget for more text. Unsafe color contrast
 is corrected for opaque cards in both preview and widget. Transparent/translucent
-cards retain your chosen ink; contrast depends on the wallpaper. The preview uses
+cards and image backgrounds retain your chosen ink; use image fade for contrast. The preview uses
 a sample dark surface, not your launcher wallpaper. Quotes Widget preferences and
 per-instance quote cycles are device-local and separate from Notes preferences.
 

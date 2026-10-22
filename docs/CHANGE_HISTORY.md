@@ -1,5 +1,11 @@
 # Change History
 
+## 2026-10-22 - Move quote customization to a Notes tile
+
+- Removed Quotes Widget from Settings Personalization and added a Quotes preview tile with a gear in Notes, alongside existing note cards. The tile uses the saved quote appearance and a current widget quote when available; settings and system Back return to Notes.
+- Kept the same independent quote preferences, fonts/colors/content controls, widget instances and rotation. Added quote-card image customization using the existing image crop/fade/remove editor with its own `quotes` image key. Image edits persist immediately and refresh widgets; other controls keep Apply Changes. Rounded image rendering is shared by the tile, settings preview and launcher; chosen text colors are retained over images, with fade available for contrast. Quote images remain device-local, outside Drive backups.
+- Updated navigation/image contracts, widget help, README, repository map, project memory and this history. No local build, test runner or app execution was performed, as requested; validation is deferred to the existing GitHub Actions workflow and phone testing.
+
 ## 2026-10-22 - Separate Quotes widget placement and layered customization
 
 - Added a standalone Clarity Quotes launcher widget with no Notes configuration step, quote-specific preview/metadata and a quote-icon Settings entry. Reused the existing RemoteViews quote renderer, apply/refresh actions and WorkManager job; legacy Notes-provider Random quotes instances remain supported without removal/re-addition. Ordinary Notes widgets retain their styling and edit behavior.

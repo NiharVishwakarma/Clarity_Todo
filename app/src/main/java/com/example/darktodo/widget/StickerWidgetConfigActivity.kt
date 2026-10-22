@@ -41,7 +41,7 @@ class StickerWidgetConfigActivity : Activity() {
 
         AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
             .setTitle("Choose widget content")
-            .setItems(arrayOf("A note", "Random quotes (customize in Settings > Quotes Widget)")) { _, which ->
+            .setItems(arrayOf("A note", "Random quotes (customize with the Quotes gear in Notes)")) { _, which ->
                 if (which == 0) {
                     chooseNote()
                 } else {
