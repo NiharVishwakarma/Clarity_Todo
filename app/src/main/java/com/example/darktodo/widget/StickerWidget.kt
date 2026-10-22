@@ -202,7 +202,7 @@ object StickerWidget {
 
     fun previewQuote(context: Context): ClarityQuote? {
         val pool = WidgetQuoteSelection.pool(QuoteLibrary.load(context), QuotesWidgetPrefs.load(context)).quotes
-        val currentIds = quoteIds(context).mapNotNull { id ->
+        val currentIds = quoteIds(context).asList().mapNotNull { id ->
             quotePrefs(context).getString("quote_id_$id", null) ?: prefs(context).getString("quote_id_$id", null)
         }
         return currentIds.firstNotNullOfOrNull { id -> pool.firstOrNull { it.id == id } } ?: pool.firstOrNull()

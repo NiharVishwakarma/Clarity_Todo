@@ -1,5 +1,10 @@
 # Change History
 
+## 2026-10-22 - Fix Quotes tile preview compilation
+
+- Converted widget IDs from `IntArray` to a list before `mapNotNull` in the current-quote preview lookup, fixing the CI unresolved-reference and cascading type-inference errors.
+- No local build or tests were run, as requested; verification awaits GitHub Actions.
+
 ## 2026-10-22 - Move quote customization to a Notes tile
 
 - Removed Quotes Widget from Settings Personalization and added a Quotes preview tile with a gear in Notes, alongside existing note cards. The tile uses the saved quote appearance and a current widget quote when available; settings and system Back return to Notes.
