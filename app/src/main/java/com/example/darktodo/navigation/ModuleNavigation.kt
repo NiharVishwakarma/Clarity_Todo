@@ -62,11 +62,11 @@ object ModuleNavigation {
         "Quotes" -> QUOTES
         "Stickers" -> STICKERS
         "Wallpapers" -> WALLPAPERS
-        "Settings", "Permissions", "VaultSecurity", "SupportClarity", "About" -> SETTINGS
+        "Settings", "QuotesWidgetSettings", "Permissions", "VaultSecurity", "SupportClarity", "About" -> SETTINGS
         else -> TASKS
     }
 
-    private val settingsSubScreens = setOf("Permissions", "VaultSecurity", "SupportClarity", "About")
+    private val settingsSubScreens = setOf("QuotesWidgetSettings", "Permissions", "VaultSecurity", "SupportClarity", "About")
 
     /** Detail screen -> module screen -> home -> (double back) exit. */
     fun backStep(page: String, todoPage: String, routeDepth: Int): BackStep = when {

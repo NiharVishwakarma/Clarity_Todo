@@ -8,7 +8,7 @@ import android.os.Bundle
 import com.example.darktodo.data.StickerOps
 import com.example.darktodo.data.StickerStore
 
-/** Shown when a Note widget is placed (and when it is reconfigured): lets the user pick which note it displays. */
+/** Keeps existing note/quote instances compatible; quote appearance is global in Settings. */
 class StickerWidgetConfigActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -41,7 +41,7 @@ class StickerWidgetConfigActivity : Activity() {
 
         AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
             .setTitle("Choose widget content")
-            .setItems(arrayOf("A note", "Random quotes (tap widget for next)")) { _, which ->
+            .setItems(arrayOf("A note", "Random quotes (customize in Settings > Quotes Widget)")) { _, which ->
                 if (which == 0) {
                     chooseNote()
                 } else {

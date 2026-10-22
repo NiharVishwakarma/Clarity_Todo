@@ -2,6 +2,28 @@
 
 Native Kotlin Android task app with To-Do, Calendar, Notes, and locked Vault home-screen widgets. GitHub Actions builds and uploads the debug APK as `dark_todo.apk`.
 
+## Quotes Widget
+
+Place a **Clarity Notes** widget on your home screen and choose **Random quotes**.
+Open **Settings > Quotes Widget** to configure its topics, attribution, appearance,
+fonts and rotation. Settings apply globally to quote-mode instances only; ordinary
+notes and note widgets are unchanged. Quotes are bundled and work entirely offline.
+
+Changes update the live preview; **Apply / Save** persists them and refreshes existing
+quote widgets without removing/re-adding them. **Refresh widgets** advances quotes
+using saved settings. **Reset to defaults** loads the default preview; Apply to save it.
+Defaults are All Topics, sourced authors only, author visible/source hidden, manual
+rotation, a dark solid card, light sans-serif 20sp text, left alignment, 24dp corners,
+20dp padding, a subtle border and quotation marks.
+
+Manual/Both mode lets you tap for the next quote. Scheduled rotation uses Android
+WorkManager (15 minutes minimum), survives reboot, and can be delayed by Doze or
+battery restrictions. Force-stop pauses background work until the app is reopened.
+Missing topic matches show all eligible quotes with an explanation. Topic aliases
+reuse bundled categories rather than promising new content. Long quotes shrink and
+then ellipsize in small cells; resize the widget for more text. Unsafe color contrast
+is corrected in both preview and widget. Quotes Widget preferences are device-local.
+
 ## Do I need development tools locally?
 
 No. GitHub Actions installs Temurin JDK 17, Gradle 8.9, and the Android SDK for each build. You can trigger the workflow from the repository's **Actions** tab and download its APK artifact without installing Java, Gradle, or Android Studio on your computer.

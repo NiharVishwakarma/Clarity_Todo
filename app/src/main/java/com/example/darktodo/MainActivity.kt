@@ -466,7 +466,9 @@ class MainActivity : FragmentActivity() {
                 )
                 page == "SystemMonitorWallpaper" -> WidgetBackgroundEditor(wallpaperTarget) { page = "SystemMonitorAppearance" }
                 page == "VaultAppearance" -> com.example.darktodo.ui.VaultAppearanceScreen { page = "Vault" }
+                page == "QuotesWidgetSettings" -> com.example.darktodo.ui.QuotesWidgetSettingsScreen { page = "Settings" }
                 page == "Settings" -> GlobalSettingsScreen(
+                    onOpenQuotesWidget = { page = "QuotesWidgetSettings" },
                     onOpenPermissions = { page = "Permissions" },
                     appFontSettings = appFontSettings,
                     importedFonts = importedWidgetFonts,
@@ -1249,6 +1251,7 @@ private fun biometricUnavailableMessage(status: Int): String = when (status) {
 }
 
 @Composable private fun GlobalSettingsScreen(
+    onOpenQuotesWidget: () -> Unit,
     onOpenPermissions: () -> Unit,
     appFontSettings: AppFontSettings,
     importedFonts: List<ImportedWidgetFont>,
@@ -1269,6 +1272,7 @@ private fun biometricUnavailableMessage(status: Int): String = when (status) {
     val permissionNeeded = remindersEnabled && !notificationsOkay
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(UiTokens.ControlGap)) {
         SettingsCategoryHeader(ClarityIcons.Personalization, "Personalization")
+        SettingsNavRow(ClarityIcons.Personalization, "Quotes Widget", "Home-screen quote content, appearance and rotation", onClick = onOpenQuotesWidget)
         CollapsibleSettingsSection(
             title = "Fonts",
             summary = "Font family · ${selectedFontLabel(appFontSettings.family, appFontSettings.fontFileId, importedFonts)}",

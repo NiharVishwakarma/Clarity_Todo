@@ -18,7 +18,7 @@ Paths are repository-relative; keep this map focused on structure and checks.
   - `ui/ClarityUi.kt`: shared Compose controls, transient collapsed section state, icons, and tab bar;
     `ui/ClarityScreens.kt`: placeholder, support, and about screens.
 - Info replaces the active Quotes tab; the legacy route remains a placeholder.
-  The Notes tab includes a separate offline Quotes section.
+  Settings → Quotes Widget configures offline quote-mode Notes widgets; Notes is notes-only.
   Wallpapers uses a procedural local generator; existing widget wallpaper editing remains.
   Support Clarity is a UI preview, not a payment integration.
 
@@ -36,8 +36,8 @@ Tests listed are related JVM coverage, not end-to-end guarantees.
 | Reminders, countdowns, time zones | `reminders/ReminderScheduler.kt`, `reminders/ReminderTiming.kt`, `data/TaskTimeFormatter.kt`, `data/CountdownEditPolicy.kt`, `data/TimeZoneCatalog.kt` | `reminders/ReminderTimingTest.kt`, `data/TaskTimeFormatterTest.kt`, `data/CountdownEditPolicyTest.kt`, `data/TimeZoneCatalogTest.kt` |
 | To-Do widget and task clicks | `widget/TodoWidget.kt`, `widget/TodoWidgetService.kt`, `widget/TaskActionActivity.kt`, `widget/WidgetRefreshScheduler.kt` | `widget/WidgetResourceContractTest.kt`, `data/WidgetCardTransparencyTest.kt` |
 | Wallpaper Studio and apply widget | `data/WallpaperStudio.kt`, `ui/WallpaperStudioScreen.kt`, `widget/WallpaperWidget.kt`, `ui/FirstLaunchPermissionOnboarding.kt` | `data/WallpaperStudioModelTest.kt`, `widget/WallpaperWidgetContractTest.kt` |
-| Notes and local Quotes (legacy “Sticker” names) | `ui/NotesScreen.kt`, `ui/QuotesSection.kt`, `ui/NoteSettings.kt`, `data/QuoteLibrary.kt`, `data/StickerStore.kt`, `data/StickerStyle.kt`, `data/NoteAppearance.kt`, `assets/quotes.json` | `data/QuoteLibraryTest.kt`, `data/StickerOpsTest.kt`, `data/StickerStyleTest.kt`, `data/NoteContrastTest.kt` |
-| Notes/Quotes widget selection/rendering | `widget/StickerWidget.kt`, `widget/StickerWidgetConfigActivity.kt` | `widget/WidgetResourceContractTest.kt` |
+| Notes (legacy “Sticker” names) | `ui/NotesScreen.kt`, `ui/NoteSettings.kt`, `data/StickerStore.kt`, `data/StickerStyle.kt`, `data/NoteAppearance.kt` | `data/StickerOpsTest.kt`, `data/StickerStyleTest.kt`, `data/NoteContrastTest.kt` |
+| Notes/Quotes widget selection, appearance and rotation | `widget/StickerWidget.kt`, `widget/StickerWidgetConfigActivity.kt`, `widget/QuotesWidgetRendering.kt`, `widget/QuotesWidgetRotation.kt`, `ui/QuotesWidgetSettingsScreen.kt`, `data/QuotesWidgetSettings.kt`, `data/QuoteLibrary.kt`, `assets/quotes.json` | `widget/WidgetResourceContractTest.kt`, `widget/QuotesWidgetContractTest.kt`, `data/QuotesWidgetSettingsTest.kt`, `data/QuoteLibraryTest.kt` |
 | Vault, authentication, audit | `MainActivity.kt`, `VaultSecurityScreen.kt`, `data/LocalVaultStore.kt`, `data/VaultAudit.kt`, `widget/VaultWidget.kt` | `data/VaultAuditTest.kt`, `widget/WidgetResourceContractTest.kt` (icon/preview wiring); no crypto/biometric/UI integration tests |
 | Info metrics, authorized files, reports, cache | `monitor/`, `ui/InfoScreen.kt` | `monitor/` tests; device/provider/settings interactions need runtime checks |
 | System Monitor widget | `widget/SystemMonitorWidget.kt`, `data/SystemMonitorAppearance.kt`, `ui/SystemMonitorAppearanceScreen.kt`, `widget/SystemMonitorActionActivity.kt`, `res/layout/system_monitor_widget*.xml`, `res/xml/system_monitor_widget_info.xml` (resources relative to `app/src/main/`) | `widget/SystemMonitorWidgetTest.kt` (state, resource/action and RemoteViews text-target contracts) |
@@ -79,7 +79,9 @@ Source paths here use the same implementation prefix as the table.
 - `data/CalendarWidgetPrefs.kt` owns `calendar_widget_settings`;
   `widget/CalendarWidget.kt` holds per-widget navigation in `calendar_widget_state`.
 - `data/StickerStore.kt` owns notes and per-note styles in `sticker_store`.
-  Notes retain legacy Sticker identifiers for compatibility; saves refresh the Notes widget.
+  Notes retain legacy Sticker identifiers; saves refresh the Notes widget. Quote-mode widgets
+  use independent global `quotes_widget_settings`, per-instance current/seen IDs in
+  `sticker_widget_selection`, and unique periodic WorkManager rotation (15+ minutes).
 - `data/AppTypographySettings.kt`, `data/LocalWidgetFonts.kt`, and
   `data/WidgetBackgrounds.kt` own app typography, private imported fonts, and
   private background images/preferences. `data/StyleSnapshot.kt` owns saved styles.
@@ -136,8 +138,7 @@ chmod +x gradlew
 ./gradlew --no-daemon testDebugUnitTest assembleDebug
 ```
 
-- The block above is the existing CI test/debug-build command, not a claim of a
-  successful build in the current workspace.
+- The block above is the existing CI test/debug-build command.
 - Targeted JVM example (same Android Gradle Plugin test task):
   `gradle --no-daemon :app:testDebugUnitTest --tests 'com.example.darktodo.navigation.ModuleNavigationTest'`
 - Android lint: `gradle --no-daemon :app:lintDebug` (standard task supplied by
@@ -145,5 +146,4 @@ chmod +x gradlew
 - No separate documentation lint/test configuration exists. For docs-only changes,
   verify referenced paths and links, keep this map at most 150 lines, and run
   `git diff --check`; no Android build is needed.
-- `README.md` covers setup/signing; `docs/PROJECT_MEMORY.md` provides deeper context
-  but may contain historical notes. Source/build configuration remains authoritative.
+- `README.md` covers setup/signing; `docs/PROJECT_MEMORY.md` gives deeper context.

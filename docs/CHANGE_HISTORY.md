@@ -1,5 +1,15 @@
 # Change History
 
+## 2026-10-22 - Add dedicated offline Quotes Widget settings
+
+- Added Settings > Quotes Widget with independent global SharedPreferences, multi-topic/attribution filters, author/source visibility, manual/scheduled/both rotation, interval selection, solid/custom/automatic gradient backgrounds, color pickers, existing system/imported fonts, size/weight/alignment, corners, padding, border, shadow, quotation marks, live size previews, manual refresh, reset and Apply/Save.
+- Preserved the existing Notes provider and quote-mode instance IDs. Quote mode now uses its own shared preview/live bitmap renderer and per-widget persisted full-cycle quote history rather than Notes screen topics, UI state, note styles or browser history. Removed the redundant Notes Quotes browser; ordinary notes, note styling/edit intents and other widget providers remain unchanged.
+- Added fallback to all eligible offline topics when filters have no matches, without bypassing author restrictions; an empty eligible collection shows instructions. Topic aliases reuse bundled categories. Source-cited attribution is not an external verification service.
+- Added unique periodic WorkManager rotation (15 minutes minimum), schedule reconciliation, reboot restoration through WorkManager and release worker retention. Force-stop pauses Android background work until reopening; Doze can defer rotation. Apply updates existing quote-mode widgets; device-local quote preferences are not added to the Drive allow-list.
+- Added separate quote/author layout measurement, long-text shrinking/ellipsis, compact-cell adaptation, portrait/landscape bounds, bounded bitmaps and contrast correction. Tests check the 4.5:1 threshold across generated palettes and gradient positions; launcher wallpaper/page dots are not widget-owned.
+- Updated README, project memory and repository map (including this history entry). Restored local Gradle/Android SDK tools after missing-tool build failures, with user-approved SDK license acceptance.
+- Validation: debug APK assembled successfully; 63 focused JVM tests passed (0 failures/errors), covering quote settings/filtering/cycle/contrast, widget wiring, settings/navigation and Notes regressions. `git diff --check` passed. No connected Android device: actual launcher/UI interaction, pixel-level long-text/resize rendering, closed-app updates, persistence after force-stop/reopen and reboot/Doze delivery remain unverified on-device; no release/minified APK build was run.
+
 ## 2026-10-22 - Fix Compose compilation for Notes and Quotes
 
 - Removed invalid explicit imports of the internal Compose `weight` property and opted the Notes screen into the experimental `combinedClickable` API used by its existing note cards.

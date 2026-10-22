@@ -12,7 +12,11 @@ data class ClarityQuote(
     val author: String,
     val topic: String,
     val source: String,
-    val sourceUrl: String
+    val sourceUrl: String,
+    val authorVerified: Boolean = author.isNotBlank() &&
+        !author.equals("Unknown", ignoreCase = true) &&
+        !author.equals("Anonymous", ignoreCase = true) &&
+        source.isNotBlank() && sourceUrl.startsWith("https://")
 ) {
     fun attributedText(): String = "\u201c$text\u201d\n\u2014 $author"
 }
@@ -55,7 +59,14 @@ object QuoteLibrary {
                 author = item.getString("author"),
                 topic = item.getString("topic"),
                 source = item.getString("source"),
-                sourceUrl = item.getString("sourceUrl")
+                sourceUrl = item.getString("sourceUrl"),
+                // Bundled entries have cited attribution; explicit metadata can override it.
+                authorVerified = item.optBoolean("authorVerified",
+                    item.optString("author").isNotBlank() &&
+                        !item.optString("author").equals("Unknown", true) &&
+                        !item.optString("author").equals("Anonymous", true) &&
+                        item.optString("source").isNotBlank() &&
+                        item.optString("sourceUrl").startsWith("https://"))
             )
         }
     }

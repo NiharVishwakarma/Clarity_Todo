@@ -7,5 +7,6 @@ class ClarityApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         BackupScheduler.install(this)
+        com.example.darktodo.widget.QuotesWidgetRotation.reconcile(this)
     }
 }

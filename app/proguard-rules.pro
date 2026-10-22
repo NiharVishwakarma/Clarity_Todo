@@ -24,3 +24,7 @@
 }
 
 -keep class com.example.darktodo.widget.StickerWidgetConfigActivity { *; }
+
+-keep class com.example.darktodo.widget.QuotesWidgetWorker {
+    public <init>(android.content.Context, androidx.work.WorkerParameters);
+}

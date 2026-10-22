@@ -66,8 +66,8 @@ class WidgetResourceContractTest {
         val widget = File(main, "java/com/example/darktodo/widget/StickerWidget.kt").readText()
         val config = File(main, "java/com/example/darktodo/widget/StickerWidgetConfigActivity.kt").readText()
         assertTrue(config.contains("Random quotes"))
-        assertTrue(widget.contains("QuoteLibrary.choose("))
-        assertTrue(widget.contains("QuoteLibrary.recordViewed(context, quote)"))
+        assertTrue(widget.contains("WidgetQuoteSelection.next("))
+        assertTrue(widget.contains("QuotesWidgetPrefs.load(context)"))
         assertTrue(widget.contains("PendingIntent.getBroadcast(context, id, next, flags)"))
         assertTrue(widget.contains("Tap to show another quote."))
     }

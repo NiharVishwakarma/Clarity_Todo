@@ -135,9 +135,6 @@ private val noteFieldColors @Composable get() = OutlinedTextFieldDefaults.colors
                         }
                     }
                 }
-                item {
-                    QuotesSection()
-                }
             }
         }
         Surface(
