@@ -14,7 +14,13 @@ class QuotesWidgetSettingsTest {
             authorColor = "#CCCCCC", fontFamily = "serif", fontFileId = "test.ttf",
             fontSizeSp = 28f, fontWeight = 700, alignment = QuoteAlignment.Right,
             cornerRadiusDp = 32f, paddingDp = 16f, border = false,
-            shadow = true, decoration = false
+            shadow = true, decoration = false,
+            outerBackgroundStyle = QuoteBackground.Gradient, outerBackground = "#334455",
+            outerGradientEnd = "#556677", outerGradientDirection = QuoteGradientDirection.Vertical,
+            outerOpacityPercent = 45, outerCornerRadiusDp = 36f, outerPaddingDp = 12f,
+            gradientDirection = QuoteGradientDirection.Horizontal, cardOpacityPercent = 80,
+            borderColor = "#CC4455", borderWidthDp = 2.5f, lineSpacing = 1.5f,
+            outerBorder = true, outerBorderColor = "#BB2233", outerBorderWidthDp = 3f
         )
         assertEquals(settings, QuotesWidgetSettings.fromJson(settings.toJson()))
         assertEquals(QuotesWidgetSettings(), QuotesWidgetSettings.fromJson(QuotesWidgetSettings().toJson()))
@@ -120,7 +126,7 @@ class QuotesWidgetSettingsTest {
             (color shr 16) and 255, (color shr 8) and 255, color and 255
         ).toDouble()
         pairs.forEach { (start, end) ->
-            QuoteBackground.entries.forEach { mode ->
+            QuoteBackground.entries.filterNot { it == QuoteBackground.Transparent }.forEach { mode ->
                 val palette = QuotesWidgetPalette.resolve(QuotesWidgetSettings(
                     backgroundStyle = mode, background = start, gradientEnd = end,
                     textColor = start, authorColor = end
@@ -141,6 +147,60 @@ class QuotesWidgetSettingsTest {
         val palette = QuotesWidgetPalette.resolve(defaults, "quote")
         assertEquals(StickerHex.toArgb(defaults.textColor), palette.ink)
         assertEquals(StickerHex.toArgb(defaults.authorColor), palette.authorInk)
+    }
+
+    @Test fun legacySettingsKeepCardAppearanceWithNoOuterLayer() {
+        val migrated = QuotesWidgetSettings.fromJson("""{
+            "backgroundStyle":"Gradient", "background":"#123456", "gradientEnd":"#654321",
+            "cornerRadiusDp":16, "paddingDp":12, "showAuthor":false
+        }""")
+        assertEquals(QuoteBackground.Gradient, migrated.backgroundStyle)
+        assertEquals("#123456", migrated.background)
+        assertEquals("#654321", migrated.gradientEnd)
+        assertEquals(16f, migrated.cornerRadiusDp)
+        assertEquals(12f, migrated.paddingDp)
+        assertFalse(migrated.showAuthor)
+        assertEquals(QuoteBackground.Transparent, migrated.outerBackgroundStyle)
+        assertEquals(0f, migrated.outerPaddingDp)
+        assertEquals(100, migrated.cardOpacityPercent)
+        assertEquals(1.12f, migrated.lineSpacing)
+    }
+
+    @Test fun newAppearanceBoundsAreClampedAndLayerColorsStayIndependent() {
+        val value = QuotesWidgetSettings(outerOpacityPercent = -10, cardOpacityPercent = 200,
+            outerPaddingDp = Float.NaN, outerCornerRadiusDp = 100f, borderWidthDp = Float.POSITIVE_INFINITY,
+            borderColor = "invalid", lineSpacing = 10f).sanitized()
+        assertEquals(0, value.outerOpacityPercent)
+        assertEquals(100, value.cardOpacityPercent)
+        assertEquals(0f, value.outerPaddingDp)
+        assertEquals(48f, value.outerCornerRadiusDp)
+        assertEquals(1f, value.borderWidthDp)
+        assertEquals("#55555F", value.borderColor)
+        assertEquals(1.8f, value.lineSpacing)
+        val settings = QuotesWidgetSettings(background = "#112233", outerBackground = "#AABBCC",
+            outerGradientEnd = "#DDEEFF", outerBackgroundStyle = QuoteBackground.Gradient)
+        assertEquals(StickerHex.toArgb("#112233"), QuotesWidgetPalette.resolve(settings, "quote").start)
+        assertEquals(StickerHex.toArgb("#AABBCC") to StickerHex.toArgb("#DDEEFF"),
+            QuotesWidgetPalette.backgroundColors(settings.outerBackgroundStyle, settings.outerBackground, settings.outerGradientEnd, "quote"))
+    }
+
+    @Test fun transparentAndTranslucentCardsRetainRequestedInkWithoutFalseContrastGuarantee() {
+        listOf(QuotesWidgetSettings(backgroundStyle = QuoteBackground.Transparent),
+            QuotesWidgetSettings(cardOpacityPercent = 30)).forEach { defaults ->
+            val settings = defaults.copy(textColor = "#112233", authorColor = "#445566")
+            val palette = QuotesWidgetPalette.resolve(settings, "quote")
+            assertEquals(StickerHex.toArgb(settings.textColor), palette.ink)
+            assertEquals(StickerHex.toArgb(settings.authorColor), palette.authorInk)
+        }
+    }
+
+    @Test fun gradientDirectionsSpanTheirNamedAxes() {
+        assertEquals(1f, QuoteGradientDirection.Horizontal.x)
+        assertEquals(0f, QuoteGradientDirection.Horizontal.y)
+        assertEquals(0f, QuoteGradientDirection.Vertical.x)
+        assertEquals(1f, QuoteGradientDirection.Vertical.y)
+        assertEquals(1f, QuoteGradientDirection.Diagonal.x)
+        assertEquals(1f, QuoteGradientDirection.Diagonal.y)
     }
 
     private fun quote(id: String, topic: String) = ClarityQuote(id, "Sample $id", "Named author", topic, "Source", "https://example.org")

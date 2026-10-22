@@ -77,7 +77,8 @@ object StickerWidget {
 
     fun updateAll(context: Context) {
         val manager = AppWidgetManager.getInstance(context)
-        val ids = manager.getAppWidgetIds(ComponentName(context, StickerWidgetReceiver::class.java))
+        val ids = manager.getAppWidgetIds(ComponentName(context, StickerWidgetReceiver::class.java)) +
+            manager.getAppWidgetIds(ComponentName(context, QuotesWidgetReceiver::class.java))
         ids.forEach { update(context, manager, it) }
     }
 
@@ -134,6 +135,9 @@ object StickerWidget {
 
     private fun prefs(context: Context) = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
+    private fun quotePrefs(context: Context) =
+        context.applicationContext.getSharedPreferences("quotes_widget_state", Context.MODE_PRIVATE)
+
     private fun selected(context: Context, id: Int): Sticker? {
         val list = StickerOps.display(StickerStore.load(context))
         val saved = prefs(context).getString("w_$id", null)
@@ -154,6 +158,7 @@ object StickerWidget {
     fun setQuoteMode(context: Context, widgetId: Int) {
         prefs(context).edit().putBoolean("quote_mode_$widgetId", true)
             .remove("quote_id_$widgetId").remove("quote_seen_$widgetId").apply()
+        quotePrefs(context).edit().remove("quote_id_$widgetId").remove("quote_seen_$widgetId").apply()
         QuotesWidgetRotation.reconcile(context)
     }
 
@@ -176,15 +181,24 @@ object StickerWidget {
                 remove("quote_seen_$it")
             }
         }.apply()
+        quotePrefs(context).edit().apply {
+            ids.forEach { remove("quote_id_$it"); remove("quote_seen_$it") }
+        }.apply()
         QuotesWidgetRotation.reconcile(context)
     }
 
     private fun isQuoteMode(context: Context, id: Int): Boolean =
+        AppWidgetManager.getInstance(context).getAppWidgetInfo(id)?.provider ==
+            ComponentName(context, QuotesWidgetReceiver::class.java) ||
         prefs(context).getBoolean("quote_mode_$id", false)
 
-    fun quoteIds(context: Context): IntArray = AppWidgetManager.getInstance(context)
-        .getAppWidgetIds(ComponentName(context, StickerWidgetReceiver::class.java))
-        .filter { isQuoteMode(context, it) }.toIntArray()
+    fun quoteIds(context: Context): IntArray {
+        val manager = AppWidgetManager.getInstance(context)
+        val legacy = manager.getAppWidgetIds(ComponentName(context, StickerWidgetReceiver::class.java))
+            .filter { prefs(context).getBoolean("quote_mode_$it", false) }
+        return (legacy + manager.getAppWidgetIds(ComponentName(context, QuotesWidgetReceiver::class.java)).toList())
+            .distinct().toIntArray()
+    }
 
     @Synchronized
     fun refreshQuotes(context: Context) {
@@ -202,7 +216,15 @@ object StickerWidget {
 
     private fun selectQuote(context: Context, id: Int, advance: Boolean): ClarityQuote? {
         val pool = WidgetQuoteSelection.pool(QuoteLibrary.load(context), QuotesWidgetPrefs.load(context))
-        val store = prefs(context)
+        val store = quotePrefs(context)
+        // Preserve existing home-screen quote and cycle when upgrading from Notes quote mode.
+        if (!store.contains("quote_id_$id") && prefs(context).contains("quote_id_$id")) {
+            check(store.edit()
+                .putString("quote_id_$id", prefs(context).getString("quote_id_$id", null))
+                .putStringSet("quote_seen_$id", prefs(context).getStringSet("quote_seen_$id", emptySet()))
+                .commit()) { "Could not migrate widget quote state." }
+            prefs(context).edit().remove("quote_id_$id").remove("quote_seen_$id").apply()
+        }
         val currentId = store.getString("quote_id_$id", null)
         val current = pool.quotes.firstOrNull { it.id == currentId }
         if (!advance && current != null) return current

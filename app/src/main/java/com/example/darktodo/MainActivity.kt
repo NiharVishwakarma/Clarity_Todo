@@ -1272,7 +1272,7 @@ private fun biometricUnavailableMessage(status: Int): String = when (status) {
     val permissionNeeded = remindersEnabled && !notificationsOkay
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(UiTokens.ControlGap)) {
         SettingsCategoryHeader(ClarityIcons.Personalization, "Personalization")
-        SettingsNavRow(ClarityIcons.Personalization, "Quotes Widget", "Home-screen quote content, appearance and rotation", onClick = onOpenQuotesWidget)
+        SettingsNavRow(ClarityIcons.Quotes, "Quotes Widget", "Customize your home-screen quote widget", onClick = onOpenQuotesWidget)
         CollapsibleSettingsSection(
             title = "Fonts",
             summary = "Font family · ${selectedFontLabel(appFontSettings.family, appFontSettings.fontFileId, importedFonts)}",

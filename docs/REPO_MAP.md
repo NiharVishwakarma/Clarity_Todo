@@ -8,7 +8,7 @@ Paths are repository-relative; keep this map focused on structure and checks.
 - Native Kotlin Android app: one `:app` Gradle module, Jetpack Compose UI,
   SharedPreferences/local files, AlarmManager reminders, and RemoteViews widgets.
 - `app/src/main/AndroidManifest.xml` registers application/activity entry points,
-  six widget providers, reminder/recovery receivers, and the task collection service.
+  seven widget providers, reminder/recovery receivers, and the task collection service.
 - Under `app/src/main/java/com/example/darktodo/`:
   - `MainActivity.kt`: launcher `FragmentActivity`, `TodoApp`, screen routing,
     task/history/calendar/settings/vault UI, permissions, and incoming intents.
@@ -18,7 +18,7 @@ Paths are repository-relative; keep this map focused on structure and checks.
   - `ui/ClarityUi.kt`: shared Compose controls, transient collapsed section state, icons, and tab bar;
     `ui/ClarityScreens.kt`: placeholder, support, and about screens.
 - Info replaces the active Quotes tab; the legacy route remains a placeholder.
-  Settings → Quotes Widget configures offline quote-mode Notes widgets; Notes is notes-only.
+  Settings → Quotes Widget configures standalone Quotes and legacy quote-mode widgets.
   Wallpapers uses a procedural local generator; existing widget wallpaper editing remains.
   Support Clarity is a UI preview, not a payment integration.
 
@@ -37,7 +37,7 @@ Tests listed are related JVM coverage, not end-to-end guarantees.
 | To-Do widget and task clicks | `widget/TodoWidget.kt`, `widget/TodoWidgetService.kt`, `widget/TaskActionActivity.kt`, `widget/WidgetRefreshScheduler.kt` | `widget/WidgetResourceContractTest.kt`, `data/WidgetCardTransparencyTest.kt` |
 | Wallpaper Studio and apply widget | `data/WallpaperStudio.kt`, `ui/WallpaperStudioScreen.kt`, `widget/WallpaperWidget.kt`, `ui/FirstLaunchPermissionOnboarding.kt` | `data/WallpaperStudioModelTest.kt`, `widget/WallpaperWidgetContractTest.kt` |
 | Notes (legacy “Sticker” names) | `ui/NotesScreen.kt`, `ui/NoteSettings.kt`, `data/StickerStore.kt`, `data/StickerStyle.kt`, `data/NoteAppearance.kt` | `data/StickerOpsTest.kt`, `data/StickerStyleTest.kt`, `data/NoteContrastTest.kt` |
-| Notes/Quotes widget selection, appearance and rotation | `widget/StickerWidget.kt`, `widget/StickerWidgetConfigActivity.kt`, `widget/QuotesWidgetRendering.kt`, `widget/QuotesWidgetRotation.kt`, `ui/QuotesWidgetSettingsScreen.kt`, `data/QuotesWidgetSettings.kt`, `data/QuoteLibrary.kt`, `assets/quotes.json` | `widget/WidgetResourceContractTest.kt`, `widget/QuotesWidgetContractTest.kt`, `data/QuotesWidgetSettingsTest.kt`, `data/QuoteLibraryTest.kt` |
+| Notes/Quotes widget selection, appearance and rotation | `widget/StickerWidget.kt`, `widget/StickerWidgetConfigActivity.kt`, `widget/QuotesWidgetReceiver.kt`, `widget/QuotesWidgetRendering.kt`, `widget/QuotesWidgetRotation.kt`, `ui/QuotesWidgetSettingsScreen.kt`, `data/QuotesWidgetSettings.kt`, `data/QuoteLibrary.kt`, `assets/quotes.json` | `widget/WidgetResourceContractTest.kt`, `widget/QuotesWidgetContractTest.kt`, `data/QuotesWidgetSettingsTest.kt`, `data/QuoteLibraryTest.kt` |
 | Vault, authentication, audit | `MainActivity.kt`, `VaultSecurityScreen.kt`, `data/LocalVaultStore.kt`, `data/VaultAudit.kt`, `widget/VaultWidget.kt` | `data/VaultAuditTest.kt`, `widget/WidgetResourceContractTest.kt` (icon/preview wiring); no crypto/biometric/UI integration tests |
 | Info metrics, authorized files, reports, cache | `monitor/`, `ui/InfoScreen.kt` | `monitor/` tests; device/provider/settings interactions need runtime checks |
 | System Monitor widget | `widget/SystemMonitorWidget.kt`, `data/SystemMonitorAppearance.kt`, `ui/SystemMonitorAppearanceScreen.kt`, `widget/SystemMonitorActionActivity.kt`, `res/layout/system_monitor_widget*.xml`, `res/xml/system_monitor_widget_info.xml` (resources relative to `app/src/main/`) | `widget/SystemMonitorWidgetTest.kt` (state, resource/action and RemoteViews text-target contracts) |
@@ -79,9 +79,9 @@ Source paths here use the same implementation prefix as the table.
 - `data/CalendarWidgetPrefs.kt` owns `calendar_widget_settings`;
   `widget/CalendarWidget.kt` holds per-widget navigation in `calendar_widget_state`.
 - `data/StickerStore.kt` owns notes and per-note styles in `sticker_store`.
-  Notes retain legacy Sticker identifiers; saves refresh the Notes widget. Quote-mode widgets
-  use independent global `quotes_widget_settings`, per-instance current/seen IDs in
-  `sticker_widget_selection`, and unique periodic WorkManager rotation (15+ minutes).
+  Notes retain legacy Sticker identifiers. Quotes use `quotes_widget_settings` and
+  independent current/seen IDs in `quotes_widget_state` (legacy quote keys migrate),
+  sharing rendering/periodic rotation across both providers; Notes styling is unchanged.
 - `data/AppTypographySettings.kt`, `data/LocalWidgetFonts.kt`, and
   `data/WidgetBackgrounds.kt` own app typography, private imported fonts, and
   private background images/preferences. `data/StyleSnapshot.kt` owns saved styles.

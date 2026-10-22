@@ -1,0 +1,25 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/quotes_widget_preview"
+    android:padding="20dp"
+    android:orientation="vertical"
+    android:gravity="center_vertical">
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/quotes_widget_preview_text"
+        android:textSize="20sp"
+        android:textColor="#F5F5F7"
+        android:maxLines="3"
+        android:ellipsize="end" />
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:text="@string/quotes_widget_preview_author"
+        android:textSize="16sp"
+        android:textColor="#C9C9D0"
+        android:maxLines="1"
+        android:ellipsize="end" />
+</LinearLayout>

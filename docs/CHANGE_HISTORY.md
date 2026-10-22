@@ -1,5 +1,14 @@
 # Change History
 
+## 2026-10-22 - Separate Quotes widget placement and layered customization
+
+- Added a standalone Clarity Quotes launcher widget with no Notes configuration step, quote-specific preview/metadata and a quote-icon Settings entry. Reused the existing RemoteViews quote renderer, apply/refresh actions and WorkManager job; legacy Notes-provider Random quotes instances remain supported without removal/re-addition. Ordinary Notes widgets retain their styling and edit behavior.
+- Extended the existing quote preferences/JSON rather than introducing a second settings system: independent outer/card fill types, solid/gradient/automatic/transparent modes, primary/secondary colors, direction, opacity, border color/thickness, radius and padding, plus line spacing. Older saved card settings retain their fields and receive a transparent zero-padding outer layer. Per-instance quote/cycle state now lives in `quotes_widget_state`, migrating old quote keys from Notes selection preferences.
+- Organized the dark/red screen into collapsible Quote Content, Widget Background, Quote Card, Typography and Layout sections. Kept immediate actual-renderer previews and reset; added a full-width Apply Changes button, automatic-rotation toggle and disabled-when-off interval selectors. Transparent previews explicitly use a sample dark surface rather than claiming to reproduce launcher wallpaper.
+- Rendered fill opacity independently of text, kept border strokes inside bounds and reserved compact-cell body/author space before optional metadata. Gradient/opaque-card contrast protection remains; transparent/translucent cards preserve chosen ink because wallpaper contrast cannot be guaranteed. Large requested insets are reduced in compact cells; long text/author can ellipsize rather than overlap.
+- Updated README, project memory, repository map and this history. No new dependency, service or permission was added.
+- Validation: final debug APK assembled successfully and 99 focused JVM tests passed with zero failures/errors, including new layering/opacity/direction/bounds/legacy-JSON/provider contracts plus Notes, Calendar, Wallpaper, Vault, System Monitor and font-layout regressions. `git diff --check` passed. No Android device/emulator was connected: actual Settings interaction, launcher pixel layout/resizing, applied updates, force-stop/reopen persistence and reboot/Doze delivery remain unverified on-device. No release/minified build was run.
+
 ## 2026-10-22 - Add dedicated offline Quotes Widget settings
 
 - Added Settings > Quotes Widget with independent global SharedPreferences, multi-topic/attribution filters, author/source visibility, manual/scheduled/both rotation, interval selection, solid/custom/automatic gradient backgrounds, color pickers, existing system/imported fonts, size/weight/alignment, corners, padding, border, shadow, quotation marks, live size previews, manual refresh, reset and Apply/Save.

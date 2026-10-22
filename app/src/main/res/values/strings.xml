@@ -5,6 +5,10 @@
     <string name="todo_widget_label">Clarity To-Do</string>
     <string name="todo_widget_description">Manage and track your tasks</string>
     <string name="notes_widget_label">Clarity Notes</string>
+    <string name="quotes_widget_label">Clarity Quotes</string>
+    <string name="quotes_widget_description">Offline quotes. Customize in Settings > Quotes Widget.</string>
+    <string name="quotes_widget_preview_text">\u201cWell done is better than well said.\u201d</string>
+    <string name="quotes_widget_preview_author">\u2014 Benjamin Franklin</string>
     <string name="notes_widget_preview_title">Today\'s focus</string>
     <string name="notes_widget_preview_content">Keep your next idea in view</string>
     <string name="sticker_widget_description">A note on your home screen. Tap it to open and edit the note.</string>

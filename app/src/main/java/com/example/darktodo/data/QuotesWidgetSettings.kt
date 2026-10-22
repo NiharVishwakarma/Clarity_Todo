@@ -8,7 +8,13 @@ import org.json.JSONObject
 import kotlin.random.Random
 
 enum class QuoteBackground(val label: String) {
-    Solid("Solid color"), Gradient("Custom gradient"), Automatic("Automatic gradient")
+    Solid("Solid color"), Gradient("Custom gradient"), Automatic("Automatic gradient"), Transparent("Transparent")
+}
+
+enum class QuoteGradientDirection(val label: String, val x: Float, val y: Float) {
+    Horizontal("Left to right", 1f, 0f),
+    Vertical("Top to bottom", 0f, 1f),
+    Diagonal("Diagonal", 1f, 1f)
 }
 
 enum class QuoteRotation(val label: String, val scheduled: Boolean, val tapToRefresh: Boolean) {
@@ -40,7 +46,22 @@ data class QuotesWidgetSettings(
     val paddingDp: Float = 20f,
     val border: Boolean = true,
     val shadow: Boolean = false,
-    val decoration: Boolean = true
+    val decoration: Boolean = true,
+    val outerBackgroundStyle: QuoteBackground = QuoteBackground.Transparent,
+    val outerBackground: String = "#19191E",
+    val outerGradientEnd: String = "#4A1523",
+    val outerGradientDirection: QuoteGradientDirection = QuoteGradientDirection.Diagonal,
+    val outerOpacityPercent: Int = 100,
+    val outerCornerRadiusDp: Float = 28f,
+    val outerPaddingDp: Float = 0f,
+    val gradientDirection: QuoteGradientDirection = QuoteGradientDirection.Diagonal,
+    val cardOpacityPercent: Int = 100,
+    val borderColor: String = "#55555F",
+    val borderWidthDp: Float = 1f,
+    val lineSpacing: Float = 1.12f,
+    val outerBorder: Boolean = false,
+    val outerBorderColor: String = "#55555F",
+    val outerBorderWidthDp: Float = 1f
 ) {
     fun sanitized(): QuotesWidgetSettings = copy(
         topics = topics.ifEmpty { setOf(QuoteLibrary.ALL_TOPICS) },
@@ -53,7 +74,18 @@ data class QuotesWidgetSettings(
         fontSizeSp = fontSizeSp.takeIf { it.isFinite() }?.coerceIn(12f, 36f) ?: 20f,
         fontWeight = fontWeight.coerceIn(100, 900),
         cornerRadiusDp = cornerRadiusDp.takeIf { it.isFinite() }?.coerceIn(0f, 48f) ?: 24f,
-        paddingDp = paddingDp.takeIf { it.isFinite() }?.coerceIn(8f, 40f) ?: 20f
+        paddingDp = paddingDp.takeIf { it.isFinite() }?.coerceIn(8f, 40f) ?: 20f,
+        outerBackground = StickerHex.normalize(outerBackground) ?: "#19191E",
+        outerGradientEnd = StickerHex.normalize(outerGradientEnd) ?: "#4A1523",
+        outerOpacityPercent = outerOpacityPercent.coerceIn(0, 100),
+        outerCornerRadiusDp = outerCornerRadiusDp.takeIf { it.isFinite() }?.coerceIn(0f, 48f) ?: 28f,
+        outerPaddingDp = outerPaddingDp.takeIf { it.isFinite() }?.coerceIn(0f, 32f) ?: 0f,
+        cardOpacityPercent = cardOpacityPercent.coerceIn(0, 100),
+        borderColor = StickerHex.normalize(borderColor) ?: "#55555F",
+        borderWidthDp = borderWidthDp.takeIf { it.isFinite() }?.coerceIn(.5f, 6f) ?: 1f,
+        lineSpacing = lineSpacing.takeIf { it.isFinite() }?.coerceIn(1f, 1.8f) ?: 1.12f,
+        outerBorderColor = StickerHex.normalize(outerBorderColor) ?: "#55555F",
+        outerBorderWidthDp = outerBorderWidthDp.takeIf { it.isFinite() }?.coerceIn(.5f, 6f) ?: 1f
     )
 
     fun toJson(): String = JSONObject().apply {
@@ -69,6 +101,16 @@ data class QuotesWidgetSettings(
         put("alignment", alignment.name); put("cornerRadiusDp", cornerRadiusDp)
         put("paddingDp", paddingDp); put("border", border)
         put("shadow", shadow); put("decoration", decoration)
+        put("outerBackgroundStyle", outerBackgroundStyle.name)
+        put("outerBackground", outerBackground); put("outerGradientEnd", outerGradientEnd)
+        put("outerGradientDirection", outerGradientDirection.name)
+        put("outerOpacityPercent", outerOpacityPercent)
+        put("outerCornerRadiusDp", outerCornerRadiusDp); put("outerPaddingDp", outerPaddingDp)
+        put("gradientDirection", gradientDirection.name); put("cardOpacityPercent", cardOpacityPercent)
+        put("borderColor", borderColor); put("borderWidthDp", borderWidthDp)
+        put("lineSpacing", lineSpacing)
+        put("outerBorder", outerBorder); put("outerBorderColor", outerBorderColor)
+        put("outerBorderWidthDp", outerBorderWidthDp)
     }.toString()
 
     companion object {
@@ -97,7 +139,22 @@ data class QuotesWidgetSettings(
                 paddingDp = o.optDouble("paddingDp", 20.0).toFloat(),
                 border = o.optBoolean("border", true),
                 shadow = o.optBoolean("shadow", false),
-                decoration = o.optBoolean("decoration", true)
+                decoration = o.optBoolean("decoration", true),
+                outerBackgroundStyle = QuoteBackground.entries.firstOrNull { it.name == o.optString("outerBackgroundStyle") } ?: defaults.outerBackgroundStyle,
+                outerBackground = o.optString("outerBackground", defaults.outerBackground),
+                outerGradientEnd = o.optString("outerGradientEnd", defaults.outerGradientEnd),
+                outerGradientDirection = QuoteGradientDirection.entries.firstOrNull { it.name == o.optString("outerGradientDirection") } ?: defaults.outerGradientDirection,
+                outerOpacityPercent = o.optInt("outerOpacityPercent", 100),
+                outerCornerRadiusDp = o.optDouble("outerCornerRadiusDp", 28.0).toFloat(),
+                outerPaddingDp = o.optDouble("outerPaddingDp", 0.0).toFloat(),
+                gradientDirection = QuoteGradientDirection.entries.firstOrNull { it.name == o.optString("gradientDirection") } ?: defaults.gradientDirection,
+                cardOpacityPercent = o.optInt("cardOpacityPercent", 100),
+                borderColor = o.optString("borderColor", defaults.borderColor),
+                borderWidthDp = o.optDouble("borderWidthDp", 1.0).toFloat(),
+                lineSpacing = o.optDouble("lineSpacing", 1.12).toFloat(),
+                outerBorder = o.optBoolean("outerBorder", false),
+                outerBorderColor = o.optString("outerBorderColor", defaults.outerBorderColor),
+                outerBorderWidthDp = o.optDouble("outerBorderWidthDp", 1.0).toFloat()
             ).sanitized()
         }
     }
@@ -162,15 +219,22 @@ object WidgetQuoteSelection {
 
 data class QuotesWidgetPalette(val start: Int, val end: Int, val ink: Int, val authorInk: Int) {
     companion object {
-        fun resolve(settings: QuotesWidgetSettings, quoteId: String): QuotesWidgetPalette {
+        fun backgroundColors(style: QuoteBackground, primary: String, secondary: String, quoteId: String): Pair<Int, Int> {
             val automatic = listOf("#19191E" to "#4A1523", "#121C24" to "#243B48", "#201822" to "#48253B")
-            val colors = when (settings.backgroundStyle) {
-                QuoteBackground.Solid -> settings.background to settings.background
-                QuoteBackground.Gradient -> settings.background to settings.gradientEnd
+            val colors = when (style) {
+                QuoteBackground.Solid, QuoteBackground.Transparent -> primary to primary
+                QuoteBackground.Gradient -> primary to secondary
                 QuoteBackground.Automatic -> automatic[(quoteId.hashCode() and Int.MAX_VALUE) % automatic.size]
             }
-            var start = StickerHex.toArgb(colors.first)
-            var end = StickerHex.toArgb(colors.second)
+            return StickerHex.toArgb(colors.first) to StickerHex.toArgb(colors.second)
+        }
+
+        fun resolve(settings: QuotesWidgetSettings, quoteId: String): QuotesWidgetPalette {
+            var (start, end) = backgroundColors(settings.backgroundStyle, settings.background, settings.gradientEnd, quoteId)
+            // The launcher wallpaper is unknown. Do not promise contrast for translucent cards.
+            if (settings.backgroundStyle == QuoteBackground.Transparent || settings.cardOpacityPercent < 100) {
+                return QuotesWidgetPalette(start, end, StickerHex.toArgb(settings.textColor), StickerHex.toArgb(settings.authorColor))
+            }
             val white = 0xFFFFFFFF.toInt()
             val black = 0xFF000000.toInt()
             fun luminance(color: Int) = NoteContrast.relativeLuminance(

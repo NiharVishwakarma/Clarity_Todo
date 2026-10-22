@@ -6,6 +6,7 @@ import com.example.darktodo.navigation.BackStep
 import com.example.darktodo.navigation.ModuleNavigation
 import com.example.darktodo.navigation.ModuleRoute
 import java.io.File
+import javax.xml.parsers.DocumentBuilderFactory
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -30,7 +31,7 @@ class QuotesWidgetContractTest {
         assertEquals(ModuleNavigation.SETTINGS, ModuleNavigation.moduleFor("QuotesWidgetSettings", "Tasks"))
         assertEquals(BackStep.GoTo(ModuleRoute("Settings")), ModuleNavigation.backStep("QuotesWidgetSettings", "Tasks", 0))
         val activity = source("MainActivity")
-        assertTrue(activity.contains("SettingsNavRow(ClarityIcons.Personalization, \"Quotes Widget\""))
+        assertTrue(activity.contains("SettingsNavRow(ClarityIcons.Quotes, \"Quotes Widget\""))
         assertTrue(activity.contains("page == \"QuotesWidgetSettings\""))
     }
 
@@ -56,7 +57,7 @@ class QuotesWidgetContractTest {
         assertFalse(apply.contains("setNote"))
         val ui = source("ui/QuotesWidgetSettingsScreen")
         assertTrue(ui.contains("Refresh widgets"))
-        assertTrue(ui.contains("Apply / Save"))
+        assertTrue(ui.contains("Apply Changes"))
         assertTrue(ui.contains("Reset to defaults"))
     }
 
@@ -69,5 +70,39 @@ class QuotesWidgetContractTest {
         assertTrue(renderer.contains("canvas.clipRect(content)"))
         assertTrue(renderer.contains("QuotesWidgetPalette.resolve"))
         QuoteAlignment.entries.forEach { assertTrue(renderer.contains("QuoteAlignment.${it.name}")) }
+    }
+
+    @Test fun standaloneQuotesProviderNeedsNoNotesConfigurationAndPreservesLegacyInstances() {
+        val ns = "http://schemas.android.com/apk/res/android"
+        val factory = DocumentBuilderFactory.newInstance().apply { isNamespaceAware = true }
+        val provider = factory.newDocumentBuilder().parse(File(main, "res/xml/quotes_widget_info.xml")).documentElement
+        assertEquals("", provider.getAttributeNS(ns, "configure"))
+        assertEquals("horizontal|vertical", provider.getAttributeNS(ns, "resizeMode"))
+        assertEquals("180dp", provider.getAttributeNS(ns, "minResizeWidth"))
+        assertEquals("56dp", provider.getAttributeNS(ns, "minResizeHeight"))
+        val manifest = File(main, "AndroidManifest.xml").readText()
+        assertTrue(manifest.contains(".widget.QuotesWidgetReceiver"))
+        assertTrue(manifest.contains("@xml/quotes_widget_info"))
+        val widget = source("widget/StickerWidget")
+        assertTrue(widget.contains("ComponentName(context, QuotesWidgetReceiver::class.java)"))
+        assertTrue(widget.contains("ComponentName(context, StickerWidgetReceiver::class.java)"))
+        assertTrue(widget.contains("getSharedPreferences(\"quotes_widget_state\""))
+        assertTrue(widget.contains("Could not migrate widget quote state."))
+        val receiver = source("widget/QuotesWidgetReceiver")
+        assertTrue(receiver.contains("StickerWidget.update(context, manager, it)"))
+        assertTrue(receiver.contains("StickerWidget.forget(context, ids)"))
+    }
+
+    @Test fun twoLayerStylingAndTypographyAreBoundToPreviewAndLiveRendering() {
+        val renderer = source("widget/QuotesWidgetRendering")
+        listOf("s.outerBackgroundStyle", "s.outerOpacityPercent", "s.outerPaddingDp", "s.outerCornerRadiusDp",
+            "s.outerGradientDirection", "s.gradientDirection", "s.cardOpacityPercent",
+            "s.borderColor", "s.borderWidthDp", "s.lineSpacing",
+            "s.outerBorderColor", "s.outerBorderWidthDp").forEach { assertTrue(it, renderer.contains(it)) }
+        val ui = source("ui/QuotesWidgetSettingsScreen")
+        listOf("Widget Background", "Quote Card", "Automatic rotation", "Apply Changes",
+            "settings.copy(outerBackground", "settings.copy(cardOpacityPercent", "settings.copy(borderWidthDp",
+            "settings.copy(lineSpacing", "enabled = settings.rotation.scheduled").forEach { assertTrue(it, ui.contains(it)) }
+        assertFalse(ui.contains("choose Random quotes"))
     }
 }
