@@ -71,11 +71,6 @@ class WallpaperWidgetActionReceiver : android.content.BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != ACTION_GENERATE_APPLY) return
         val prefs = context.getSharedPreferences(STATUS_PREFS, Context.MODE_PRIVATE)
-        synchronized(WallpaperWidgetReceiver::class.java) {
-            if (prefs.getBoolean(RUNNING_KEY, false)) return
-            prefs.edit().putBoolean(RUNNING_KEY, true).putString(STATUS_KEY, "Creating wallpaper…").apply()
-        }
-        refreshWidget(context)
         try {
             val request = OneTimeWorkRequestBuilder<WallpaperApplyWorker>()
                 .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
@@ -83,9 +78,9 @@ class WallpaperWidgetActionReceiver : android.content.BroadcastReceiver() {
             WorkManager.getInstance(context).enqueueUniqueWork(UNIQUE_WORK, ExistingWorkPolicy.KEEP, request)
         } catch (error: Exception) {
             Log.e("WallpaperWidget", "Could not start wallpaper generation", error)
-            prefs.edit().putBoolean(RUNNING_KEY, false).putString(STATUS_KEY, "Could not start wallpaper generation.").apply()
-            refreshWidget(context)
+            prefs.edit().putString(STATUS_KEY, "Could not start wallpaper generation.").apply()
         }
+        refreshWidget(context)
     }
 
     private fun refreshWidget(context: Context) {
@@ -101,6 +96,8 @@ class WallpaperApplyWorker(context: Context, parameters: WorkerParameters) : Wor
     override fun doWork(): Result {
         val prefs = applicationContext.getSharedPreferences(STATUS_PREFS, Context.MODE_PRIVATE)
         return try {
+            prefs.edit().putBoolean(RUNNING_KEY, true).putString(STATUS_KEY, "Creating wallpaper…").apply()
+            refreshWidget()
             val config = WallpaperStudioStore.loadConfig(applicationContext).copy(seed = System.currentTimeMillis() xor System.nanoTime())
             WallpaperStudioStore.saveConfig(applicationContext, config)
             val metrics = applicationContext.resources.displayMetrics

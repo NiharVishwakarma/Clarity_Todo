@@ -1,5 +1,10 @@
 # Change History
 
+## 2026-10-22 - Recover Wallpaper widget after interrupted work
+
+- Removed the receiver's persistent running-flag tap gate, which could remain stuck after process death and prevent later wallpaper requests. The Worker now sets the running state when it actually starts; unique `KEEP` work still prevents duplicate concurrent applies.
+- Preserved visible enqueue/apply errors and added a contract check against stale-state tap blocking. Android Gradle/device validation is unavailable in this workspace.
+
 ## 2026-10-22 - Fit Clarity artwork within widget icon areas
 
 - Switched the Vault and Wallpaper widget icons, plus the Vault appearance preview, from the adaptive launcher drawable to the unchanged original PNG. The adaptive background filled the PNG's existing transparent edge margins.

@@ -3,6 +3,7 @@ package com.example.darktodo.widget
 import java.io.File
 import javax.xml.parsers.DocumentBuilderFactory
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.w3c.dom.Element
@@ -56,5 +57,10 @@ class WallpaperWidgetContractTest {
         assertTrue(worker.contains("WallpaperEngine.render"))
         assertTrue(worker.contains("WallpaperManager.getInstance"))
         assertTrue(worker.contains("enqueueUniqueWork"))
+        val receiver = worker.substringAfter("class WallpaperWidgetActionReceiver")
+            .substringBefore("class WallpaperApplyWorker")
+        assertFalse(receiver.contains("getBoolean(RUNNING_KEY, false)"))
+        assertFalse(receiver.contains("putBoolean(RUNNING_KEY, true)"))
+        assertTrue(worker.contains("prefs.edit().putBoolean(RUNNING_KEY, true)"))
     }
 }
