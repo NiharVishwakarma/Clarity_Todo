@@ -7,7 +7,7 @@ preview_path = Path("app/src/main/res/drawable/clarity_suite_launcher_foreground
 
 # Reduce the artwork to 80% and center it on a transparent 1024x1024 canvas.
 canvas_size = 1024
-artwork_scale = 0.75
+artwork_scale = 0.69
 new_size = round(canvas_size * artwork_scale)
 
 with Image.open(source_path) as source:
