@@ -7,7 +7,7 @@ preview_path = Path("clarity_suite_icon_padded_preview.png")
 
 # Reduce the artwork to 80% and center it on a transparent 1024x1024 canvas.
 canvas_size = 1024
-artwork_scale = 0.80
+artwork_scale = 0.60
 new_size = round(canvas_size * artwork_scale)
 
 with Image.open(source_path) as source:
