@@ -145,7 +145,9 @@ class ImportedFontCatalogTest {
 
     @Test fun importChecksContentBeforeSavingAndRetainsTheOriginalRegistry() {
         val main = File("app/src/main").takeIf { it.isDirectory } ?: File("src/main")
-        val source = File(main, "java/com/example/darktodo/data/LocalWidgetFonts.kt").readText()
+        val source = File(main, "java/com/example/darktodo/data/LocalWidgetFonts.kt")
+            .readText()
+            .replace("\r\n", "\n")
         val duplicateCheck = source.indexOf("catalog.find(directory, entries, hash)?.let { return it }")
         assertTrue(duplicateCheck > source.indexOf("Typeface.Builder(temporary).build()"))
         assertTrue(duplicateCheck < source.indexOf("temporary.renameTo(destination)"))

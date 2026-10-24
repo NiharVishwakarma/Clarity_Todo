@@ -3,11 +3,11 @@ from PIL import Image
 from pathlib import Path
 
 source_path = Path("app/src/main/res/drawable/clarity_suite_icon.png")
-preview_path = Path("clarity_suite_icon_padded_preview.png")
+preview_path = Path("app/src/main/res/drawable/clarity_suite_launcher_foreground.png")
 
 # Reduce the artwork to 80% and center it on a transparent 1024x1024 canvas.
 canvas_size = 1024
-artwork_scale = 0.60
+artwork_scale = 0.75
 new_size = round(canvas_size * artwork_scale)
 
 with Image.open(source_path) as source:

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item
-        android:drawable="@drawable/clarity_suite_icon"
+        android:drawable="@drawable/clarity_suite_launcher_foreground"
         android:gravity="center"
         android:width="90dp"
         android:height="90dp" />

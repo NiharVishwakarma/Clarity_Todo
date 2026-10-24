@@ -37,7 +37,7 @@ class LauncherIconResourceContractTest {
         val foreground = xml("res/drawable/ic_clarity_suite_foreground.xml")
         assertEquals("layer-list", foreground.tagName)
         val item = foreground.getElementsByTagName("item").item(0) as Element
-        assertEquals("@drawable/clarity_suite_icon", item.attr("drawable"))
+        assertEquals("@drawable/clarity_suite_launcher_foreground", item.attr("drawable"))
         assertEquals("center", item.attr("gravity"))
         assertEquals("90dp", item.attr("width"))
         assertEquals("90dp", item.attr("height"))
