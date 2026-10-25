@@ -1,5 +1,17 @@
 # Change History
 
+## 2026-10-25 - Redesign Wallpaper Studio and improve procedural styles
+
+- Reorganized the Wallpapers tab into icon-led, animated collapsible sections for style, colors/gradients, shapes/patterns, fine-tuning, and output/apply. Wallpaper Style is open by default; advanced groups start collapsed. Added generated previews for every existing style, selected-state indicators, style descriptions, style-specific color reset palettes, and a direct Apply action while preserving saved designs, exports, targets, and wallpaper application.
+- Reworked Abstract into layered organic shapes with a controlled focal point, Waves into smoothly flowing consistent bands, and Geometric into an aligned grid-and-circle composition. Existing style IDs and saved settings remain unchanged.
+- Added model coverage for reset palettes and updated project memory. All 215 unit tests passed, `assembleDebug` succeeded, and `git diff --check` passed. Visual inspection on a physical device remains outstanding.
+
+## 2026-10-25 - Make vault writes atomic
+
+- Replaced the vault's direct-write fallback with `AtomicFile` so an interrupted save preserves the previous encrypted vault instead of leaving a partially written file.
+- Corrected the vault storage comment: Drive backups include the encrypted vault file, but not the device-bound biometric key.
+- Validation: Kotlin compilation and focused `BackupAutomationContractTest`, `BackupSnapshotTest`, and `BackupCodecTest` passed. `git diff --check` passed.
+
 ## 2026-10-22 - Fix Quotes tile preview compilation
 
 - Converted widget IDs from `IntArray` to a list before `mapNotNull` in the current-quote preview lookup, fixing the CI unresolved-reference and cascading type-inference errors.

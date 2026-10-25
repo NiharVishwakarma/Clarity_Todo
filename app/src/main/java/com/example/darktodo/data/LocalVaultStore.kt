@@ -2,6 +2,7 @@ package com.example.darktodo.data
 
 import android.content.Context
 import android.os.Build
+import android.util.AtomicFile
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -18,7 +19,7 @@ import androidx.biometric.BiometricManager
 
 data class VaultEntry(val id: String, val title: String, val username: String, val password: String, val notes: String)
 
-/** Password-encrypted vault file under noBackupFilesDir; it is never synced or backed up. */
+/** Password-encrypted vault file under noBackupFilesDir; only its encrypted contents enter Drive backups. */
 object LocalVaultStore {
     private const val ITERATIONS = 210_000
     private const val SALT_SIZE = 16
@@ -166,12 +167,14 @@ object LocalVaultStore {
         val encrypted = cipher.doFinal(json)
         val output = ByteBuffer.allocate(4 + SALT_SIZE + IV_SIZE + encrypted.size)
             .putInt(MAGIC).put(salt).put(iv).put(encrypted).array()
-        val target = file(context)
-        val temporary = File(context.noBackupFilesDir, "clarity-vault.tmp")
-        temporary.writeBytes(output)
-        if (!temporary.renameTo(target)) {
-            target.writeBytes(output)
-            temporary.delete()
+        val atomic = AtomicFile(file(context))
+        val stream = atomic.startWrite()
+        try {
+            stream.write(output)
+            atomic.finishWrite(stream)
+        } catch (error: Throwable) {
+            atomic.failWrite(stream)
+            throw error
         }
         com.example.darktodo.backup.BackupScheduler.requestBackup(context)
     }

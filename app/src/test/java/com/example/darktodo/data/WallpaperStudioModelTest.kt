@@ -53,4 +53,13 @@ class WallpaperStudioModelTest {
         assertEquals(.5f, safe.patternScale, 0f)
         assertEquals(3, safe.gradientDirection)
     }
+
+    @Test fun everyStyleHasAThreeColorResetPalette() {
+        WallpaperStyle.entries.forEach { style ->
+            val colors = WallpaperPalettes.defaultsFor(style)
+            assertEquals(3, colors.size)
+            assertTrue(WallpaperPalettes.all.any { it.colors == colors })
+        }
+        assertEquals(WallpaperPalettes.defaultsFor(WallpaperStyle.WAVES), WallpaperPalettes.defaultsFor(WallpaperStyle.MESH))
+    }
 }

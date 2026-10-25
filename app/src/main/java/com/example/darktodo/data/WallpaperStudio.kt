@@ -19,6 +19,7 @@ import java.io.OutputStream
 import java.util.UUID
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.sin
 import kotlin.random.Random
 
 enum class WallpaperStyle(val label: String) {
@@ -55,17 +56,29 @@ data class WallpaperConfig(
 data class WallpaperPalette(val name: String, val colors: List<Int>)
 
 object WallpaperPalettes {
+    private fun rgb(red: Int, green: Int, blue: Int): Int =
+        (0xFF shl 24) or (red shl 16) or (green shl 8) or blue
+
     val all = listOf(
-        WallpaperPalette("Midnight", listOf(Color.rgb(6, 12, 28), Color.rgb(42, 35, 89), Color.rgb(11, 16, 36))),
-        WallpaperPalette("Crimson", listOf(Color.rgb(10, 4, 9), Color.rgb(242, 13, 36), Color.rgb(95, 4, 30))),
-        WallpaperPalette("Cyberpunk", listOf(Color.rgb(11, 4, 30), Color.rgb(164, 23, 204), Color.rgb(0, 221, 220))),
-        WallpaperPalette("Ocean", listOf(Color.rgb(4, 31, 56), Color.rgb(0, 128, 166), Color.rgb(50, 215, 190))),
-        WallpaperPalette("Forest", listOf(Color.rgb(7, 28, 22), Color.rgb(38, 112, 75), Color.rgb(163, 186, 97))),
-        WallpaperPalette("Sunset", listOf(Color.rgb(58, 18, 53), Color.rgb(244, 86, 95), Color.rgb(255, 180, 80))),
-        WallpaperPalette("Purple Haze", listOf(Color.rgb(29, 9, 56), Color.rgb(114, 38, 169), Color.rgb(236, 89, 162))),
-        WallpaperPalette("Monochrome", listOf(Color.rgb(12, 12, 16), Color.rgb(106, 106, 117), Color.rgb(230, 230, 236))),
-        WallpaperPalette("Pastel", listOf(Color.rgb(242, 181, 205), Color.rgb(168, 195, 245), Color.rgb(255, 227, 184)))
+        WallpaperPalette("Midnight", listOf(rgb(6, 12, 28), rgb(42, 35, 89), rgb(11, 16, 36))),
+        WallpaperPalette("Crimson", listOf(rgb(10, 4, 9), rgb(242, 13, 36), rgb(95, 4, 30))),
+        WallpaperPalette("Cyberpunk", listOf(rgb(11, 4, 30), rgb(164, 23, 204), rgb(0, 221, 220))),
+        WallpaperPalette("Ocean", listOf(rgb(4, 31, 56), rgb(0, 128, 166), rgb(50, 215, 190))),
+        WallpaperPalette("Forest", listOf(rgb(7, 28, 22), rgb(38, 112, 75), rgb(163, 186, 97))),
+        WallpaperPalette("Sunset", listOf(rgb(58, 18, 53), rgb(244, 86, 95), rgb(255, 180, 80))),
+        WallpaperPalette("Purple Haze", listOf(rgb(29, 9, 56), rgb(114, 38, 169), rgb(236, 89, 162))),
+        WallpaperPalette("Monochrome", listOf(rgb(12, 12, 16), rgb(106, 106, 117), rgb(230, 230, 236))),
+        WallpaperPalette("Pastel", listOf(rgb(242, 181, 205), rgb(168, 195, 245), rgb(255, 227, 184)))
     )
+
+    fun defaultsFor(style: WallpaperStyle): List<Int> = when (style) {
+        WallpaperStyle.SOLID, WallpaperStyle.GEOMETRIC, WallpaperStyle.NOISE,
+        WallpaperStyle.MINIMAL, WallpaperStyle.PATTERN -> all.first { it.name == "Monochrome" }.colors
+        WallpaperStyle.WAVES, WallpaperStyle.MESH -> all.first { it.name == "Ocean" }.colors
+        WallpaperStyle.RADIAL, WallpaperStyle.CONCENTRIC -> all.first { it.name == "Midnight" }.colors
+        WallpaperStyle.LINEAR, WallpaperStyle.ABSTRACT, WallpaperStyle.AURORA ->
+            all.first { it.name == "Purple Haze" }.colors
+    }
 }
 
 data class SavedWallpaper(val id: String, val style: WallpaperStyle, val seed: Long, val createdAt: Long, val config: WallpaperConfig)
@@ -244,9 +257,14 @@ object WallpaperEngine {
         fun fill(color: Int) { paint.shader = null; paint.style = Paint.Style.FILL; paint.color = color; canvas.drawRect(rect, paint) }
         fun gradient(x0: Float, y0: Float, x1: Float, y1: Float) =
             LinearGradient(x0, y0, x1, y1, intArrayOf(color(0), color(1), color(2)), null, Shader.TileMode.CLAMP)
-        fun layeredPath(path: Path, first: Int, second: Int, x: Float, y: Float) {
+        fun alpha(color: Int, amount: Int) = Color.argb(amount, Color.red(color), Color.green(color), Color.blue(color))
+        fun gradientPath(path: Path, first: Int, second: Int, top: Float, bottom: Float) {
             paint.style = Paint.Style.FILL
-            paint.shader = LinearGradient(0f, y, w, y + h * .18f, intArrayOf(first, second), null, Shader.TileMode.CLAMP)
+            paint.shader = LinearGradient(
+                0f, top, 0f, bottom,
+                intArrayOf(alpha(first, 218), alpha(second, 186)),
+                null, Shader.TileMode.CLAMP
+            )
             canvas.drawPath(path, paint)
             paint.shader = null
         }
@@ -292,53 +310,133 @@ object WallpaperEngine {
                 paint.shader = null
             }
             WallpaperStyle.ABSTRACT -> {
-                fill(Color.BLACK)
-                val layers = 3 + safe.complexity * 2
-                repeat(layers) { i ->
-                    val offset = (rng.nextFloat() - .5f) * w * .5f
+                fill(Color.rgb(12, 13, 24))
+                paint.shader = RadialGradient(
+                    w * .68f, h * .38f, max(w, h) * .78f,
+                    intArrayOf(alpha(color(1), 110), alpha(color(0), 28), Color.TRANSPARENT),
+                    null, Shader.TileMode.CLAMP
+                )
+                canvas.drawRect(rect, paint)
+                paint.shader = null
+                val focalX = w * (.67f + (rng.nextFloat() - .5f) * .04f)
+                val focalY = h * (.43f + (rng.nextFloat() - .5f) * .05f)
+                repeat(3) { index ->
+                    val inset = index * .075f
+                    val rx = w * (.43f - inset)
+                    val ry = h * (.27f - inset * .32f)
+                    val cx = focalX - index * w * .035f
+                    val cy = focalY + index * h * .075f
                     val path = Path().apply {
-                        moveTo(w * (.25f + i * .06f) + offset, -h * .08f)
-                        cubicTo(w * (.05f + rng.nextFloat() * .2f) + offset, h * .22f, w * (.85f + rng.nextFloat() * .1f), h * .38f, w * (.5f + offset / w), h * .55f)
-                        cubicTo(w * (.12f + rng.nextFloat() * .2f), h * .72f, w * (.8f + rng.nextFloat() * .15f), h * .86f, w * (.48f + offset / w), h * 1.08f)
-                        lineTo(w * (.75f + offset / w), h * 1.08f)
-                        cubicTo(w * .92f, h * .78f, w * .2f, h * .68f, w * .56f, h * .52f)
-                        cubicTo(w * .9f, h * .35f, w * .15f, h * .18f, w * .7f, -h * .08f)
+                        moveTo(cx - rx * .82f, cy - ry * .18f)
+                        cubicTo(cx - rx * 1.12f, cy - ry * 1.03f, cx + rx * .24f, cy - ry * 1.17f, cx + rx * .79f, cy - ry * .48f)
+                        cubicTo(cx + rx * 1.12f, cy - ry * .02f, cx + rx * .78f, cy + ry * .78f, cx + rx * .12f, cy + ry * .92f)
+                        cubicTo(cx - rx * .48f, cy + ry * 1.02f, cx - rx * 1.12f, cy + ry * .55f, cx - rx * .82f, cy - ry * .18f)
                         close()
                     }
-                    layeredPath(path, color(i), color(i + 1), 0f, h * (i * .1f))
+                    gradientPath(path, color(index + 1), color(index + 2), cy - ry, cy + ry)
+                    paint.style = Paint.Style.STROKE
+                    paint.strokeWidth = min(w, h) * .0025f
+                    paint.color = alpha(Color.WHITE, 28 - index * 5)
+                    canvas.drawPath(path, paint)
+                    paint.style = Paint.Style.FILL
                 }
             }
             WallpaperStyle.WAVES -> {
-                fill(color(0))
-                val layers = 3 + safe.complexity * 2
-                repeat(layers) { i ->
-                    val y = h * (.3f + i * .14f) + (rng.nextFloat() - .5f) * h * .06f
-                    val firstControl = y - h * (.12f + rng.nextFloat() * .2f)
-                    val secondControl = y + h * (.08f + rng.nextFloat() * .2f)
-                    val path = Path().apply {
-                        moveTo(0f, y)
-                        cubicTo(w * (.18f + rng.nextFloat() * .18f), firstControl, w * (.45f + rng.nextFloat() * .2f), secondControl, w, y + (rng.nextFloat() - .5f) * h * .12f)
-                        lineTo(w, h); lineTo(0f, h); close()
-                    }
-                    layeredPath(path, color(i), color(i + 1), 0f, y)
+                paint.shader = LinearGradient(0f, 0f, w, h, intArrayOf(color(0), color(1), color(2)), null, Shader.TileMode.CLAMP)
+                canvas.drawRect(rect, paint)
+                paint.shader = null
+                val phase = rng.nextFloat() * .5f
+                val bandCount = 4 + safe.complexity
+                fun waveY(x: Float, band: Int): Float {
+                    val base = h * (.34f + band * .115f)
+                    val drift = sin((x / w * 2.0 * Math.PI + phase + band * .24).toFloat()) * h * .025f
+                    val swell = sin((x / w * Math.PI + phase * .7f).toFloat()) * h * .018f
+                    return base + drift + swell
                 }
+                for (band in 0 until bandCount) {
+                    val path = Path()
+                    val steps = 72
+                    for (step in 0..steps) {
+                        val x = w * step / steps
+                        val y = waveY(x, band)
+                        if (step == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                    }
+                    if (band == bandCount - 1) {
+                        path.lineTo(w, h)
+                        path.lineTo(0f, h)
+                    } else {
+                        for (step in steps downTo 0) {
+                            val x = w * step / steps
+                            path.lineTo(x, waveY(x, band + 1))
+                        }
+                    }
+                    path.close()
+                    paint.style = Paint.Style.FILL
+                    paint.shader = LinearGradient(0f, waveY(0f, band), 0f, waveY(0f, band + 1).let {
+                        if (band == bandCount - 1) h else it
+                    }, intArrayOf(alpha(color(band + 1), 205), alpha(color(band + 2), 178)), null, Shader.TileMode.CLAMP)
+                    canvas.drawPath(path, paint)
+                    paint.shader = null
+                    if (band < bandCount - 1) {
+                        val edge = Path()
+                        for (step in 0..steps) {
+                            val x = w * step / steps
+                            val y = waveY(x, band)
+                            if (step == 0) edge.moveTo(x, y) else edge.lineTo(x, y)
+                        }
+                        paint.style = Paint.Style.STROKE
+                        paint.strokeWidth = min(w, h) * .002f
+                        paint.color = alpha(Color.WHITE, 34)
+                        canvas.drawPath(edge, paint)
+                    }
+                }
+                paint.shader = null
+                paint.style = Paint.Style.FILL
             }
             WallpaperStyle.GEOMETRIC -> {
-                fill(color(0))
-                val count = 5 + safe.complexity * 6
-                repeat(count) { i ->
-                    val cx = rng.nextFloat() * w
-                    val cy = rng.nextFloat() * h
-                    val radius = min(w, h) * (.035f + rng.nextFloat() * .18f)
-                    paint.style = if (i % 3 == 0) Paint.Style.STROKE else Paint.Style.FILL
-                    paint.strokeWidth = max(1f, min(w, h) * .004f)
-                    paint.color = color(i + 1)
-                    when (i % 3) {
-                        0 -> canvas.drawCircle(cx, cy, radius, paint)
-                        1 -> canvas.drawRect(cx - radius, cy - radius, cx + radius, cy + radius, paint)
-                        else -> canvas.drawPath(Path().apply { moveTo(cx, cy - radius); lineTo(cx + radius, cy + radius); lineTo(cx - radius, cy + radius); close() }, paint)
-                    }
+                paint.shader = LinearGradient(0f, 0f, w, h, intArrayOf(color(0), alpha(color(1), 220), color(0)), null, Shader.TileMode.CLAMP)
+                canvas.drawRect(rect, paint)
+                paint.shader = null
+                val unit = min(w, h)
+                val stroke = max(1f, unit * .0025f)
+                val gridStep = unit * (if (safe.complexity == 0) .22f else .16f)
+                paint.style = Paint.Style.STROKE
+                paint.strokeWidth = stroke
+                paint.color = alpha(color(2), 48)
+                var x = w * .08f
+                while (x < w * .58f) {
+                    canvas.drawLine(x, h * .58f, x, h * .94f, paint)
+                    x += gridStep
                 }
+                var y = h * .58f
+                while (y < h * .96f) {
+                    canvas.drawLine(w * .08f, y, w * .58f, y, paint)
+                    y += gridStep
+                }
+                val cx = w * (.69f + (rng.nextFloat() - .5f) * .035f)
+                val cy = h * (.36f + (rng.nextFloat() - .5f) * .035f)
+                val radius = unit * (.17f + safe.complexity * .025f)
+                paint.color = alpha(color(1), 38)
+                canvas.drawCircle(cx, cy, radius * 1.65f, paint)
+                paint.color = alpha(color(1), 176)
+                canvas.drawCircle(cx, cy, radius, paint)
+                paint.color = alpha(color(2), 220)
+                paint.strokeWidth = stroke * 1.25f
+                canvas.drawCircle(cx, cy, radius * 1.3f, paint)
+                canvas.save()
+                canvas.rotate(-18f, cx, cy + radius * 1.6f)
+                paint.style = Paint.Style.FILL
+                paint.color = alpha(color(2), 170)
+                canvas.drawRect(cx - radius * .48f, cy + radius * 1.12f, cx + radius * .48f, cy + radius * 2.08f, paint)
+                paint.style = Paint.Style.STROKE
+                paint.strokeWidth = stroke
+                paint.color = alpha(Color.WHITE, 110)
+                canvas.drawRect(cx - radius * .48f, cy + radius * 1.12f, cx + radius * .48f, cy + radius * 2.08f, paint)
+                canvas.restore()
+                paint.style = Paint.Style.STROKE
+                paint.color = alpha(Color.WHITE, 130)
+                paint.strokeWidth = stroke * 1.4f
+                canvas.drawCircle(cx, cy, radius * .58f, paint)
                 paint.style = Paint.Style.FILL
             }
             WallpaperStyle.CONCENTRIC -> {
