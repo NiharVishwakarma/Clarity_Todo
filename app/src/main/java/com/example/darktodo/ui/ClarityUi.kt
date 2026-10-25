@@ -65,6 +65,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.darktodo.navigation.ModuleNavigation
@@ -188,18 +189,18 @@ fun CollapsibleSettingsSection(
     val listState = rememberLazyListState()
     LaunchedEffect(selectedId) {
         val index = modules.indexOfFirst { it.id == selectedId }
-        if (index >= 0) listState.animateScrollToItem((index - 1).coerceAtLeast(0))
+        if (index >= 0) listState.animateScrollToItem(index)
     }
     Surface(color = UiTokens.Surface, shape = RoundedCornerShape(UiTokens.CardRadius), shadowElevation = 6.dp, tonalElevation = 2.dp, modifier = modifier.fillMaxWidth()) {
-        LazyRow(state = listState, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        LazyRow(state = listState, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             items(modules, key = { it.id }) { module ->
-                val selected = module.id == selectedId
-                val container by animateColorAsState(if (selected) UiTokens.Accent.copy(alpha = .18f) else Color.Transparent, label = "tabContainer")
-                val content by animateColorAsState(if (selected) UiTokens.Accent else UiTokens.Muted, label = "tabContent")
-                Surface(onClick = { onSelect(module.id) }, color = container, shape = RoundedCornerShape(12.dp), modifier = Modifier.heightIn(min = 40.dp).semantics { contentDescription = "${module.label} tab" }) {
-                    Row(Modifier.padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        ClarityGlyph(ClarityIcons.forModule(module.id), tint = content, size = 20.dp)
-                        Text(module.label, color = content, fontSize = 13.sp, maxLines = 1, softWrap = false, fontWeight = if (selected) androidx.compose.ui.text.font.FontWeight.SemiBold else androidx.compose.ui.text.font.FontWeight.Medium)
+                val isSelected = module.id == selectedId
+                val container by animateColorAsState(if (isSelected) UiTokens.Accent.copy(alpha = .18f) else Color.Transparent, label = "tabContainer")
+                val content by animateColorAsState(if (isSelected) UiTokens.Accent else UiTokens.Muted, label = "tabContent")
+                Surface(onClick = { onSelect(module.id) }, color = container, shape = RoundedCornerShape(12.dp), modifier = Modifier.heightIn(min = 48.dp).semantics { contentDescription = "${module.label} tab"; selected = module.id == selectedId }) {
+                    Row(Modifier.padding(horizontal = 10.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        ClarityGlyph(ClarityIcons.forModule(module.id), tint = content, size = 18.dp)
+                        Text(module.label, color = content, fontSize = 13.sp, maxLines = 1, softWrap = false, fontWeight = if (isSelected) androidx.compose.ui.text.font.FontWeight.SemiBold else androidx.compose.ui.text.font.FontWeight.Medium)
                     }
                 }
             }

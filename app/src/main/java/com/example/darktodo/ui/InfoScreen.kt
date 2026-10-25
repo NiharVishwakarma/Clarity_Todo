@@ -14,16 +14,37 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Smartphone
+import androidx.compose.material.icons.outlined.Memory
+import androidx.compose.material.icons.outlined.Storage
+import androidx.compose.material.icons.outlined.BatteryChargingFull
+import androidx.compose.material.icons.outlined.VerifiedUser
+import androidx.compose.material.icons.outlined.Download
+import androidx.compose.material.icons.outlined.Build
+import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.ChevronRight
+import androidx.compose.material.icons.outlined.Description
+import androidx.compose.material.icons.outlined.FolderOpen
+import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -41,7 +62,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
@@ -64,6 +92,17 @@ import kotlinx.coroutines.withContext
 private val securityKeys = setOf("Security patch", "OS build time (not install date)", "OS install date", "OS update availability",
     "Device lock configured", "Storage encryption status")
 
+private val dashboardSurface = Color(0xFF17171B)
+private val infoCategories = listOf(
+    "Device" to Icons.Outlined.Smartphone,
+    "Memory" to Icons.Outlined.Memory,
+    "Storage" to Icons.Outlined.Storage,
+    "Battery" to Icons.Outlined.BatteryChargingFull,
+    "Security and updates" to Icons.Outlined.VerifiedUser,
+    "Downloads and reports" to Icons.Outlined.Download,
+    "Maintenance" to Icons.Outlined.Build
+)
+
 @Composable
 fun InfoScreen(onOpenAppearance: (() -> Unit)? = null, onSnapshotUpdated: () -> Unit = {}) {
     MaterialTheme(colorScheme = darkColorScheme(
@@ -71,12 +110,12 @@ fun InfoScreen(onOpenAppearance: (() -> Unit)? = null, onSnapshotUpdated: () -> 
         primaryContainer = UiTokens.SurfaceRaised, onPrimaryContainer = UiTokens.Ink,
         secondary = UiTokens.Muted, onSecondary = UiTokens.Background,
         secondaryContainer = UiTokens.SurfaceRaised, onSecondaryContainer = UiTokens.Ink,
-        background = UiTokens.Background, onBackground = UiTokens.Ink,
-        surface = UiTokens.Surface, onSurface = UiTokens.Ink,
+        background = Color.Black, onBackground = UiTokens.Ink,
+        surface = dashboardSurface, onSurface = UiTokens.Ink,
         surfaceVariant = UiTokens.SurfaceRaised, onSurfaceVariant = UiTokens.Muted,
         outline = UiTokens.Subdued
     )) {
-        Surface(color = UiTokens.Background, contentColor = UiTokens.Ink, modifier = Modifier.fillMaxSize()) {
+        Surface(color = Color.Black, contentColor = UiTokens.Ink, modifier = Modifier.fillMaxSize()) {
             InfoMonitorContent(onOpenAppearance, onSnapshotUpdated)
         }
     }
@@ -93,7 +132,7 @@ private fun InfoMonitorContent(onOpenAppearance: (() -> Unit)? = null, onSnapsho
     var refreshing by remember { mutableStateOf(false) }
     var refreshFailed by remember { mutableStateOf(false) }
     var now by remember { mutableStateOf(System.currentTimeMillis()) }
-    var message by remember { mutableStateOf("Loading local snapshot…") }
+    var message by remember { mutableStateOf<String?>(null) }
     var section by rememberSaveable { mutableStateOf("Device") }
     var working by remember { mutableStateOf(false) }
     var pickerPending by rememberSaveable { mutableStateOf(false) }
@@ -113,7 +152,8 @@ private fun InfoMonitorContent(onOpenAppearance: (() -> Unit)? = null, onSnapsho
             catch (cancelled: CancellationException) {
                 message = onCancelled?.invoke() ?: "Cancelled. Previous snapshot preserved; an export or cleanup may be partial."
                 throw cancelled
-            } catch (_: Exception) {
+            } catch (error: Exception) {
+                android.util.Log.e("InfoScreen", "Monitor operation failed", error)
                 message = "Operation failed. Previous snapshot preserved. Check access and retry; exported files may be incomplete."
             } finally { working = false }
         }
@@ -152,7 +192,7 @@ private fun InfoMonitorContent(onOpenAppearance: (() -> Unit)? = null, onSnapsho
         if (uri != null) work {
             val fresh = refresh()
             MonitorReports.export(context, uri, format, fresh)
-            message = "Saved ${format.uppercase()} report captured ${MonitorFormats.timestamp(fresh.capturedAt)}."
+            message = "Saved ${format.uppercase()} report captured ${MonitorFormats.localTimestamp(fresh.capturedAt)}."
         }
     }
     val textExport = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { export(it, "txt") }
@@ -168,40 +208,56 @@ private fun InfoMonitorContent(onOpenAppearance: (() -> Unit)? = null, onSnapsho
         lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
             while (true) {
                 now = System.currentTimeMillis()
-                if (!working && !pickerPending) work { refresh(); message = "Snapshot refreshed locally. Auto-refresh every 30 seconds while visible." }
+                if (!working && !pickerPending) work { refresh(); message = null }
                 delay(30_000)
             }
         }
     }
-    val sections = listOf("Device", "Memory", "Storage", "Battery", "Security and updates", "Downloads and reports", "Maintenance")
-    LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("Local device monitor · no root · no cloud upload", style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Device monitor", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        if (snapshot?.restoredFromBackup == true) "Restored snapshot · Refresh for this device"
+                        else MonitorFormats.dashboardStatus(snapshot?.capturedAt, now, refreshing || loadingSnapshot, refreshFailed),
+                        color = if (refreshFailed) UiTokens.Accent else UiTokens.Muted,
+                        fontSize = 12.sp
+                    )
+                }
+                if (refreshing) CircularProgressIndicator(Modifier.size(18.dp), color = UiTokens.Accent, strokeWidth = 2.dp)
+                IconButton(enabled = working || !pickerPending, onClick = {
+                    if (working) operation?.cancel() else work { refresh(); message = null }
+                }) {
+                    Icon(if (working) Icons.Outlined.Close else Icons.Outlined.Refresh,
+                        contentDescription = if (working) "Cancel monitor operation" else "Refresh device metrics",
+                        tint = if (pickerPending && !working) UiTokens.Subdued else UiTokens.Ink)
+                }
                 if (onOpenAppearance != null) {
                     SettingsGearButton("System Monitor widget appearance", onClick = onOpenAppearance)
                 }
             }
-            sections.chunked(2).forEach { pair ->
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    pair.forEach { title ->
-                        OutlinedButton(onClick = { section = title }, modifier = Modifier.weight(1f)) {
-                            Text(if (section == title) "• $title" else title)
+            Text("Local snapshots · 30s while visible · No root", color = UiTokens.Muted, fontSize = 12.sp)
+            Text("No monitoring uploads; saved snapshots may be included in optional Drive backups.",
+                color = UiTokens.Muted, fontSize = 12.sp)
+            message?.let { Text(it, color = UiTokens.Muted, style = MaterialTheme.typography.bodySmall) }
+        }
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                infoCategories.chunked(2).forEach { pair ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        pair.forEach { (title, icon) ->
+                            InfoCategoryTile(title, icon, section == title, Modifier.weight(1f)) { section = title }
                         }
+                        if (pair.size == 1) Spacer(Modifier.weight(1f))
                     }
                 }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(enabled = !working && !pickerPending, onClick = { work { refresh(); message = "Snapshot refreshed." } }) { Text("Refresh") }
-                if (working) OutlinedButton(onClick = { operation?.cancel() }) { Text("Cancel") }
-            }
-            Text(if (snapshot?.restoredFromBackup == true) "Restored snapshot · Refresh for this device" else
-                MonitorFormats.snapshotStatus(snapshot?.capturedAt, now, refreshing || loadingSnapshot, refreshFailed),
-                color = if (refreshFailed || snapshot?.let { MonitorFormats.snapshotStale(it.capturedAt, now, false) } == true)
-                    UiTokens.Accent else UiTokens.Muted,
-                style = MaterialTheme.typography.bodySmall)
-            Text(message, style = MaterialTheme.typography.bodySmall)
-            Text(section, style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 12.dp))
+        }
+        item {
+            Text(section.replace(" and ", " & "), fontSize = 22.sp, fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(top = 4.dp))
         }
         when (section) {
             "Device", "Memory", "Storage", "Battery", "Security and updates" -> {
@@ -216,42 +272,63 @@ private fun InfoMonitorContent(onOpenAppearance: (() -> Unit)? = null, onSnapsho
                     "Security and updates" -> values.keys.filter { it in securityKeys }
                     else -> values.keys.filter { !memoryKey(it) && !storageKey(it) && !batteryKey(it) && it !in securityKeys }
                 }
-                if (section == "Memory") item { InfoProgress("RAM utilization", values["RAM utilization"]) }
-                if (section == "Storage") item {
-                    InfoProgress("Internal storage utilization", values["internal storage utilization"])
-                }
-                items(keys) { key -> InfoMetric(key, values[key] ?: "Unavailable") }
-                if (section == "Device") item {
-                    OutlinedButton(onClick = { open(Intent(Settings.ACTION_DEVICE_INFO_SETTINGS)) }) { Text("About device") }
-                }
-                if (section == "Security and updates") item {
-                    Text("The build timestamp is not the OS install date. Android does not expose reliable OS install dates or universal update availability to ordinary apps.")
-                    OutlinedButton(onClick = { open(Intent(Settings.ACTION_SECURITY_SETTINGS)) }) { Text("Android security settings") }
-                    OutlinedButton(onClick = { open(Intent("android.settings.SYSTEM_UPDATE_SETTINGS")) }) { Text("Check updates in Settings") }
+                if (section == "Device") item { DeviceSummaryCard(values) }
+                if (section == "Memory") item {
+                    MetricSummaryCard("RAM used", values["Used RAM"], values["RAM utilization"],
+                        "Total" to values["Total RAM"], "Available" to values["Available RAM"])
                 }
                 if (section == "Storage") item {
-                    OutlinedButton(onClick = { open(Intent(Settings.ACTION_INTERNAL_STORAGE_SETTINGS)) }) { Text("Android storage settings") }
+                    MetricSummaryCard("Internal storage used", values["Used internal storage"], values["internal storage utilization"],
+                        "Total" to values["Total internal storage"], "Available" to values["Available internal storage"])
                 }
                 if (section == "Battery") item {
-                    Text("Health is the platform condition code, not remaining design capacity. No per-app estimates are invented.")
-                    OutlinedButton(onClick = { open(Intent(Intent.ACTION_POWER_USAGE_SUMMARY)) }) { Text("Android battery usage") }
-                    OutlinedButton(onClick = { open(Intent(Settings.ACTION_BATTERY_SAVER_SETTINGS)) }) { Text("Battery saver settings") }
+                    MetricSummaryCard("Battery", values["Battery"], values["Battery"],
+                        "State" to values["Charging"], "Power source" to values["Battery power source"])
+                }
+                val summarizedKeys = when (section) {
+                    "Memory" -> setOf("Used RAM", "Total RAM", "Available RAM", "RAM utilization")
+                    "Storage" -> setOf("Used internal storage", "Total internal storage", "Available internal storage", "internal storage utilization")
+                    "Battery" -> setOf("Battery", "Charging", "Battery power source")
+                    else -> emptySet()
+                }
+                item {
+                    InfoDetailsCard(keys.filterNot { it in summarizedKeys }.map { key ->
+                        val display = if (key == "OS build time (not install date)")
+                            MonitorFormats.localIsoTimestamp(values[key] ?: "Unavailable") else values[key] ?: "Unavailable"
+                        (if (key == "Device") "Device codename" else key) to display
+                    })
+                }
+                if (section == "Device") item {
+                    CompactActionRow("About device", Icons.Outlined.Smartphone, onClick = { open(Intent(Settings.ACTION_DEVICE_INFO_SETTINGS)) })
+                }
+                if (section == "Security and updates") item {
+                    InfoCaption("System properties only, not a security audit. Build time is not the OS install date; Android does not expose reliable install dates or universal update availability.")
+                    CompactActionRow("Android security settings", Icons.Outlined.VerifiedUser, onClick = { open(Intent(Settings.ACTION_SECURITY_SETTINGS)) })
+                    CompactActionRow("Check updates in Settings", Icons.Outlined.Refresh, onClick = { open(Intent("android.settings.SYSTEM_UPDATE_SETTINGS")) })
+                }
+                if (section == "Storage") item {
+                    CompactActionRow("Android storage settings", Icons.Outlined.Storage, onClick = { open(Intent(Settings.ACTION_INTERNAL_STORAGE_SETTINGS)) })
+                }
+                if (section == "Battery") item {
+                    InfoCaption("Health is the platform condition code, not remaining design capacity. No per-app estimates are invented.")
+                    CompactActionRow("Android battery usage", Icons.Outlined.BatteryChargingFull, onClick = { open(Intent(Intent.ACTION_POWER_USAGE_SUMMARY)) })
+                    CompactActionRow("Battery saver settings", Icons.Outlined.BatteryChargingFull, onClick = { open(Intent(Settings.ACTION_BATTERY_SAVER_SETTINGS)) })
                 }
             }
             "Downloads and reports" -> {
                 item {
-                    Text("Android scoped storage does not expose every download. Select one file or a permitted folder; no broad storage access is requested. Access is session-only. Android 11+ can restrict selecting the Downloads root. An 8-second deadline requests provider cancellation; providers may ignore it, so response time cannot be guaranteed.")
-                    OutlinedButton(enabled = !working && !pickerPending, onClick = {
+                    InfoCaption("Select a document or permitted folder; access is session-only, not a scan of all downloads. Android 11+ can restrict the Downloads root. Discovery requests cancellation after 8 seconds; providers may ignore it.")
+                    CompactActionRow("Select document", Icons.Outlined.Description, enabled = !working && !pickerPending, onClick = {
                         pickerPending = true
                         try { documentPicker.launch(arrayOf("*/*")) } catch (_: Exception) { pickerPending = false; message = "No document picker available." }
-                    }) { Text("Select document") }
-                    OutlinedButton(enabled = !working && !pickerPending, onClick = {
+                    })
+                    CompactActionRow("Select folder", Icons.Outlined.FolderOpen, enabled = !working && !pickerPending, onClick = {
                         pickerPending = true
                         try { folderPicker.launch(null) } catch (_: Exception) { pickerPending = false; message = "No folder picker available." }
-                    }) { Text("Select folder") }
-                    OutlinedButton(onClick = { open(Intent(DownloadManager.ACTION_VIEW_DOWNLOADS), Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                    })
+                    CompactActionRow("Open system Downloads", Icons.Outlined.Download, onClick = { open(Intent(DownloadManager.ACTION_VIEW_DOWNLOADS), Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
                         type = "*/*"; addCategory(Intent.CATEGORY_OPENABLE)
-                    }) }) { Text("Open system Downloads") }
+                    }) })
                     discovery?.let { result ->
                         Text("${result.files.size} discovered documents${if (result.partial) " · partial" else ""}")
                         Text(result.notes)
@@ -268,12 +345,12 @@ private fun InfoMonitorContent(onOpenAppearance: (() -> Unit)? = null, onSnapsho
                 }
                 item {
                     Text("Reports", style = MaterialTheme.typography.titleMedium)
-                    Text("Export a newly collected, coherent snapshot with its UTC timestamp. Reports contain device/build details, including model and build fingerprint, but no unique hardware IDs, task data, passwords, or selected document names. Choose the destination yourself. PDF uses Android's native PDF renderer; font glyph coverage depends on Android.")
+                    InfoCaption("Export a fresh snapshot with UTC timestamps to your chosen destination. Includes device/build details, not unique hardware IDs, tasks, passwords or selected document names. PDF font coverage depends on Android.")
                     val filename = "clarity-info-${snapshot?.capturedAt ?: System.currentTimeMillis()}"
-                    OutlinedButton(enabled = !working && !pickerPending, onClick = { pickerPending = true; try { textExport.launch("$filename.txt") } catch (_: Exception) { pickerPending = false; message = "No export picker available." } }) { Text("Save TXT") }
-                    OutlinedButton(enabled = !working && !pickerPending, onClick = { pickerPending = true; try { csvExport.launch("$filename.csv") } catch (_: Exception) { pickerPending = false; message = "No export picker available." } }) { Text("Save CSV") }
-                    OutlinedButton(enabled = !working && !pickerPending, onClick = { pickerPending = true; try { pdfExport.launch("$filename.pdf") } catch (_: Exception) { pickerPending = false; message = "No export picker available." } }) { Text("Save PDF") }
-                    Text("A failed or cancelled export can leave an incomplete destination document; delete it using your file manager.")
+                    CompactActionRow("Save TXT report", Icons.Outlined.Description, enabled = !working && !pickerPending, onClick = { pickerPending = true; try { textExport.launch("$filename.txt") } catch (_: Exception) { pickerPending = false; message = "No export picker available." } })
+                    CompactActionRow("Save CSV report", Icons.Outlined.Description, enabled = !working && !pickerPending, onClick = { pickerPending = true; try { csvExport.launch("$filename.csv") } catch (_: Exception) { pickerPending = false; message = "No export picker available." } })
+                    CompactActionRow("Save PDF report", Icons.Outlined.Description, enabled = !working && !pickerPending, onClick = { pickerPending = true; try { pdfExport.launch("$filename.pdf") } catch (_: Exception) { pickerPending = false; message = "No export picker available." } })
+                    InfoCaption("Failed or cancelled exports may leave an incomplete document; remove it with your file manager.")
                 }
                 val documents = discovery?.files.orEmpty().filter { file ->
                     file.name.contains(documentSearch, ignoreCase = true) && when (documentFilter) {
@@ -288,7 +365,7 @@ private fun InfoMonitorContent(onOpenAppearance: (() -> Unit)? = null, onSnapsho
                         Column(Modifier.padding(12.dp)) {
                             Text(file.name, style = MaterialTheme.typography.titleSmall)
                             Text("${file.kind} · ${MonitorFormats.bytes(file.size)}")
-                            Text("Modified: ${file.modified?.let(MonitorFormats::timestamp) ?: "Unavailable"}")
+                            InfoCaption("Modified: ${file.modified?.let(MonitorFormats::localTimestamp) ?: "Unavailable"}")
                             TextButton(onClick = {
                                 val view = Intent(Intent.ACTION_VIEW).setDataAndType(file.uri, file.mime)
                                     .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
@@ -299,12 +376,12 @@ private fun InfoMonitorContent(onOpenAppearance: (() -> Unit)? = null, onSnapsho
                 }
             }
             "Maintenance" -> item {
-                Text("Only Clarity's cacheDir and codeCacheDir are eligible. Tasks, notes, vault, settings, imports, reports and other apps are not cleared. No RAM boosting, task killing or device-wide cache cleaning.")
+                InfoCaption("Only Clarity's disposable cache and code cache. Tasks, notes, vault, settings, imports, reports and other apps are kept. No RAM boosting, task killing or device-wide cleaning.")
                 cache?.let { Text("${MonitorFormats.bytes(it.bytes)} · ${it.files} files · ${it.failures} skipped/errors${if (it.partial) " · partial" else ""}") }
-                OutlinedButton(enabled = !working && !pickerPending, onClick = { work { cache = MonitorCache.inspect(context); message = "Cache measurement completed; files may change while the app runs." } }) { Text("Measure app cache") }
-                OutlinedButton(enabled = !working && !pickerPending, onClick = { confirmCache = true }) { Text("Clear Clarity cache…") }
-                OutlinedButton(onClick = { open(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}"))) }) { Text("Clarity app settings") }
-                Text("Traversal is bounded, cancellable and skips symbolic links. Android may recreate caches immediately. Results report actual processed files, not a promise of increased free space.")
+                CompactActionRow("Measure app cache", Icons.Outlined.Storage, enabled = !working && !pickerPending, onClick = { work { cache = MonitorCache.inspect(context); message = "Cache measurement completed; files may change while the app runs." } })
+                CompactActionRow("Clear Clarity cache…", Icons.Outlined.DeleteOutline, destructive = true, enabled = !working && !pickerPending, onClick = { confirmCache = true })
+                CompactActionRow("Clarity app settings", ClarityIcons.Settings, onClick = { open(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}"))) })
+                InfoCaption("Bounded, cancellable traversal skips symbolic links. Android may recreate caches immediately; processed bytes do not guarantee increased free space.")
             }
         }
     }
@@ -339,23 +416,99 @@ private fun InfoMonitorContent(onOpenAppearance: (() -> Unit)? = null, onSnapsho
 }
 
 @Composable
-private fun InfoMetric(label: String, value: String) {
-    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(UiTokens.CardRadius),
-        colors = CardDefaults.cardColors(containerColor = UiTokens.Surface, contentColor = UiTokens.Ink)) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(label, style = MaterialTheme.typography.labelLarge)
-            Text(value, style = MaterialTheme.typography.bodyMedium)
+private fun InfoCategoryTile(title: String, icon: ImageVector, isSelected: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    Surface(onClick = onClick, color = if (isSelected) UiTokens.Accent.copy(alpha = .12f) else dashboardSurface,
+        shape = RoundedCornerShape(16.dp), modifier = modifier.heightIn(min = 56.dp).semantics { selected = isSelected }) {
+        Row(Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Icon(icon, contentDescription = null, tint = if (isSelected) UiTokens.Accent else UiTokens.Muted, modifier = Modifier.size(20.dp))
+            Text(title.replace(" and ", " & "), color = UiTokens.Ink, fontSize = 13.sp,
+                lineHeight = 16.sp, fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal)
         }
     }
 }
 
 @Composable
-private fun InfoProgress(label: String, value: String?) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("$label: ${value ?: "Unavailable"}", color = UiTokens.Muted)
-        MonitorFormats.percentFraction(value)?.let { fraction ->
-            LinearProgressIndicator(progress = { fraction }, color = UiTokens.Accent,
-                trackColor = UiTokens.SurfaceRaised, modifier = Modifier.fillMaxWidth())
+private fun DeviceSummaryCard(values: Map<String, String>) {
+    Surface(color = dashboardSurface, shape = RoundedCornerShape(18.dp)) {
+        Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Outlined.Smartphone, contentDescription = null, tint = UiTokens.Muted, modifier = Modifier.size(28.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("Device information", fontSize = 12.sp, color = UiTokens.Muted)
+                Text(MonitorFormats.deviceIdentity(values), fontSize = 24.sp, fontWeight = FontWeight.SemiBold)
+                Text("Brand: ${values["Brand"] ?: "Unavailable"}", color = UiTokens.Muted, fontSize = 13.sp)
+            }
+        }
+    }
+}
+
+@Composable
+private fun InfoDetailsCard(entries: List<Pair<String, String>>) {
+    Surface(color = dashboardSurface, shape = RoundedCornerShape(18.dp)) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
+            if (entries.isEmpty()) InfoCaption("No snapshot available. Refresh to collect device information.")
+            entries.forEachIndexed { index, (label, value) ->
+                if (index > 0) HorizontalDivider(color = UiTokens.Subdued.copy(alpha = .3f))
+                BoxWithConstraints(Modifier.fillMaxWidth().padding(vertical = 10.dp)) {
+                    if (maxWidth < 280.dp || LocalDensity.current.fontScale > 1.3f) {
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(label, fontSize = 12.sp, color = UiTokens.Muted)
+                            Text(value, fontSize = 14.sp, color = UiTokens.Ink)
+                        }
+                    } else {
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Text(label, fontSize = 12.sp, color = UiTokens.Muted, modifier = Modifier.weight(.45f))
+                            Text(value, fontSize = 14.sp, color = UiTokens.Ink, modifier = Modifier.weight(.55f))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MetricSummaryCard(label: String, value: String?, percentage: String?,
+    first: Pair<String, String?>, second: Pair<String, String?>) {
+    Surface(color = dashboardSurface, shape = RoundedCornerShape(18.dp)) {
+        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(label, color = UiTokens.Muted, fontSize = 14.sp)
+            Text(value ?: "Unavailable", fontSize = 28.sp, fontWeight = FontWeight.SemiBold)
+            MonitorFormats.percentFraction(percentage)?.let { fraction ->
+                if (percentage != value) Text("$percentage used", color = UiTokens.Muted, fontSize = 13.sp)
+                LinearProgressIndicator(progress = { fraction }, color = UiTokens.Accent,
+                    trackColor = UiTokens.SurfaceRaised, modifier = Modifier.fillMaxWidth())
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                listOf(first, second).forEach { (name, reading) ->
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(name, color = UiTokens.Muted, fontSize = 12.sp)
+                        Text(reading ?: "Unavailable", fontSize = 14.sp)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun InfoCaption(text: String) {
+    Text(text, color = UiTokens.Muted, style = MaterialTheme.typography.bodySmall,
+        modifier = Modifier.padding(vertical = 6.dp))
+}
+
+@Composable
+private fun CompactActionRow(label: String, icon: ImageVector, enabled: Boolean = true,
+    destructive: Boolean = false, onClick: () -> Unit) {
+    Surface(onClick = onClick, enabled = enabled, color = dashboardSurface,
+        shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+        Row(Modifier.heightIn(min = 52.dp).padding(12.dp), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            val tint = if (!enabled) UiTokens.Subdued else if (destructive) UiTokens.Accent else UiTokens.Ink
+            Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(20.dp))
+            Text(label, color = tint, fontSize = 14.sp, modifier = Modifier.weight(1f))
+            Icon(Icons.Outlined.ChevronRight, contentDescription = null, tint = UiTokens.Muted, modifier = Modifier.size(18.dp))
         }
     }
 }

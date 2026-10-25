@@ -1,5 +1,23 @@
 # Change History
 
+## 2026-10-25 - Redesign Info as a compact device dashboard
+
+- Replaced outlined category pills with two-column icon-led tiles, added a compact refresh/status area with readable local capture times, and grouped raw device/security/diagnostic values into shared cards. RAM, internal storage and battery have prominent real-data summaries and bounded progress indicators; fields already in summaries are not repeated in the details.
+- Applied charcoal surfaces, neutral text and restrained red selection/action accents across all seven categories. Downloads, report exports and maintenance use compact action rows; existing SAF access, report contents, cache confirmation, 30-second foreground polling, snapshot retention, widget refresh callback and settings destinations remain intact. Privacy text distinguishes local monitoring from optional snapshot backups.
+- Tightened the existing scrollable module bar and scroll the selected tab directly into view. Info alone gets a black outer background, 20dp margins and adjusted title/header spacing; other module content is unchanged.
+- Added local-time/time-zone, status-state and device-identity tests. All 218 unit tests passed and `assembleDebug` succeeded, including the debug APK signing step. No Android device is connected, so phone layout, font scaling, category interaction and system/provider actions still require on-device verification.
+- `lintDebug` was also run: it failed on the existing `WallpaperManager.getDrawable` missing-permission issue in `WidgetBackgroundEditor.kt:120` (1 error, 360 warnings). That unrelated source/permission behavior was not changed.
+
+## 2026-10-25 - Prepare local debug signing configuration
+
+- Created a Git-ignored local signing configuration pointing to the existing debug keystore and alias, with password placeholders for the developer to replace privately. No signing key or password was added to tracked files.
+- Signing/build verification requires filling in both password values.
+
+## 2026-10-25 - Clarify Google authorization failures
+
+- Stopped mapping Google API status `CANCELED` to a user-cancellation message. API failures now retain their status code, while an activity result without access explains that the flow ended and directs users who selected an account to check OAuth package/SHA-1 and consent access. Local backup data is not changed.
+- Updated the authorization contract test and project memory. Focused validation pending.
+
 ## 2026-10-25 - Redesign Wallpaper Studio and improve procedural styles
 
 - Reorganized the Wallpapers tab into icon-led, animated collapsible sections for style, colors/gradients, shapes/patterns, fine-tuning, and output/apply. Wallpaper Style is open by default; advanced groups start collapsed. Added generated previews for every existing style, selected-state indicators, style descriptions, style-specific color reset palettes, and a direct Apply action while preserving saved designs, exports, targets, and wallpaper application.

@@ -353,8 +353,8 @@ class MainActivity : FragmentActivity() {
     val iconColor = colorFromHex(settings.incomplete)
     val caretColor = if (iconColor.isBlackOrGray()) Color.White else iconColor
     ProvideTextStyle(TextStyle(fontFamily = appUiFontFamily)) {
-        Column(Modifier.fillMaxSize().background(Bg).windowInsetsPadding(WindowInsets.safeDrawing).padding(UiTokens.PageMargin)) {
-            Text("Clarity", color = Ink, fontSize = 22.sp, fontWeight = FontWeight.Bold, maxLines = 1, modifier = Modifier.padding(bottom = 12.dp))
+        Column(Modifier.fillMaxSize().background(if (page == "Info") Color.Black else Bg).windowInsetsPadding(WindowInsets.safeDrawing).padding(if (page == "Info") 20.dp else UiTokens.PageMargin)) {
+            Text("Clarity", color = Ink, fontSize = if (page == "Info") 28.sp else 22.sp, fontWeight = FontWeight.Bold, maxLines = 1, modifier = Modifier.padding(bottom = if (page == "Info") 8.dp else 12.dp))
             val currentModule = ModuleNavigation.moduleFor(page, todoPage)
             fun openModule(id: String) {
                 val target = ModuleNavigation.routeFor(id)
@@ -373,7 +373,7 @@ class MainActivity : FragmentActivity() {
                     is BackStep.AtHome -> { exitArmed = true; android.widget.Toast.makeText(context, "Press back again to exit", android.widget.Toast.LENGTH_SHORT).show() }
                 }
             }
-            ModuleTabBar(ModuleNavigation.modules, currentModule, ::openModule, Modifier.padding(bottom = 16.dp))
+            ModuleTabBar(ModuleNavigation.modules, currentModule, ::openModule, Modifier.padding(bottom = if (page == "Info") 8.dp else 16.dp))
             val swipeThresholdPx = with(androidx.compose.ui.platform.LocalDensity.current) { 96.dp.toPx() }
             Column(Modifier.weight(1f).fillMaxWidth().pointerInput(currentModule) {
                 var drag = 0f

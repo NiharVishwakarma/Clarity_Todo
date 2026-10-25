@@ -5,6 +5,35 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class MonitorFormatsTest {
+    @Test fun dashboardTimeUsesRequestedLocalZoneWithoutChangingReportTimestamps() {
+        val zone = java.util.TimeZone.getTimeZone("Asia/Kolkata")
+        assertEquals("Jan 1, 1970, 5:30 AM", MonitorFormats.localTimestamp(0, zone, java.util.Locale.US))
+        assertEquals("1970-01-01T00:00:00.000Z", MonitorFormats.timestamp(0))
+        assertEquals("Unavailable", MonitorFormats.localIsoTimestamp("Unavailable"))
+        assertEquals(MonitorFormats.localTimestamp(0), MonitorFormats.localIsoTimestamp("1970-01-01T00:00:00.000Z"))
+    }
+
+    @Test fun dashboardStatesPreserveFailureStalenessAndPreviousCaptureTime() {
+        assertEquals("Loading local metrics", MonitorFormats.dashboardStatus(null, 0, true, false))
+        assertTrue(MonitorFormats.dashboardStatus(null, 0, false, true).startsWith("Refresh failed"))
+        assertEquals("No snapshot · Tap refresh", MonitorFormats.dashboardStatus(null, 0, false, false))
+        val captured = MonitorFormats.localTimestamp(1_000)
+        assertEquals("Updated $captured", MonitorFormats.dashboardStatus(1_000, 2_000, false, false))
+        assertEquals("Refreshing · Saved $captured", MonitorFormats.dashboardStatus(1_000, 2_000, true, false))
+        assertEquals("Refresh failed · Saved $captured", MonitorFormats.dashboardStatus(1_000, 2_000, false, true))
+        assertEquals("Stale snapshot $captured",
+            MonitorFormats.dashboardStatus(1_000, 1_000 + MonitorFormats.STALE_AFTER_MILLIS, false, false))
+    }
+
+    @Test fun deviceIdentityKeepsRawValuesAndHandlesMissingOrDuplicateIdentity() {
+        val values = mapOf("Manufacturer" to "Example", "Model" to "Model 7", "Brand" to "Other", "Device" to "internal")
+        assertEquals("Example Model 7", MonitorFormats.deviceIdentity(values))
+        assertEquals("internal", values["Device"])
+        assertEquals("Example", MonitorFormats.deviceIdentity(mapOf("Manufacturer" to "Example", "Model" to "example")))
+        assertEquals("Model 7", MonitorFormats.deviceIdentity(mapOf("Manufacturer" to UNAVAILABLE, "Model" to "Model 7")))
+        assertEquals("Device information unavailable", MonitorFormats.deviceIdentity(emptyMap()))
+    }
+
     @Test fun byteUnitsAndUnknowns() {
         assertEquals("Unavailable", MonitorFormats.bytes(null))
         assertEquals("Unavailable", MonitorFormats.bytes(-1))

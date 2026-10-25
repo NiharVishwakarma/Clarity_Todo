@@ -25,9 +25,12 @@ class BackupConnectionContractTest {
         listOf(
             "CommonStatusCodes.DEVELOPER_ERROR", "CommonStatusCodes.NETWORK_ERROR",
             "EXTRA_SEND_INTENT_EXCEPTION", "if (pending == null)", "token.isNullOrBlank()",
-            "Google authorization was cancelled.", "catch (error: Exception)",
+            "Google closed the authorization flow before access was granted.",
+            "verify the Android OAuth client package/SHA-1",
+            "catch (error: Exception)",
             "Google Play services", "if (busy || pending != null) return"
         ).forEach { assertTrue(it, screen.contains(it)) }
+        assertFalse(screen.contains("statusCode == CommonStatusCodes.CANCELED) cancelled()"))
         assertTrue(screen.contains("authorize(BackupManager.authorizationRequest())"))
         assertTrue(screen.contains("getAuthorizationResultFromIntent(result.data)"))
     }

@@ -1,6 +1,7 @@
 package com.example.darktodo.monitor
 
 import java.text.SimpleDateFormat
+import java.text.DateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
@@ -11,6 +12,41 @@ data class MonitorSnapshot(val capturedAt: Long, val values: Map<String, String>
 
 object MonitorFormats {
     const val STALE_AFTER_MILLIS = 60 * 60 * 1000L
+
+    fun deviceIdentity(values: Map<String, String>): String =
+        listOfNotNull(values["Manufacturer"], values["Model"])
+            .filter { it.isNotBlank() && it != UNAVAILABLE }
+            .distinctBy { it.lowercase(Locale.ROOT) }
+            .joinToString(" ").ifEmpty { "Device information unavailable" }
+
+    fun localTimestamp(time: Long, zone: TimeZone = TimeZone.getDefault(), locale: Locale = Locale.getDefault()): String =
+        DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT, locale).apply {
+            timeZone = zone
+        }.format(Date(time))
+
+    fun localIsoTimestamp(value: String): String {
+        val instant = try {
+            java.time.Instant.parse(value)
+        } catch (_: java.time.format.DateTimeParseException) {
+            return value
+        }
+        return localTimestamp(instant.toEpochMilli())
+    }
+
+    fun dashboardStatus(capturedAt: Long?, now: Long, refreshing: Boolean, refreshFailed: Boolean): String {
+        if (capturedAt == null) return when {
+            refreshing -> "Loading local metrics"
+            refreshFailed -> "Refresh failed · Tap refresh to retry"
+            else -> "No snapshot · Tap refresh"
+        }
+        val prefix = when {
+            refreshFailed -> "Refresh failed · Saved"
+            refreshing -> "Refreshing · Saved"
+            snapshotStale(capturedAt, now, false) -> "Stale snapshot"
+            else -> "Updated"
+        }
+        return "$prefix ${localTimestamp(capturedAt)}"
+    }
 
     fun snapshotStale(capturedAt: Long, now: Long, refreshFailed: Boolean): Boolean =
         refreshFailed || capturedAt < 0 || now < capturedAt || now - capturedAt >= STALE_AFTER_MILLIS

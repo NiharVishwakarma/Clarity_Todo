@@ -122,8 +122,7 @@ internal fun rememberDriveAuthorizer(
                 }
                 .addOnFailureListener {
                     launching = false
-                    if ((it as? ApiException)?.statusCode == CommonStatusCodes.CANCELED) cancelled()
-                    else failed(authorizationError(it))
+                    failed(authorizationError(it))
                 }
             } catch (error: Exception) {
                 launching = false
@@ -248,7 +247,11 @@ internal fun BackupSettingsSection() {
     var pending by rememberSaveable { mutableStateOf<BackupAuthorization?>(null) }
     val authorize = rememberDriveAuthorizer(
         onError = { pending = null; message = it; busy = false },
-        onCancelled = { pending = null; message = "Google authorization was cancelled. Your local data is unchanged."; busy = false },
+        onCancelled = {
+            pending = null
+            message = "Google closed the authorization flow before access was granted. If you selected an account, verify the Android OAuth client package/SHA-1 and consent-screen access. Your local data is unchanged."
+            busy = false
+        },
         onAuthorized = { token, accountEmail ->
             val action = pending
             pending = null
@@ -493,7 +496,12 @@ internal fun WelcomeBackGate(onFinished: (restored: Boolean) -> Unit) {
     var checkingAuthorization by rememberSaveable { mutableStateOf(false) }
     val authorize = rememberDriveAuthorizer(
         onError = { checkingAuthorization = false; message = it; notice = null; stage = WelcomeStage.ASK },
-        onCancelled = { checkingAuthorization = false; message = null; notice = "Google sign-in was cancelled. Your local data is unchanged; you can try again."; stage = WelcomeStage.ASK },
+        onCancelled = {
+            checkingAuthorization = false
+            message = null
+            notice = "Google sign-in ended before access was granted. If you selected an account, verify the Android OAuth client package/SHA-1 and consent-screen access. Your local data is unchanged; you can try again."
+            stage = WelcomeStage.ASK
+        },
         onAuthorized = { value, email ->
             if (!checkingAuthorization) {
                 message = "The Google connection request was interrupted. Please try again."

@@ -94,8 +94,8 @@ Source paths here use the same implementation prefix as the table.
 - `monitor/MonitorRepository.kt` collects public-API snapshots off-main, serializes
   refreshes, and retains the last successful snapshot in `noBackupFilesDir`.
   Info/widget share it; Drive includes historical state, not disposable caches/reports.
-- `ui/InfoScreen.kt` owns SAF consent, explicit document exports and cache confirmation.
-  Monitor polling is separate from task countdown alarms.
+- `ui/InfoScreen.kt` owns the compact category dashboard, SAF exports and cache confirmation.
+  `monitor/MonitorModels.kt` formats local UI times; reports retain UTC. Polling is separate from task alarms.
 - `data/VaultAppearance.kt` stores global widget-only appearance independently
   of Vault authentication; appearance writes refresh all Vault instances.
 - `ClarityApplication.kt` → `backup/BackupScheduler.kt` installs preference listeners
