@@ -1,4 +1,5 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" tools:ignore="ProtectedPermissions" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
@@ -9,6 +10,13 @@
         <intent><action android:name="android.intent.action.POWER_USAGE_SUMMARY" /></intent>
         <intent><action android:name="android.settings.INTERNAL_STORAGE_SETTINGS" /></intent>
         <intent><action android:name="android.intent.action.VIEW_DOWNLOADS" /></intent>
+        <intent><action android:name="android.settings.WELLBEING_SETTINGS" /></intent>
+        <intent><action android:name="android.settings.USAGE_ACCESS_SETTINGS" /></intent>
+        <!-- Launcher-visible apps only, so the screen-time breakdown can show their labels and icons. -->
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
     </queries>
     <application android:name=".ClarityApplication" android:theme="@style/Theme.DarkTodo" android:label="@string/app_name" android:icon="@mipmap/ic_clarity_suite" android:roundIcon="@mipmap/ic_clarity_suite_round" android:allowBackup="${clarityAllowBackup}">
         <activity android:name=".MainActivity" android:exported="true">
@@ -30,6 +38,11 @@
             android:taskAffinity=""
             android:theme="@android:style/Theme.Translucent.NoTitleBar" />
         <activity
+            android:name=".monitor.ScreenTimeDetailsActivity"
+            android:exported="false"
+            android:label="Screen time"
+            android:taskAffinity="" />
+        <activity
             android:name=".widget.StickerWidgetConfigActivity"
             android:exported="true"
             android:excludeFromRecents="true"
@@ -49,7 +62,14 @@
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/vault_widget_info" />
         </receiver>
         <receiver android:name=".widget.SystemMonitorWidgetReceiver" android:label="Clarity System Monitor" android:exported="true">
-            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.intent.action.DATE_CHANGED" />
+                <action android:name="android.intent.action.USER_UNLOCKED" />
+            </intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/system_monitor_widget_info" />
         </receiver>
         <receiver android:name=".widget.StickerWidgetReceiver" android:label="@string/notes_widget_label" android:exported="true">

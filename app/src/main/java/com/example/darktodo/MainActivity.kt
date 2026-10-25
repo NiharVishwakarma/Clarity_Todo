@@ -192,6 +192,11 @@ class MainActivity : FragmentActivity() {
         ContextCompat.registerReceiver(this, screenOnReceiver, IntentFilter(Intent.ACTION_SCREEN_ON), ContextCompat.RECEIVER_NOT_EXPORTED)
     }
 
+    override fun onResume() {
+        super.onResume()
+        com.example.darktodo.widget.SystemMonitorWidget.renderAll(this)
+    }
+
     override fun onStop() {
         unregisterReceiver(screenOnReceiver)
         super.onStop()

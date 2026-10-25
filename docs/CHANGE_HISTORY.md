@@ -1,5 +1,28 @@
 # Change History
 
+## 2026-10-25 - Open a Clarity per-app screen-time breakdown from the widget
+
+- Root cause: the tile's trampoline tried the undocumented `android.settings.WELLBEING_SETTINGS` action and, when it did not resolve (as on the reporting device), fell through to Clarity's Usage Access page even though access was granted.
+- The tile `PendingIntent` (same request code/data URI scheme, `NEW_TASK | CLEAR_TASK`) now targets the new non-exported `ScreenTimeDetailsActivity`: today's total, `Today · Since midnight`, apps by icon/name/duration (longest first, zero filtered, sub-minute `<1m`), refresh, empty, partial and permission-required states. Usage Access settings open only when access is missing; every resume rechecks access and re-renders widgets when it changes. Digital Wellbeing is a separate button shown only when the action resolves to an accessible activity. Removed the screen-time path from `SystemMonitorActionActivity`; cache confirmation is unchanged.
+- `ScreenTime.calculate` also credits each interval once per package (split-screen apps each get the time; the total remains a union). Clarity's own activity events are now excluded from the device total. A launcher-intent `<queries>` entry resolves labels/icons; no new permissions. Usage data stays in memory.
+- Added routing, permission-decision, per-app attribution/sorting/filtering and duration tests. Validation: `.\gradlew.bat testDebugUnitTest assembleDebug` passed (238 tests, zero failures/errors/skips); `git diff --check` passed. No device was connected, so the tap flow, icons and usage accuracy remain unverified on hardware.
+## 2026-10-25 - Replace monitor cache tile with local screen time
+
+- Replaced the full-layout cache tile with Screen time today, compact durations, Since midnight supporting text and a clickable permission/settings destination. Preserved RAM/storage/battery, styling, layout dimensions, refresh and other actions; cache cleanup remains available through Info and the essential-layout shortcut.
+- Added user-granted Usage Access and local UsageStatsManager event calculations, local-zone/DST-aware day boundaries, cross-midnight activity seeding and concurrent-activity union. Empty/locked/denied data never becomes a fabricated zero; uncertain boundaries/restarts are marked partial. Usage data is kept only in memory, outside reports, stored snapshots and Drive backups.
+- Rendering refreshes usage once per widget batch, including app foreground/settings returns. Boot/unlock/date/time/time-zone events and an inexact local-midnight alarm complement existing WorkManager refreshes; Android may delay background delivery. The native Wellbeing intent is availability/permission checked, with Usage Access/general Settings fallbacks, and is not claimed to match OEM totals.
+- Added boundary/DST, formatting, unavailable/partial, event-session and refresh/privacy contract tests. Updated the appearance preview, README, repository map and project memory. Real Usage Access granting, launcher rendering and Digital Wellbeing launching require device validation.
+- The appearance preview reads actual local usage rather than displaying a fabricated sample total. Screen-off/lock resets tolerate subsequent pause events, and settings-return handling distinguishes an open permission explanation from a launched system activity.
+- Validation: `.\gradlew.bat testDebugUnitTest assembleDebug` passed (233 tests, zero failures/errors/skips), producing the signed debug APK; `git diff --check` passed. No Android device or emulator was connected, so permission/settings flows and actual widget rendering remain unverified.
+
+## 2026-10-25 - Add independent note title and body appearance
+
+- Extended the existing note-style JSON compatibly with per-element color modes, colors, fonts/imported font IDs, sizes, weights, italic, alignment and line spacing. Missing metadata retains legacy styling, IDs and text; new notes default to automatic contrast for both elements.
+- Reworked the editor with title/body appearance actions, live previews, draft-only styling until Save, saved text selection, keyboard insets, scrollable content and a wrapping action footer. The note gear retains its existing live-saving background/layout workflow and now exposes independent title/body controls.
+- App cards and the actual Notes bitmap widget use the same resolved foregrounds and independent typography. Background presets preserve explicit custom colors. WCAG black/white selection targets 4.5:1 on opaque solid backgrounds; conservative image/fade and unknown translucent-background bounds show warnings where readability cannot be guaranteed. Existing note saves refresh widgets; failures are logged.
+- Added model/contrast and editor/widget source-contract tests and updated font-selection/settings contracts, README, project memory and the repository map. Device keyboard, font scaling, TalkBack and launcher rendering remain unverified because no Android device is connected.
+- Validation: `testDebugUnitTest assembleDebug` passed (226 tests, zero failures/errors), including debug APK signing; `git diff --check` passed.
+
 ## 2026-10-25 - Redesign Info as a compact device dashboard
 
 - Replaced outlined category pills with two-column icon-led tiles, added a compact refresh/status area with readable local capture times, and grouped raw device/security/diagnostic values into shared cards. RAM, internal storage and battery have prominent real-data summaries and bounded progress indicators; fields already in summaries are not repeated in the details.

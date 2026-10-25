@@ -6,6 +6,48 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 class StickerStyleTest {
+    @Test fun independentStylesSurviveSavingAndReopeningWithoutChangingNoteIdentityOrText() {
+        val original = Sticker("stable-id", "Title", "Line 1\nLine 2", style = StickerStyle())
+        val title = NoteTextStyle("#FF0000", false, WidgetFontFamily.SERIF.key, sizeSp = 24f,
+            weight = 600, italic = true, alignment = "end", lineHeight = 1.5f)
+        val body = NoteTextStyle("#00FF00", true, WidgetFontFamily.MONOSPACE.key, sizeSp = 12f,
+            weight = 400, alignment = "center", lineHeight = 1.8f)
+        val draft = original.style!!.copy(titleStyle = title, bodyStyle = body)
+        // Immutable drafts cannot change the persisted note until the existing save boundary is called.
+        assertNull(original.style.titleStyle)
+        assertNull(original.style.bodyStyle)
+        val saved = StickerOps.setStyle(listOf(original), original.id, draft)
+        val reopened = StickerOps.decode(StickerOps.encode(saved)).single()
+        assertEquals(original.id, reopened.id)
+        assertEquals(original.content, reopened.content)
+        assertEquals(title, reopened.style!!.titleText())
+        assertEquals(body, reopened.style.bodyText())
+        assertEquals(body, draft.copy(titleStyle = title.copy(sizeSp = 30f)).bodyText())
+    }
+
+    @Test fun oldStylesUseLegacyTypographyAndColorModeWhileNewNotesDefaultToAutomatic() {
+        val old = StickerStyle.fromJson(JSONObject("""{"text":"#123456","fontSizeSp":20,"fontWeight":500}"""))!!
+        assertEquals(false, old.titleText().automatic)
+        assertEquals(false, old.bodyText().automatic)
+        assertEquals("#123456", old.titleText().color)
+        assertEquals(24f, old.titleText().sizeSp)
+        assertEquals(700, old.titleText().weight)
+        assertEquals(20f, old.bodyText().sizeSp)
+        assertEquals(true, StickerStyle().titleText().automatic)
+        assertEquals(true, StickerStyle().bodyText().automatic)
+    }
+
+    @Test fun malformedNestedTextFieldsAreSafelyBounded() {
+        val style = StickerStyle.fromJson(JSONObject("""{"titleStyle":{"color":"invalid","sizeSp":999,"alignment":"sideways","weight":9999},"bodyStyle":{"sizeSp":-10,"lineHeight":9}}"""))!!
+        assertEquals("#FFFFFF", style.titleText().color)
+        assertEquals(34f, style.titleText().sizeSp)
+        assertEquals(800, style.titleText().weight)
+        assertEquals("start", style.titleText().alignment)
+        assertEquals(10f, style.bodyText().sizeSp)
+        assertEquals(2f, style.bodyText().lineHeight)
+        assertEquals(13f, NoteTextStyle(sizeSp = Float.NaN).sanitized().sizeSp)
+    }
+
     @Test fun hexIsNormalizedFromPastedValues() {
         assertEquals("#FFD700", StickerHex.normalize("ffd700"))
         assertEquals("#C4B5FD", StickerHex.normalize("  #c4b5fd "))

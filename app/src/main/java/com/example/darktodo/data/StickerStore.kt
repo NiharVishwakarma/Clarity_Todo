@@ -119,19 +119,21 @@ object StickerStore {
     private fun save(context: Context, notes: List<Sticker>) {
         check(prefs(context).edit().putString(KEY, StickerOps.encode(notes)).commit()) { "Could not persist notes" }
         runCatching { com.example.darktodo.widget.StickerWidget.updateAll(context) }
+            .onFailure { android.util.Log.e("StickerStore", "Could not refresh note widgets after saving", it) }
     }
 
-    fun add(context: Context, title: String, content: String): List<Sticker> = synchronized(lock) {
+    fun add(context: Context, title: String, content: String, style: StickerStyle? = null): List<Sticker> = synchronized(lock) {
         val current = load(context)
-        val base = StickerStyle.resolve(Sticker("", "", ""), globalStyle(context)).copy(autoContrast = true)
+        val base = style?.sanitized() ?: StickerStyle.resolve(Sticker("", "", ""), globalStyle(context)).copy(autoContrast = true)
         val note = StickerOps.create(title, content, StickerColor.Yellow, System.currentTimeMillis(), style = base) ?: return current
         (current + note).also { save(context, it) }
     }
 
-    fun edit(context: Context, id: String, title: String, content: String): List<Sticker> = synchronized(lock) {
+    fun edit(context: Context, id: String, title: String, content: String, style: StickerStyle? = null): List<Sticker> = synchronized(lock) {
         val current = load(context)
         val color = current.firstOrNull { it.id == id }?.color ?: StickerColor.Yellow
-        StickerOps.edit(current, id, title, content, color, System.currentTimeMillis()).also { save(context, it) }
+        val edited = StickerOps.edit(current, id, title, content, color, System.currentTimeMillis())
+        (if (style == null) edited else StickerOps.setStyle(edited, id, style.sanitized())).also { save(context, it) }
     }
 
     fun rename(context: Context, id: String, title: String): List<Sticker> = synchronized(lock) {

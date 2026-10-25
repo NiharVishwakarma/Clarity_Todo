@@ -62,12 +62,16 @@ class SettingsOrganizationContractTest {
 
         val notes = source("ui/NoteSettings.kt")
         listOf(
-            "StickerColor.entries", "Background color HEX", "Text color HEX", "Border color HEX",
-            "Font family", "Font size (body)", "Font weight (body)", "Line height", "Text scaling",
-            "Background opacity", "imageSection()", "Auto contrast", "Text shadow", "Glow",
+            "StickerColor.entries", "Background color HEX", "Border color HEX",
+            "Title appearance", "Note appearance", "Text scaling",
+            "Background opacity", "imageSection()", "Text shadow", "Glow",
             "Border thickness", "Widget size", "Corner radius", "Padding", "Margin", "Card elevation",
             "StickerStore.setStyle(context, noteId, style)"
         ).forEach { assertTrue("Missing note setting or save path: $it", notes.contains(it)) }
+        val textControls = source("ui/NoteTextAppearance.kt")
+        listOf("Automatic contrast", "Custom text color", "Font size", "Semibold", "Italic",
+            "Line spacing", "Use recommended color", "LocalWidgetFonts.import", "WidgetFontFamily.entries"
+        ).forEach { assertTrue("Missing independent text control: $it", textControls.contains(it)) }
 
         val vault = source("ui/VaultAppearanceScreen.kt")
         listOf(

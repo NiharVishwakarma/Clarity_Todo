@@ -116,13 +116,15 @@
                     <ImageView android:id="@+id/monitor_widget_cache_bg"
                         android:layout_width="match_parent" android:layout_height="match_parent"
                         android:scaleType="fitXY" android:importantForAccessibility="no" />
-                    <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent"
-                        android:orientation="vertical" android:gravity="center_vertical" android:padding="6dp">
+                    <LinearLayout android:id="@+id/monitor_widget_screen_time"
+                        android:layout_width="match_parent" android:layout_height="match_parent"
+                        android:orientation="vertical" android:gravity="center_vertical" android:padding="6dp"
+                        android:contentDescription="Screen time today; open usage settings">
                         <ImageView android:id="@+id/monitor_widget_cache_label_image" android:layout_width="match_parent" android:layout_height="wrap_content" android:adjustViewBounds="true" android:scaleType="fitStart" android:visibility="gone" />
                         <TextView android:id="@+id/monitor_widget_cache_label"
                             android:layout_width="match_parent" android:layout_height="wrap_content"
-                            android:text="Clarity cache" android:textColor="#B9BBC8" android:textSize="11sp"
-                            android:maxLines="1" android:ellipsize="end" />
+                            android:text="Screen time today" android:textColor="#B9BBC8" android:textSize="11sp"
+                            android:maxLines="2" android:ellipsize="end" />
                         <ImageView android:id="@+id/monitor_widget_cache_val_image" android:layout_width="match_parent" android:layout_height="wrap_content" android:adjustViewBounds="true" android:scaleType="fitStart" android:visibility="gone" />
                         <TextView android:id="@+id/monitor_widget_cache_val"
                             android:layout_width="match_parent" android:layout_height="wrap_content"
@@ -131,7 +133,7 @@
                         <ImageView android:id="@+id/monitor_widget_clear_cache_image" android:layout_width="match_parent" android:layout_height="wrap_content" android:paddingTop="2dp" android:adjustViewBounds="true" android:scaleType="fitStart" android:visibility="gone" />
                         <TextView android:id="@+id/monitor_widget_clear_cache"
                             android:layout_width="match_parent" android:layout_height="wrap_content"
-                            android:text="Clear cache" android:textColor="#FF8A96" android:textSize="11sp"
+                            android:text="Since midnight" android:textColor="#B9BBC8" android:textSize="11sp"
                             android:maxLines="1" android:ellipsize="end" android:paddingTop="2dp" />
                     </LinearLayout>
                 </FrameLayout>

@@ -2,6 +2,44 @@
 
 Native Kotlin Android task app with To-Do, Calendar, Notes, Quotes, and locked Vault home-screen widgets. GitHub Actions builds and uploads the debug APK as `dark_todo.apk`.
 
+## Note appearance
+
+Tap a note to edit it, then use the palette beside **Title** or **Note** for independent
+colors, fonts (including imported fonts), sizes, weights, italic, alignment and line
+spacing. The live preview uses the same styles as the saved card and Notes widget.
+**Save** commits text and appearance together; **Cancel** discards that editor draft.
+The note's gear still opens live-saving settings for background images, layout and
+both text elements.
+
+New notes default to **Automatic contrast** independently for title and body.
+Choosing a custom color disables automatic mode only for that element; changing
+the background never overwrites custom colors. Low-contrast choices show a warning
+and **Use recommended color**. Opaque solid backgrounds target at least 4.5:1 using
+WCAG luminance; image backgrounds use conservative bounds after fade. No single
+color can guarantee readability over every image or unknown launcher wallpaper
+behind a translucent note; increase image fade or background opacity when warned.
+Existing notes retain legacy typography and manual/automatic color modes until edited.
+
+## System Monitor screen time
+
+The System Monitor widget's **Screen time today** tile shows a local estimate of
+foreground app usage since the device's local midnight, excluding Clarity itself.
+Tapping it opens Clarity's **Screen time** details: today's total and each app's
+icon, name and duration, longest first, with a refresh action. If Usage Access is
+missing, the tap opens Android's Usage Access settings; the tile says **Allow
+access**, not zero. A separate **Open Digital Wellbeing** button appears only when
+the device exposes an accessible Wellbeing settings activity.
+
+Usage events are calculated in memory and are never included in monitor snapshots,
+reports or Drive backups. Missing history is marked **Partial** or **Unavailable**.
+The total may differ from the manufacturer's Digital Wellbeing definition, and
+concurrent foreground activities are counted once rather than added together.
+The total updates with widget refreshes, app foreground returns, and date/time-zone
+or reboot events. A local-midnight inexact alarm complements existing 30-minute
+widget polling; Android can defer background delivery during Doze or after force-stop.
+No exact-alarm permission is needed for this new refresh. Cache maintenance remains
+available in Info > Maintenance and the widget's existing essential-layout shortcut.
+
 ## Quotes Widget
 
 Place a **Clarity Quotes** widget directly from your home-screen widget picker.

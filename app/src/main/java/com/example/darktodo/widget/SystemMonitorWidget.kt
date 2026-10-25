@@ -2,6 +2,7 @@ package com.example.darktodo.widget
 
 import android.app.DownloadManager
 import android.app.PendingIntent
+import android.app.AlarmManager
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
@@ -25,6 +26,10 @@ import com.example.darktodo.R
 import com.example.darktodo.data.SystemMonitorAppearancePrefs
 import com.example.darktodo.monitor.MonitorRepository
 import com.example.darktodo.monitor.MonitorSnapshot
+import com.example.darktodo.monitor.ScreenTime
+import com.example.darktodo.monitor.ScreenTimeDetailsActivity
+import com.example.darktodo.monitor.ScreenTimeResult
+import java.time.ZoneId
 import java.io.File
 import java.text.DateFormat
 import java.util.Date
@@ -42,6 +47,7 @@ import kotlinx.coroutines.withTimeout
 object SystemMonitorWidget {
     private const val TAG = "SystemMonitorWidget"
     internal const val ACTION_REFRESH = "com.example.darktodo.SYSTEM_MONITOR_REFRESH"
+    internal const val ACTION_NEW_DAY = "com.example.darktodo.SYSTEM_MONITOR_NEW_DAY"
     private const val WORK_NAME = "clarity-system-monitor-periodic"
     private const val TIMEOUT_MS = 6_500L
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -123,20 +129,39 @@ object SystemMonitorWidget {
         val workManager = WorkManager.getInstance(context)
         if (ids(context).isEmpty()) {
             workManager.cancelUniqueWork(WORK_NAME)
+            context.getSystemService(AlarmManager::class.java)?.cancel(midnightIntent(context))
         } else {
             val request = PeriodicWorkRequestBuilder<SystemMonitorWidgetWorker>(30, TimeUnit.MINUTES)
                 .setInitialDelay(30, TimeUnit.MINUTES)
                 .build()
             workManager.enqueueUniquePeriodicWork(WORK_NAME, ExistingPeriodicWorkPolicy.KEEP, request)
+            scheduleMidnight(context)
         }
+    }
+
+    private fun midnightIntent(context: Context): PendingIntent = PendingIntent.getBroadcast(
+        context, 0, Intent(context, SystemMonitorWidgetReceiver::class.java).setAction(ACTION_NEW_DAY),
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+    )
+
+    private fun scheduleMidnight(context: Context) {
+        // Inexact: no new exact-alarm entitlement; Android may defer delivery while asleep.
+        context.getSystemService(AlarmManager::class.java)?.setAndAllowWhileIdle(
+            AlarmManager.RTC_WAKEUP, ScreenTime.nextMidnight(System.currentTimeMillis(), ZoneId.systemDefault()),
+            midnightIntent(context)
+        )
     }
 
     private fun render(context: Context) = synchronized(renderLock) {
         val manager = AppWidgetManager.getInstance(context)
+        val widgetIds = ids(context)
+        if (widgetIds.isEmpty()) return@synchronized
+        scheduleMidnight(context)
+        val screenTime = ScreenTime.read(context)
         val snapshot = MonitorRepository.last(context)
         val style = SystemMonitorAppearancePrefs.load(context)
         val failedAt = runCatching { failureFile(context).readText().toLongOrNull() }.getOrNull() ?: 0L
-        ids(context).forEach { id ->
+        widgetIds.forEach { id ->
             val views = RemoteViews(context.packageName, R.layout.system_monitor_widget)
             val options = manager.getAppWidgetOptions(id)
             val width = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 250).coerceIn(120, 800)
@@ -168,7 +193,7 @@ object SystemMonitorWidget {
                 R.id.monitor_widget_battery_bg, R.id.monitor_widget_cache_bg
             ).forEach { views.setImageViewBitmap(it, card) }
 
-            bindMetrics(context, views, snapshot, textStyle, width)
+            bindMetrics(context, views, snapshot, textStyle, width, screenTime)
             views.setViewVisibility(R.id.monitor_widget_model_image, if (essential) View.GONE else View.VISIBLE)
             views.setViewVisibility(R.id.monitor_widget_compact_clear_image, if (essential) View.VISIBLE else View.GONE)
             if (essential) {
@@ -202,6 +227,23 @@ object SystemMonitorWidget {
             views.setOnClickPendingIntent(R.id.monitor_widget_downloads, activity(context, id, "downloads", Intent(DownloadManager.ACTION_VIEW_DOWNLOADS)))
             views.setOnClickPendingIntent(R.id.monitor_widget_downloads_image, activity(context, id, "downloads", Intent(DownloadManager.ACTION_VIEW_DOWNLOADS)))
 
+            // Targets Clarity's own breakdown; that screen sends users to Usage Access only when access is missing.
+            val screenTimeAction = PendingIntent.getActivity(
+                context, id * 10 + 5,
+                Intent(context, ScreenTimeDetailsActivity::class.java)
+                    .putExtra(ScreenTimeDetailsActivity.EXTRA_FROM_WIDGET, true)
+                    .setData(Uri.parse("clarity://system-monitor/screen-time/$id"))
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            views.setOnClickPendingIntent(R.id.monitor_widget_screen_time, screenTimeAction)
+            views.setOnClickPendingIntent(R.id.monitor_widget_cache_label_image, screenTimeAction)
+            views.setOnClickPendingIntent(R.id.monitor_widget_cache_val_image, screenTimeAction)
+            views.setOnClickPendingIntent(R.id.monitor_widget_clear_cache, screenTimeAction)
+            views.setOnClickPendingIntent(R.id.monitor_widget_clear_cache_image, screenTimeAction)
+            views.setContentDescription(R.id.monitor_widget_screen_time,
+                "Screen time today: ${screenTime.value}. ${screenTime.supporting}. Android usage estimate; may differ from Digital Wellbeing. Tap for app usage details.")
+
             // Clear cache action launches confirmation dialog Activity
             val clearCacheIntent = Intent(context, SystemMonitorActionActivity::class.java)
                 .setAction(SystemMonitorActionActivity.ACTION_CLEAR_CACHE_PROMPT)
@@ -211,9 +253,7 @@ object SystemMonitorWidget {
                 context, id * 10 + 4, clearCacheIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
-            views.setOnClickPendingIntent(R.id.monitor_widget_clear_cache, clearCacheAction)
             views.setOnClickPendingIntent(R.id.monitor_widget_compact_clear, clearCacheAction)
-            views.setOnClickPendingIntent(R.id.monitor_widget_clear_cache_image, clearCacheAction)
             views.setOnClickPendingIntent(R.id.monitor_widget_compact_clear_image, clearCacheAction)
 
             manager.updateAppWidget(id, views)
@@ -225,7 +265,8 @@ object SystemMonitorWidget {
         views: RemoteViews,
         snapshot: MonitorSnapshot?,
         style: com.example.darktodo.data.SystemMonitorAppearance,
-        width: Int
+        width: Int,
+        screenTime: ScreenTimeResult
     ) {
         val values = snapshot?.values.orEmpty()
         fun value(key: String) = SystemMonitorWidgetState.value(values, key)
@@ -237,8 +278,8 @@ object SystemMonitorWidget {
         text(R.id.monitor_widget_ram_label, "Available RAM")
         text(R.id.monitor_widget_storage_label, "Storage available")
         text(R.id.monitor_widget_battery_label, "Battery")
-        text(R.id.monitor_widget_cache_label, "Clarity cache")
-        text(R.id.monitor_widget_clear_cache, "Clear cache")
+        text(R.id.monitor_widget_cache_label, "Screen time today")
+        text(R.id.monitor_widget_clear_cache, screenTime.supporting)
         text(R.id.monitor_widget_downloads, "Downloads")
         text(R.id.monitor_widget_compact_clear, "Clear Clarity cache")
         text(R.id.monitor_widget_model, if (model != "Unavailable") model else "Device overview")
@@ -251,9 +292,7 @@ object SystemMonitorWidget {
         text(R.id.monitor_widget_battery_val, batteryPct)
         text(R.id.monitor_widget_charging, charging)
 
-        // App cache metric
-        val cacheVal = value("Clarity app storage: cache (subset of data)")
-        text(R.id.monitor_widget_cache_val, cacheVal)
+        text(R.id.monitor_widget_cache_val, screenTime.value)
 
         text(R.id.monitor_widget_android, "Android: ${value("Android")}")
         text(R.id.monitor_widget_security, "Security patch: ${value("Security patch")}")
@@ -293,12 +332,12 @@ object SystemMonitorWidget {
             R.id.monitor_widget_battery_val, R.id.monitor_widget_cache_val, R.id.monitor_widget_summary
         )
         val action = id in setOf(
-            R.id.monitor_widget_refresh, R.id.monitor_widget_clear_cache,
+            R.id.monitor_widget_refresh,
             R.id.monitor_widget_compact_clear, R.id.monitor_widget_more, R.id.monitor_widget_downloads
         )
         val secondary = id in setOf(
             R.id.monitor_widget_android, R.id.monitor_widget_security,
-            R.id.monitor_widget_charging, R.id.monitor_widget_updated
+            R.id.monitor_widget_charging, R.id.monitor_widget_updated, R.id.monitor_widget_clear_cache
         )
         val size = when {
             title -> style.titleSizeSp
@@ -327,6 +366,7 @@ object SystemMonitorWidget {
             else -> width - 24
         }.coerceAtLeast(1)
         val lines = if (id == R.id.monitor_widget_summary) 4
+            else if (id == R.id.monitor_widget_cache_label) 2
             else if (secondary || value || id == R.id.monitor_widget_more) 2 else 1
         val image = textImages.getValue(id)
         views.setViewVisibility(id, View.GONE)
@@ -366,7 +406,9 @@ class SystemMonitorWidgetReceiver : AppWidgetProvider() {
             SystemMonitorWidget.ACTION_REFRESH, AppWidgetManager.ACTION_APPWIDGET_UPDATE,
             AppWidgetManager.ACTION_APPWIDGET_ENABLED, AppWidgetManager.ACTION_APPWIDGET_RESTORED,
             AppWidgetManager.ACTION_APPWIDGET_OPTIONS_CHANGED, AppWidgetManager.ACTION_APPWIDGET_DELETED,
-            AppWidgetManager.ACTION_APPWIDGET_DISABLED -> {
+            AppWidgetManager.ACTION_APPWIDGET_DISABLED, SystemMonitorWidget.ACTION_NEW_DAY,
+            Intent.ACTION_BOOT_COMPLETED, Intent.ACTION_TIME_CHANGED, Intent.ACTION_TIMEZONE_CHANGED,
+            Intent.ACTION_DATE_CHANGED, Intent.ACTION_USER_UNLOCKED -> {
                 val pending = goAsync()
                 val collect = intent.action == SystemMonitorWidget.ACTION_REFRESH ||
                     intent.action == AppWidgetManager.ACTION_APPWIDGET_UPDATE ||

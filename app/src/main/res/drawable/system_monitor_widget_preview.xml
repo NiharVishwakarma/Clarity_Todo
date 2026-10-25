@@ -54,7 +54,7 @@
         android:fillColor="#FFFFFF"
         android:pathData="M20,146 H80 V156 H20 Z" />
 
-    <!-- Card 4 (App cache) -->
+    <!-- Card 4 (Screen time today) -->
     <path
         android:fillColor="#25252D"
         android:pathData="M158,122 H284 Q290,122 290,128 V176 Q290,182 284,182 H158 Q152,182 152,176 V128 Q152,122 158,122 Z" />

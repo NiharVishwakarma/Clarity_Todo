@@ -14,6 +14,46 @@ enum class StickerWidgetSize(val label: String, val minHeightDp: Int) {
     }
 }
 
+data class NoteTextStyle(
+    val color: String = "#FFFFFF",
+    val automatic: Boolean = true,
+    val fontFamily: String = WidgetFontFamily.SANS_SERIF.key,
+    val fontFileId: String? = null,
+    val sizeSp: Float = 13f,
+    val weight: Int = 400,
+    val italic: Boolean = false,
+    val alignment: String = "start",
+    val lineHeight: Float = 1.3f
+) {
+    fun sanitized() = copy(
+        color = StickerHex.normalize(color) ?: "#FFFFFF",
+        fontFamily = WidgetFontFamily.fromKey(fontFamily)?.key ?: WidgetFontFamily.SANS_SERIF.key,
+        fontFileId = fontFileId?.takeIf { it.matches(Regex("^[a-f0-9-]+\\.(ttf|otf|ttc)$")) },
+        sizeSp = sizeSp.takeIf { it.isFinite() }?.coerceIn(10f, 34f) ?: 13f,
+        weight = weight.coerceIn(300, 800),
+        alignment = alignment.takeIf { it in listOf("start", "center", "end") } ?: "start",
+        lineHeight = lineHeight.takeIf { it.isFinite() }?.coerceIn(1f, 2f) ?: 1.3f
+    )
+
+    fun toJson(): JSONObject = JSONObject().put("color", color).put("automatic", automatic)
+        .put("fontFamily", fontFamily).put("fontFileId", fontFileId ?: JSONObject.NULL)
+        .put("sizeSp", sizeSp.toDouble()).put("weight", weight).put("italic", italic)
+        .put("alignment", alignment).put("lineHeight", lineHeight.toDouble())
+
+    companion object {
+        fun fromJson(json: JSONObject?): NoteTextStyle? = json?.let {
+            NoteTextStyle(
+                color = it.optString("color", "#FFFFFF"), automatic = it.optBoolean("automatic", true),
+                fontFamily = it.optString("fontFamily", WidgetFontFamily.SANS_SERIF.key),
+                fontFileId = if (it.isNull("fontFileId")) null else it.optString("fontFileId").ifBlank { null },
+                sizeSp = it.optDouble("sizeSp", 13.0).toFloat(), weight = it.optInt("weight", 400),
+                italic = it.optBoolean("italic", false), alignment = it.optString("alignment", "start"),
+                lineHeight = it.optDouble("lineHeight", 1.3).toFloat()
+            ).sanitized()
+        }
+    }
+}
+
 /** Full look of a note. Colours are `#RRGGBB` strings so users can type, paste and copy them. */
 data class StickerStyle(
     val background: String = "#FFE680",
@@ -34,16 +74,24 @@ data class StickerStyle(
     val borderColor: String = "#000000",
     val autoContrast: Boolean = true,
     val textShadow: Boolean = false,
-    val glow: Boolean = false
+    val glow: Boolean = false,
+    val titleStyle: NoteTextStyle? = null,
+    val bodyStyle: NoteTextStyle? = null
 ) {
+    fun titleText(): NoteTextStyle = titleStyle ?: legacyText().copy(
+        sizeSp = fontSizeSp * 1.2f, weight = (fontWeight + 200).coerceAtMost(900))
+    fun bodyText(): NoteTextStyle = bodyStyle ?: legacyText()
+    private fun legacyText() = NoteTextStyle(text, autoContrast, fontFamily, fontFileId, fontSizeSp,
+        fontWeight, lineHeight = lineHeight)
+
     /** Stored values are clamped so a hand-edited or old file can never produce an unreadable sticker. */
     fun sanitized() = copy(
         background = StickerHex.normalize(background) ?: DEFAULT.background,
         text = StickerHex.normalize(text) ?: DEFAULT.text,
         fontFamily = WidgetFontFamily.fromKey(fontFamily)?.key ?: DEFAULT.fontFamily,
-        fontSizeSp = fontSizeSp.coerceIn(10f, 28f),
+        fontSizeSp = fontSizeSp.takeIf { it.isFinite() }?.coerceIn(10f, 28f) ?: DEFAULT.fontSizeSp,
         fontWeight = fontWeight.coerceIn(300, 800),
-        lineHeight = lineHeight.coerceIn(1f, 2f),
+        lineHeight = lineHeight.takeIf { it.isFinite() }?.coerceIn(1f, 2f) ?: DEFAULT.lineHeight,
         textScalePercent = textScalePercent.coerceIn(80, 150),
         cornerRadiusDp = cornerRadiusDp.coerceIn(0, 32),
         paddingDp = paddingDp.coerceIn(4, 32),
@@ -51,7 +99,9 @@ data class StickerStyle(
         opacityPercent = opacityPercent.coerceIn(30, 100),
         elevationDp = elevationDp.coerceIn(0, 16),
         borderWidthDp = borderWidthDp.coerceIn(0, 12),
-        borderColor = StickerHex.normalize(borderColor) ?: DEFAULT.borderColor
+        borderColor = StickerHex.normalize(borderColor) ?: DEFAULT.borderColor,
+        titleStyle = titleStyle?.sanitized(),
+        bodyStyle = bodyStyle?.sanitized()
     )
 
     fun toJson(): JSONObject = JSONObject().put("background", background).put("text", text)
@@ -61,6 +111,8 @@ data class StickerStyle(
         .put("elevation", elevationDp).put("widgetSize", widgetSize.name)
         .put("fontFileId", fontFileId ?: JSONObject.NULL).put("borderWidth", borderWidthDp).put("borderColor", borderColor)
         .put("autoContrast", autoContrast).put("textShadow", textShadow).put("glow", glow)
+        .put("titleStyle", titleStyle?.toJson() ?: JSONObject.NULL)
+        .put("bodyStyle", bodyStyle?.toJson() ?: JSONObject.NULL)
 
     companion object {
         val DEFAULT = StickerStyle()
@@ -87,7 +139,9 @@ data class StickerStyle(
                 // Notes saved before these options existed keep their exact look.
                 autoContrast = o.optBoolean("autoContrast", false),
                 textShadow = o.optBoolean("textShadow", false),
-                glow = o.optBoolean("glow", false)
+                glow = o.optBoolean("glow", false),
+                titleStyle = NoteTextStyle.fromJson(o.optJSONObject("titleStyle")),
+                bodyStyle = NoteTextStyle.fromJson(o.optJSONObject("bodyStyle"))
             ).sanitized()
         }
 
@@ -105,14 +159,12 @@ data class StickerStyle(
 
 /** Picks readable text for a background from its relative luminance (0 = black, 1 = white). */
 object NoteContrast {
-    const val DARK_INK = "#1A1A1A"
+    const val DARK_INK = "#000000"
     const val LIGHT_INK = "#FFFFFF"
-    // Luminance at which black and white text have equal contrast.
-    private const val SWITCH_POINT = 0.179f
 
     private fun linear(channel: Int): Float {
         val c = channel / 255f
-        return if (c <= 0.03928f) c / 12.92f else Math.pow(((c + 0.055f) / 1.055f).toDouble(), 2.4).toFloat()
+        return if (c <= 0.04045f) c / 12.92f else Math.pow(((c + 0.055f) / 1.055f).toDouble(), 2.4).toFloat()
     }
 
     fun relativeLuminance(r: Int, g: Int, b: Int): Float = 0.2126f * linear(r) + 0.7152f * linear(g) + 0.0722f * linear(b)
@@ -126,7 +178,18 @@ object NoteContrast {
     fun withFade(luminance: Float, fadePercent: Int): Float =
         luminance * Math.pow((1f - fadePercent.coerceIn(0, 100) / 100f).toDouble(), 2.2).toFloat()
 
-    fun inkFor(luminance: Float): String = if (luminance > SWITCH_POINT) DARK_INK else LIGHT_INK
+    fun ratio(first: Float, second: Float): Float =
+        (maxOf(first, second) + .05f) / (minOf(first, second) + .05f)
+
+    fun worstRatio(ink: String, backgrounds: ClosedFloatingPointRange<Float>): Float {
+        val foreground = luminance(ink)
+        return ratio(foreground, foreground.coerceIn(backgrounds.start, backgrounds.endInclusive))
+    }
+
+    fun inkFor(luminance: Float): String = recommended(luminance..luminance)
+
+    fun recommended(backgrounds: ClosedFloatingPointRange<Float>): String =
+        if (worstRatio(DARK_INK, backgrounds) > worstRatio(LIGHT_INK, backgrounds)) DARK_INK else LIGHT_INK
 }
 
 object StickerHex {

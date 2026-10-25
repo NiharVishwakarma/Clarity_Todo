@@ -161,7 +161,7 @@ class ImportedFontCatalogTest {
         val main = File("app/src/main").takeIf { it.isDirectory } ?: File("src/main")
         fun source(path: String) = File(main, "java/com/example/darktodo/$path").readText()
         listOf("data/AppTypographySettings.kt", "data/WidgetPrefs.kt", "data/CalendarWidgetPrefs.kt",
-            "data/VaultAppearance.kt", "MainActivity.kt", "ui/NoteSettings.kt", "ui/VaultAppearanceScreen.kt")
+            "data/VaultAppearance.kt", "MainActivity.kt", "ui/NoteTextAppearance.kt", "ui/VaultAppearanceScreen.kt")
             .forEach { assertTrue(it, source(it).contains(".containsId(")) }
         listOf("widget/StickerWidget.kt", "widget/TodoWidget.kt", "widget/CalendarWidget.kt",
             "widget/VaultWidget.kt").forEach { assertTrue(it, source(it).contains("LocalWidgetFonts.")) }

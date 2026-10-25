@@ -281,18 +281,23 @@ object StickerWidget {
         manager.updateAppWidget(id, responsive)
     }
 
-    private fun resolveTypeface(style: StickerStyle, weight: Int, custom: Typeface?): Typeface {
+    private fun resolveTypeface(style: com.example.darktodo.data.NoteTextStyle, weight: Int, custom: Typeface?): Typeface {
         val base = custom ?: Typeface.create(style.fontFamily, Typeface.NORMAL)
-        return if (Build.VERSION.SDK_INT >= 28) Typeface.create(base, weight.coerceIn(100, 900), false)
-        else Typeface.create(base, if (weight >= 600) Typeface.BOLD else Typeface.NORMAL)
+        return if (Build.VERSION.SDK_INT >= 28) Typeface.create(base, weight.coerceIn(100, 900), style.italic)
+        else Typeface.create(base, (if (weight >= 600) Typeface.BOLD else Typeface.NORMAL) or (if (style.italic) Typeface.ITALIC else 0))
     }
 
-    private fun layoutFor(text: String, paint: TextPaint, width: Int, lineHeight: Float, maxLines: Int = Int.MAX_VALUE): StaticLayout =
+    private fun layoutFor(text: String, paint: TextPaint, width: Int, lineHeight: Float, maxLines: Int = Int.MAX_VALUE,
+        alignment: String = "start"): StaticLayout =
         StaticLayout.Builder.obtain(text, 0, text.length, paint, width)
             .setLineSpacing(0f, lineHeight)
             .setMaxLines(maxLines)
             .setEllipsize(TextUtils.TruncateAt.END)
-            .setAlignment(Layout.Alignment.ALIGN_NORMAL)
+            .setAlignment(when (alignment) {
+                "center" -> Layout.Alignment.ALIGN_CENTER
+                "end" -> Layout.Alignment.ALIGN_OPPOSITE
+                else -> Layout.Alignment.ALIGN_NORMAL
+            })
             .build()
 
     /** Draws the whole note (card, image, border, text) so every style option renders like the in-app preview. */
@@ -355,8 +360,10 @@ object StickerWidget {
         val verticalPad = if (compact) min(pad, 8f * d) else pad
         val textWidth = (card.width() - pad * 2).toInt().coerceAtLeast(10)
         val availHeight = (card.height() - verticalPad * 2).coerceAtLeast(10f)
-        val ink = StickerHex.toArgb(style.text)
-        val baseSize = style.fontSizeSp * style.textScalePercent / 100f * d
+        val titleStyle = style.titleText()
+        val bodyStyle = style.bodyText()
+        val titleFont = if (context != null) LocalWidgetFonts.typeface(context, titleStyle.fontFileId) else custom
+        val bodyFont = if (context != null) LocalWidgetFonts.typeface(context, bodyStyle.fontFileId) else custom
 
         val startScale = when (style.widgetSize) {
             StickerWidgetSize.Small -> 0.85f
@@ -366,17 +373,18 @@ object StickerWidget {
         }
         val minScale = if (style.widgetSize == StickerWidgetSize.Auto) 0.5f else 0.6f
 
-        fun textPaint(size: Float, weight: Int) = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+        fun textPaint(text: com.example.darktodo.data.NoteTextStyle, scale: Float, font: Typeface?) = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+            val ink = StickerHex.toArgb(text.color)
             color = ink
-            textSize = size
-            typeface = resolveTypeface(style, weight, custom)
+            textSize = text.sizeSp * style.textScalePercent / 100f * d * scale
+            typeface = resolveTypeface(text, text.weight, font)
             // Glow wins when both effects are on; a paint carries a single shadow layer.
             if (style.glow) setShadowLayer(8f * d, 0f, 0f, (ink and 0x00FFFFFF) or 0xCC000000.toInt())
             else if (style.textShadow) setShadowLayer(3f * d, 1f * d, 1f * d, 0x99000000.toInt())
         }
 
         fun paints(s: Float): Pair<TextPaint, TextPaint> =
-            textPaint(baseSize * s * 1.15f, style.fontWeight + 200) to textPaint(baseSize * s, style.fontWeight)
+            textPaint(titleStyle, s, titleFont) to textPaint(bodyStyle, s, bodyFont)
 
         var s = startScale
         var head: StaticLayout? = null
@@ -384,8 +392,8 @@ object StickerWidget {
         var gap = 0f
         while (true) {
             val (hp, bp) = paints(s)
-            head = if (title.isBlank()) null else layoutFor(title, hp, textWidth, style.lineHeight, if (compact) 1 else 3)
-            body = if (content.isBlank()) null else layoutFor(content, bp, textWidth, style.lineHeight, if (compact) 1 else Int.MAX_VALUE)
+            head = if (title.isBlank()) null else layoutFor(title, hp, textWidth, titleStyle.lineHeight, if (compact) 1 else 3, titleStyle.alignment)
+            body = if (content.isBlank()) null else layoutFor(content, bp, textWidth, bodyStyle.lineHeight, if (compact) 1 else Int.MAX_VALUE, bodyStyle.alignment)
             gap = if (head != null && body != null) 4f * d else 0f
             val total = (head?.height ?: 0) + gap + (body?.height ?: 0)
             if (total <= availHeight || s <= minScale) break
@@ -399,7 +407,7 @@ object StickerWidget {
             val (_, bp) = paints(s)
             var lines = body.getLineForVertical(room.toInt().coerceAtLeast(0))
             if (body.getLineBottom(lines) > room) lines -= 1
-            body = layoutFor(content, bp, textWidth, style.lineHeight, max(1, lines + 1))
+            body = layoutFor(content, bp, textWidth, bodyStyle.lineHeight, max(1, lines + 1), bodyStyle.alignment)
         }
 
         canvas.save()

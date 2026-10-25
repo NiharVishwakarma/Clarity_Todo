@@ -24,6 +24,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -44,6 +45,9 @@ import com.example.darktodo.data.SystemMonitorAppearancePrefs
 import com.example.darktodo.data.WidgetBackgrounds
 import com.example.darktodo.data.WidgetFontFamily
 import com.example.darktodo.widget.SystemMonitorWidgetRendering
+import com.example.darktodo.monitor.ScreenTime
+import com.example.darktodo.monitor.ScreenTimeResult
+import com.example.darktodo.monitor.ScreenTimeStatus
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -216,6 +220,10 @@ private fun MonitorSlider(
 @Composable
 private fun SystemMonitorAppearancePreview(style: SystemMonitorAppearance) {
     val context = LocalContext.current
+    var screenTime by remember { mutableStateOf(ScreenTimeResult(ScreenTimeStatus.UNAVAILABLE)) }
+    LaunchedEffect(context) {
+        screenTime = withContext(Dispatchers.IO) { ScreenTime.read(context) }
+    }
     val titleBitmap = remember(style) {
         SystemMonitorWidgetRendering.text(context, "System Monitor", style.titleSizeSp, style.titleColor, style, style.titleWeight, 180f).asImageBitmap()
     }
@@ -250,8 +258,9 @@ private fun SystemMonitorAppearancePreview(style: SystemMonitorAppearance) {
                     Modifier.weight(1f).background(Color(style.cardBackgroundArgb()), cardShape).padding(8.dp)
                 ) {
                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text("App cache", color = Color(android.graphics.Color.parseColor(style.labelColor)), fontSize = style.labelSizeSp.sp)
-                        Text("128 MB", color = Color(android.graphics.Color.parseColor(style.valueColor)), fontSize = style.valueSizeSp.sp)
+                        Text("Screen time today", color = Color(android.graphics.Color.parseColor(style.labelColor)), fontSize = style.labelSizeSp.sp)
+                        Text(screenTime.value, color = Color(android.graphics.Color.parseColor(style.valueColor)), fontSize = style.valueSizeSp.sp)
+                        Text(screenTime.supporting, color = Color(android.graphics.Color.parseColor(style.secondaryColor)), fontSize = style.detailSizeSp.sp)
                     }
                 }
             }
